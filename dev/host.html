@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Dashboard harness (plays HYROS)</title>
+  <style>
+    :root { --ink: #1F1E1D; --ink-3: #8B8984; --border: rgba(31,30,29,.14); --bg: #F6F5F0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+    .layout { display: grid; grid-template-columns: 340px 1fr; height: 100vh; }
+    aside { padding: 14px; border-right: 1px solid var(--border); overflow: auto; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+    h1 { font-size: 14px; margin: 0; }
+    p.hint { margin: 0; color: var(--ink-3); font-size: 12px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+    label.row { flex-direction: row; align-items: center; gap: 6px; }
+    textarea { width: 100%; height: 90px; font: 11px ui-monospace, Menlo, monospace; }
+    input[type="number"] { width: 70px; }
+    .buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+    button { font: inherit; padding: 6px 10px; cursor: pointer; }
+    ol#log { margin: 0; padding: 0; list-style: none; font: 11px ui-monospace, Menlo, monospace; display: flex; flex-direction: column; gap: 3px; }
+    ol#log li { padding: 4px 6px; background: var(--bg); border-radius: 4px; }
+    iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <h1>Harness: plays HYROS</h1>
+      <p class="hint">Answers <code>ready</code> and <code>token-request</code> with the token below. Without a token it stays silent, like HYROS today. The token stays in this tab's memory: never stored, never logged.</p>
+      <label>Bearer token
+        <textarea id="token" spellcheck="false" autocomplete="off" placeholder="Paste a HYROS MCP access token"></textarea>
+      </label>
+      <label>MCP
+        <select id="mcp"><option value="prod">prod (mcp.hyros.com)</option><option value="qa">qa (mcp-qa.hyros.com)</option></select>
+      </label>
+      <label class="row"><input type="checkbox" id="sendExpiry"> send expiresAt, in <input type="number" id="expiryMinutes" min="1" value="15"> minutes</label>
+      <div class="buttons">
+        <button type="button" id="sendNow">Send token now</button>
+        <button type="button" id="reload">Reload dashboard</button>
+        <button type="button" id="clearLog">Clear log</button>
+      </div>
+      <ol id="log"></ol>
+    </aside>
+    <iframe id="frame" title="Custom dashboard"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+      allow="clipboard-write"
+      referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>
+  <script type="module" src="./host.js"></script>
+</body>
+</html>

@@ -1,0 +1,585 @@
+/* HYROS Custom Dashboard. The design system: tokens in :root, then the
+   component kit. UI-STYLE-GUIDE.md explains every value and the rules for
+   using them; no color may be hardcoded outside this file. Fonts and brand
+   assets are self-hosted under assets/. */
+
+@font-face {
+  font-family: "Inter";
+  src: url("assets/fonts/inter-regular.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("assets/fonts/inter-medium.woff2") format("woff2");
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("assets/fonts/inter-semibold.woff2") format("woff2");
+  font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("assets/fonts/inter-bold.woff2") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "P22 Mackinac";
+  src: url("assets/fonts/mackinac-book.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  /* Geist Mono (OFL): one variable file covers 400 and 500 */
+  font-family: "Geist Mono";
+  src: url("assets/fonts/geist-mono.woff2") format("woff2");
+  font-weight: 400 500; font-style: normal; font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+
+  /* grounds (hyros.com CL1 tokens) */
+  --bg:        #FAF9F5;  /* cream page ground */
+  --surface:   #FFFFFF;  /* windows, cards, the chrome */
+  --surface-2: #FCFBF8;  /* tiles, header rows, quiet cards */
+  --surface-3: #F6F5F0;  /* panel ground, hovers */
+  --surface-4: #EDEBE3;  /* cream2: segmented-control tracks, soft buttons, pressed */
+  --lavbg:     #EEEEFB;  /* the HYROS band: attributed columns, the active tab, highlight tile */
+  --lav:       #A5A4FA;  /* lavender data: bars, sparkline fills, Sven */
+  --border:    rgba(31,30,29,.11);  /* every hairline */
+  --border-2:  rgba(31,30,29,.18);  /* control borders */
+  --rule:      rgba(31,30,29,.06);  /* row dividers inside a window */
+
+  /* ink + text */
+  --ink:       #1F1E1D;
+  --ink-2:     #55534E;  /* secondary text, ledes */
+  --ink-3:     #8B8984;  /* mono labels, quiet text */
+
+  /* THE accent */
+  --brand:     #5150F6;  /* what HYROS attributed / changed / selected */
+  --brand-2:   #403FD4;  /* purple hover */
+
+  /* status: data cells only, never decoration */
+  --good:      #1F8A5B;
+  --bad:       #B5533A;
+  --bad-fill:  rgba(217,119,87,.16);
+  --warn:      #B0781E;
+  --warn-fill: rgba(176,120,30,.14);
+
+  /* the console */
+  --term:      #1F1E1D;
+  --term-text: rgba(245,244,239,.86);
+
+  --r-btn:   7px;   /* buttons, inputs, selects */
+  --r-tile:  10px;  /* KPI tiles, notes */
+  --r-win:   12px;  /* windows, cards, panels */
+  --radius:  var(--r-win);
+  --shadow-card: 0 12px 34px -26px rgba(31,30,29,.35);
+  --shadow-win:  0 26px 60px -34px rgba(31,30,29,.35);
+  --shadow-pop:  0 24px 50px -30px rgba(31,30,29,.4);
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --serif: "P22 Mackinac", Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--brand); }
+a:hover { color: var(--brand-2); }
+
+/* feel layer: consistent focus + press across every control */
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+input[type="checkbox"] { accent-color: var(--brand); width: 15px; height: 15px; }
+button:active:not(:disabled) { transform: translateY(0.5px); }
+button.drill:active, button.name-drill:active, .cohort-row:active { transform: none; }
+
+/* the mono label: Geist Mono 10.5px, uppercase, .1em, quiet grey (the site's .hs-k) */
+.k, .kpi-label, .kpi-range, .badge, .pill, .col-group-title, .drawer-section, .set-row label,
+.winbar span, .meta-pill, .gate-kick, .section {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 400;
+}
+
+/* `hidden` must beat every display rule: a bare `display:grid/flex` on an
+   element that also gets [hidden] silently resurrects it. */
+[hidden] { display: none !important; }
+
+/* ---------- windows (the site's .cx-win + .c1-winbar) ---------- */
+.win {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-win); overflow: hidden; box-shadow: var(--shadow-win);
+}
+.winbar {
+  position: relative; display: flex; align-items: center; gap: 7px;
+  padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.winbar i { width: 9px; height: 9px; border-radius: 50%; background: var(--surface-4); }
+.winbar span {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  font-size: 11px; letter-spacing: .02em; text-transform: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;
+}
+
+/* ---------- gate ---------- */
+.gate {
+  min-height: 100vh; display: grid; place-items: center; padding: 24px;
+}
+.gate-card { width: min(420px, 100%); padding: 0; text-align: center; }
+.gate-body { padding: 34px 30px 30px; }
+.gate-sven { width: 78px; height: auto; margin: 0 auto 18px; display: block; }
+.gate-kick { margin-bottom: 10px; color: var(--brand); }
+.gate-card h1 {
+  margin: 0 0 8px; font-family: var(--serif); font-weight: 400; font-size: 30px;
+  line-height: 1.1; letter-spacing: -0.012em;
+}
+.gate-card h1 b { font-weight: 400; color: var(--brand); }
+.gate-card p { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
+
+/* ---------- chrome ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  min-height: 56px; padding: 10px 20px; background: var(--surface);
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
+}
+.brand { display: flex; align-items: center; }
+.brand-logo { height: 20px; width: auto; display: block; }
+.brand-mark { height: 26px; width: auto; display: block; }
+/* the product word next to the logo */
+.brand-sub { font-weight: 400; color: var(--ink-2); font-size: 13px; margin-left: 8px; }
+.updated { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); white-space: nowrap; margin-right: 4px; }
+.brand-dot { display: none; }
+.meta { color: var(--ink-2); font-size: 12.5px; display: flex; align-items: center; flex-wrap: wrap; }
+.meta b { color: var(--ink); font-weight: 500; }
+.meta .warn { color: var(--warn); }
+.col-opt.off { opacity: .55; cursor: not-allowed; }
+.meta .warn summary { cursor: pointer; list-style: none; }
+.meta .warn summary::-webkit-details-marker { display: none; }
+.meta .warn summary::after { content: " ▾"; font-size: 10px; }
+.meta .warn details[open] summary::after { content: " ▴"; }
+.meta .warn ul { margin: 6px 0 0; padding-left: 16px; color: var(--ink-2); font-size: 12px; max-height: 30vh; overflow: auto; }
+.meta:has(.warn details[open]) { align-items: flex-start; }
+.meta > span { display: flex; align-items: center; }
+.meta > span + span::before { content: "·"; margin: 0 10px; color: var(--border-2); }
+/* the ::before dot would land INSIDE the pill's rounded box: space it with margin instead */
+.meta > span.meta-pill::before { content: none; }
+/* the attribution model: the site's "Model · …" mono label with its dot, purple because it is HYROS's */
+.meta-pill {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 0 0 12px;
+  font-size: 10px; letter-spacing: .06em; color: var(--brand);
+}
+.meta-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
+.spacer { margin-left: auto; }
+/* the signed-in account email */
+.acct { color: var(--ink-2); font-size: 12.5px; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 9px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--ink-2);
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .55; }
+.badge.live { color: var(--brand); border-color: rgba(81,80,246,.3); background: var(--lavbg); }
+.badge.live::before { opacity: 1; }
+
+button, .btn {
+  font: inherit; cursor: pointer; border-radius: var(--r-btn);
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  padding: 7px 14px; font-size: 13.5px; font-weight: 400; line-height: 1.25;
+  transition: background .13s, border-color .13s, color .13s;
+}
+button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-2); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+/* the ONE primary action per screen is INK (the site's .ncl-btn-dark) */
+button.primary { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
+button.primary:hover:not(:disabled) { background: #000000; border-color: #000000; }
+/* the quiet text action: underlined grey, purple on hover */
+.linkish {
+  background: none; border: 0; padding: 12px 0 0; color: var(--ink-3); font-size: 12.5px;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.linkish:hover:not(:disabled) { background: none; border: 0; color: var(--brand); }
+
+/* ---------- tabs: the app nav (the site's .mcp-dnav) ---------- */
+/* NOTE: selectors carry `.tabs button` specificity so the generic
+   `button:hover:not(:disabled)` fill can never repaint a tab. */
+.tabs {
+  display: flex; align-items: center; gap: 4px; padding: 8px 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.tabs .tab {
+  border: 0; background: none; color: var(--ink-2); padding: 5px 10px;
+  border-radius: 6px; font-size: 12.5px; font-weight: 400; white-space: nowrap;
+  transition: color .13s, background .13s;
+}
+.tabs button.tab:hover:not(:disabled) { background: var(--surface-3); border-color: transparent; color: var(--ink); }
+.tabs button.tab.active, .tabs button.tab.active:hover:not(:disabled) { color: var(--brand); background: var(--lavbg); font-weight: 500; }
+
+.panel { padding: 20px; }
+.panel[hidden] { display: none; }
+/* a section heading inside a view: a mono label with room for a count beside it */
+.section { margin: 22px 2px 10px; display: flex; gap: 10px; align-items: baseline; }
+
+/* ---------- controls ---------- */
+.controls {
+  display: flex; gap: 8px 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;
+}
+/* the segmented control (the site's .bx-tabs): a cream track, the active chip a white card */
+.chipset { display: inline-flex; background: var(--surface-4); border-radius: 8px; padding: 3px; gap: 2px; max-width: 100%; overflow-x: auto; }
+.chip {
+  border: 0; background: none; color: var(--ink-2); padding: 5px 10px; border-radius: 6px;
+  font-size: 12.5px; line-height: 1.3; white-space: nowrap;
+  transition: background .13s, color .13s, box-shadow .13s;
+}
+.chip:hover:not(:disabled) { background: rgba(255,255,255,.55); border-color: transparent; color: var(--ink); }
+.chip.active, .chip.active:hover { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(31,30,29,.08); }
+.chip:disabled { opacity: .35; }
+
+input[type="search"], select, input[type="number"] {
+  padding: 7px 12px; background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: var(--r-btn); color: var(--ink); font: inherit; font-size: 13.5px;
+}
+/* the search grows into free space but never forces the row to wrap */
+.controls input[type="search"] { flex: 1 1 150px; min-width: 130px; max-width: 250px; }
+input[type="search"]:focus, select:focus, input[type="number"]:focus {
+  outline: none; border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(81,80,246,.16);
+}
+input::placeholder { color: var(--ink-3); }
+
+/* ---------- KPI tiles (the site's .eo-kpi) ---------- */
+.kpis {
+  display: grid; gap: 10px; margin-bottom: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+/* the date range prints ONCE above the tiles, never per card */
+.kpi-range { grid-column: 1 / -1; margin: 0 2px -2px; }
+.kpi {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 12px 14px 11px; position: relative;
+}
+.kpi-label { margin-bottom: 6px; }
+.kpi-value {
+  font-family: var(--serif); font-weight: 400; font-size: 25px; line-height: 1.1;
+  letter-spacing: -0.012em; font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.kpi-sub { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-3); margin-top: 5px; }
+/* the HYROS-attributed figure: the highlight tile (the site's .eo-kpi.is-ltv) */
+.kpi.hy { background: var(--lavbg); border-color: rgba(81,80,246,.3); }
+.kpi.hy .kpi-value { color: var(--brand); }
+.good { color: var(--good); }
+.bad  { color: var(--bad); }
+
+/* ---------- table (the site's .eo-dr rows inside a window) ---------- */
+.win .table-wrap { border: 0; border-radius: 0; box-shadow: none; }
+.table-wrap {
+  border: 1px solid var(--border); border-radius: var(--r-win);
+  overflow: auto; background: var(--surface); max-height: 68vh;
+  box-shadow: var(--shadow-card);
+}
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); font-size: 13px; }
+th:first-child, td:first-child { text-align: left; }
+th.txt, td.txt { text-align: left; }
+
+thead th {
+  position: sticky; top: 0; z-index: 3; background: var(--surface-2);
+  font-family: var(--mono); font-size: 10.5px; font-weight: 400; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-3); cursor: pointer; user-select: none;
+  border-bottom: 1px solid var(--border);
+}
+thead th:hover { color: var(--ink); }
+th .arrow { opacity: .45; margin-left: 4px; font-size: 9px; }
+th.sorted { color: var(--brand); }
+th.sorted .arrow { opacity: 1; }
+
+/* Sticky name column so metrics can scroll horizontally under it. */
+th:first-child, td:first-child { position: sticky; left: 0; z-index: 2; background: var(--surface); }
+thead th:first-child { z-index: 4; background: var(--surface-2); }
+tbody tr:hover td { background: var(--surface-2); }
+tbody tr:hover td:first-child { background: var(--surface-3); }
+tbody tr:last-child td { border-bottom: 0; }
+
+/* the HYROS band: attributed columns read purple on lavender, like the site's HYROS column */
+th.hy { color: var(--brand); }
+td.hy { background: #F4F4FD; color: var(--brand); }
+tbody tr:hover td.hy { background: var(--lavbg); }
+tfoot td.hy { background: var(--lavbg); color: var(--brand); }
+td.hy button.drill { color: var(--brand); }
+
+tfoot td {
+  position: sticky; bottom: 0; background: var(--surface-2);
+  font-weight: 500; border-top: 1px solid var(--border); z-index: 3;
+}
+tfoot td:first-child { z-index: 4; background: var(--surface-2); }
+
+.name-cell { display: flex; align-items: center; gap: 8px; }
+.sub { color: var(--ink-3); font-size: 11.5px; }
+.pill {
+  display: inline-block; font-size: 10px; letter-spacing: .06em; padding: 2px 7px; border-radius: 6px;
+  background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border);
+}
+.empty { padding: 44px; text-align: center; color: var(--ink-3); font-family: var(--mono); font-size: 12px; letter-spacing: .02em; }
+.sven-load { width: 52px; height: auto; display: block; margin: 0 auto 14px; animation: sven-think 1.8s ease-in-out infinite alternate; }
+@keyframes sven-think { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .sven-load { animation: none; } }
+
+/* notes: the quiet card; errors carry the data-only terracotta */
+.note {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 11px 14px; margin-bottom: 16px;
+  font-size: 13px; color: var(--ink-2); line-height: 1.5;
+}
+.note b { color: var(--ink); font-weight: 500; }
+.note.err { background: var(--bad-fill); border-color: rgba(181,83,58,.3); color: var(--bad); }
+.note.err b { color: var(--bad); }
+
+.rowcount { font-family: var(--mono); color: var(--ink-3); font-size: 11px; letter-spacing: .04em; text-transform: none; }
+
+/* ---------- column selector ---------- */
+.col-wrap { position: relative; }
+.col-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  width: min(560px, 90vw); max-height: 60vh; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-win); box-shadow: var(--shadow-pop);
+  transition: opacity .16s ease, transform .16s ease;
+}
+@starting-style { .col-panel:not([hidden]) { opacity: 0; transform: translateY(-6px); } }
+.col-head {
+  display: flex; gap: 10px; align-items: center; padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.col-head input { flex: 1; min-width: 0; }
+.col-groups {
+  overflow-y: auto; padding: 8px 12px 14px;
+  columns: 2; column-gap: 22px;
+}
+.col-group { break-inside: avoid; margin-bottom: 12px; }
+.col-group-title { margin: 8px 0 5px; }
+.col-opt {
+  display: flex; align-items: center; gap: 7px; padding: 3px 4px;
+  font-size: 13px; color: var(--ink-2); cursor: pointer; border-radius: 6px;
+}
+.col-opt:hover { background: var(--surface-2); color: var(--ink); }
+.col-opt input { accent-color: var(--brand); }
+.col-opt.nonagg span:first-of-type { opacity: .85; }
+
+/* ---------- drill links ---------- */
+button.drill {
+  border: 0; background: none; padding: 0; font: inherit;
+  color: var(--brand); cursor: pointer; border-radius: 3px;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+  font-variant-numeric: tabular-nums; font-weight: 400;
+}
+button.drill:hover { color: var(--brand-2); background: none; border: 0; }
+
+/* ---------- drawer ---------- */
+.drawer-scrim {
+  position: fixed; inset: 0; z-index: 60; background: rgba(31,30,29,.32);
+  transition: opacity .2s ease;
+}
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 61;
+  width: min(460px, 94vw); display: flex; flex-direction: column;
+  background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: -24px 0 60px -18px rgba(31,30,29,.28);
+  transition: transform .24s cubic-bezier(.2, .7, .3, 1), opacity .2s ease;
+}
+/* entrance beats: first frame after `hidden` clears starts here (Chromium) */
+@starting-style {
+  .drawer:not([hidden]) { transform: translateX(26px); opacity: 0; }
+  .drawer-scrim:not([hidden]) { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer, .drawer-scrim, .col-panel, .chip, .tabs .tab, button, .btn { transition: none; }
+}
+.drawer-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.drawer-titles { flex: 1; min-width: 0; }
+.drawer-title { font-weight: 500; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-subtitle { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 3px; }
+.drawer-head button {
+  width: 32px; height: 32px; padding: 0; flex: none;
+  display: grid; place-items: center; font-size: 14px; line-height: 1;
+}
+.drawer-body { flex: 1; overflow-y: auto; }
+.drawer-section {
+  position: sticky; top: 0; z-index: 2;
+  padding: 12px 16px 7px; background: var(--surface);
+}
+
+/* status pills: the only green, amber and terracotta in the system, inside data only */
+.pill.stage { color: var(--good); border-color: rgba(31,138,91,.3); background: rgba(31,138,91,.07); }
+.pill.warn  { color: var(--warn); border-color: rgba(176,120,30,.3); background: var(--warn-fill); }
+.pill.fb    { color: var(--brand); border-color: rgba(81,80,246,.3); background: var(--lavbg); }
+.pill.hy    { color: var(--brand); border-color: rgba(81,80,246,.3); background: var(--lavbg); }
+
+/* cohort list */
+.cohort { display: flex; flex-direction: column; }
+.cohort-row {
+  text-align: left; border: 0; border-bottom: 1px solid var(--rule);
+  background: none; border-radius: 0; padding: 11px 16px; cursor: pointer;
+}
+.cohort-row:hover { background: var(--surface-2); border-color: var(--rule); }
+.cohort-main { display: flex; align-items: center; gap: 8px; }
+.cohort-email { font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+.cohort-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+
+/* journey timeline */
+.timeline { padding: 2px 16px 14px; }
+.tl-item {
+  display: flex; gap: 11px; padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.tl-item:last-child { border-bottom: 0; }
+.tl-icon {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 50%; font-size: 13px;
+}
+.tl-sale .tl-icon { border-color: rgba(81,80,246,.35); background: var(--lavbg); }
+.tl-body { min-width: 0; }
+.tl-head { font-size: 13px; }
+.tl-extra { color: var(--brand); font-family: var(--mono); font-size: 11.5px; margin-left: 5px; }
+.tl-sub { font-size: 11.5px; color: var(--ink-2); margin-top: 2px; }
+.tl-date { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-3); margin-top: 3px; }
+
+/* click history */
+.clicks { padding: 0 16px 20px; }
+.click-row { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.click-row:last-child { border-bottom: 0; }
+.click-page { font-size: 12px; font-family: var(--mono); word-break: break-all; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.click-sub { font-size: 11px; color: var(--ink-3); margin-top: 3px; word-break: break-all; }
+
+/* CRM sub-tab counts */
+.chip-count {
+  display: inline-block; min-width: 16px; margin-left: 5px; padding: 0 5px;
+  font-family: var(--mono); font-size: 10px; border-radius: 5px; background: rgba(31,30,29,.06);
+  color: var(--ink-2); font-variant-numeric: tabular-nums;
+}
+.chip.active .chip-count { background: var(--lavbg); color: var(--brand); }
+
+/* ---------- breadcrumbs (hierarchy drill-down) ---------- */
+.crumbs {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 5px 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+}
+.crumb {
+  border: 0; background: none; padding: 4px 9px; border-radius: 6px;
+  color: var(--brand); font-size: 12.5px; font-weight: 400;
+}
+.crumb:hover { background: var(--surface-3); border: 0; }
+.crumb.current { color: var(--brand); background: var(--lavbg); font-weight: 500; }
+.crumb.clear { margin-left: auto; color: var(--ink-3); }
+.crumb-sep { color: var(--ink-3); font-size: 12px; }
+
+/* drillable row names */
+button.name-drill {
+  border: 0; background: none; padding: 0; font: inherit; text-align: left;
+  color: var(--ink); cursor: pointer; font-weight: 500;
+}
+button.name-drill:hover { color: var(--brand); text-decoration: underline dotted; text-underline-offset: 3px; background: none; border: 0; }
+
+/* ---------- sticky horizontal scroll proxy ---------- */
+.hproxy {
+  position: fixed; bottom: 0; z-index: 45; height: 14px;
+  overflow-x: auto; overflow-y: hidden;
+  background: rgba(255,255,255,.88);
+  border-top: 1px solid var(--border);
+}
+.hproxy > div { height: 1px; }
+.hproxy::-webkit-scrollbar { height: 10px; }
+.hproxy::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 6px; }
+.hproxy::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+.hproxy::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- header drag & drop ---------- */
+thead th { -webkit-user-drag: element; }
+thead th.dragging { opacity: .45; }
+thead th.drop-target { box-shadow: inset 3px 0 0 var(--brand); }
+
+/* column panel footer */
+.col-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-top: 1px solid var(--border);
+}
+.col-foot .sub { font-size: 11.5px; }
+
+/* ---------- clipped text cells (CRM density) ---------- */
+.clip {
+  display: inline-block; max-width: var(--clipw, 170px); vertical-align: bottom;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.clip-s  { --clipw: 100px; }
+.clip-m  { --clipw: 150px; }
+.clip-l  { --clipw: 180px; }
+.clip .pill { vertical-align: 1px; }
+button.drill.clip { text-align: left; }
+
+/* denser CRM table so the whole row fits a normal browser (the CRM view puts class="dense" on its table) */
+table.dense th, table.dense td { padding: 8px 9px; font-size: 12.5px; }
+table.dense .pill { font-size: 9.5px; padding: 2px 5px; }
+
+/* ---------- attribution model selector ---------- */
+.attr-panel { width: 320px; max-height: none; padding: 6px; }
+.attr-opt {
+  display: block; width: 100%; text-align: left; border: 0; background: none;
+  padding: 10px 12px; border-radius: 8px; cursor: pointer;
+}
+.attr-opt:hover { background: var(--surface-3); border: 0; }
+.attr-opt b { display: block; font-size: 13.5px; font-weight: 500; margin-bottom: 2px; }
+.attr-opt span { display: block; font-size: 12px; color: var(--ink-2); line-height: 1.45; font-weight: 400; }
+.attr-opt.active { background: var(--lavbg); }
+.attr-opt.active b { color: var(--brand); }
+
+/* ---------- view panel kit: shared by every view (VIEWS.md) ---------- */
+.fpanel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-win); padding: 18px 20px; margin-bottom: 14px;
+  box-shadow: var(--shadow-card);
+}
+.fpanel h3 { margin: 0 0 4px; font-family: var(--serif); font-weight: 400; font-size: 19px; letter-spacing: -0.01em; }
+.fpanel .fhint { color: var(--ink-3); font-size: 12px; margin-bottom: 14px; }
+.fcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 860px) { .fcols { grid-template-columns: 1fr; } }
+.fshare { padding: 9px 0; border-bottom: 1px solid var(--rule); }
+.fshare:last-child { border-bottom: 0; }
+.fshare-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+.fshare-head b { font-family: var(--mono); font-size: 12px; font-weight: 400; color: var(--brand); }
+.fshare-bar { height: 6px; background: var(--surface-3); border-radius: 4px; overflow: hidden; margin: 6px 0 3px; }
+.fshare-bar > div { height: 100%; background: var(--lav); border-radius: 4px; }
+.jarrow { color: var(--ink-3); font-size: 11px; }
+.pill.ok { color: var(--good); border-color: rgba(31,138,91,.3); background: rgba(31,138,91,.07); }
+.pill.bad { color: var(--bad); border-color: rgba(181,83,58,.3); background: var(--bad-fill); }
+.view .kpis { margin-bottom: 14px; }
+
+/* ---------- report settings panel ---------- */
+.set-panel { width: 360px; max-height: none; }
+.set-row { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.set-row:last-of-type { border-bottom: 0; }
+.set-row select, .set-row input[type="number"] { min-width: 0; width: 100%; }
+.set-row .sub { font-size: 11.5px; }
+.set-stages { display: flex; flex-wrap: wrap; gap: 6px; }
+.set-stages .chip { border: 1px solid var(--border); background: var(--surface); }
+.set-stages .chip.active { border-color: rgba(81,80,246,.3); background: var(--lavbg); color: var(--brand); box-shadow: none; }
+.set-stages .empty { padding: 0; font-size: 12px; text-align: left; }
+
+@media (max-width: 640px) {
+  .panel { padding: 14px; }
+  .topbar { padding: 10px 14px; }
+  .tabs { padding: 8px; overflow-x: auto; }
+}

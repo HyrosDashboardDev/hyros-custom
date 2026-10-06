@@ -1,0 +1,7 @@
+dev/
+scripts/
+tests/
+docs/
+.claude/
+*.md
+src/views/_template/

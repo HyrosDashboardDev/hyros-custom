@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>HYROS Custom Dashboard</title>
+  <link rel="icon" href="./assets/brand/hyros-mark-blue.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <div id="gate" class="gate">
+    <div class="win gate-card">
+      <div class="winbar"><i></i><i></i><i></i><span>app.hyros.com &middot; custom dashboard</span></div>
+      <div class="gate-body">
+        <img class="gate-sven" src="./assets/brand/sven-lavender.svg" alt="">
+        <div class="gate-kick">HYROS</div>
+        <h1 id="gateTitle">Connecting to HYROS…</h1>
+        <p id="gateText" hidden></p>
+        <button type="button" id="gateRetry" class="primary" hidden>Try again</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+    <header class="topbar">
+      <div class="brand"><img class="brand-logo" src="./assets/brand/hyros-logo-blue.svg" alt="Hyros"><span class="brand-sub">Custom Dashboard</span></div>
+      <span class="spacer"></span>
+      <span id="acctLabel" class="acct"></span>
+      <button type="button" id="refreshBtn" class="primary">Refresh</button>
+    </header>
+    <nav class="tabs" id="tabs"></nav>
+    <main id="view" class="panel"></main>
+  </div>
+</body>
+</html>
