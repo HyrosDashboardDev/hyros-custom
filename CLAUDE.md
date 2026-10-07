@@ -84,3 +84,52 @@ HYROS speaks the whole contract but does not issue the token yet, and the
 CORS config of `/mcp` exposes no headers. Until the token lands the dashboard
 inside HYROS reaches the "did not hand over the credential" card.
 Details in `docs/PROTOCOL.md`.
+
+## GitHub access and deploys
+This repo is private, under `HyrosEngineeringAI` on GitHub, and Vercel
+deploys it: **a push to `main` is a production deploy**; any other branch
+gets a deployed preview.
+
+The user has no GitHub credentials for it and must never need any. Access
+comes from a token issued by the HYROS MCP tool
+`hyros_get_dashboard_repository_token` (your client may show it with a
+prefix). A token works for this one repository only (clone, pull, push) and
+expires one hour after it is issued.
+
+Before any command that talks to GitHub (`clone`, `fetch`, `pull`, `push`;
+local ones such as `status`, `diff` or `commit` need nothing):
+1. Get the repository name: `basename -s .git "$(git remote get-url origin)"`.
+   Before the first clone, ask the user for it; it looks like
+   `dash-<number>-<7 hex chars>`.
+2. Call `hyros_get_dashboard_repository_token` with that name. Besides the
+  token it returns `commitAuthorName` and `commitAuthorEmail`.
+3. Set them as this repository's commit author (never `--global`):
+   ```
+   git config user.name "<commitAuthorName>"
+   git config user.email "<commitAuthorEmail>"
+   ```
+4. Point `origin` at the token, then run the command:
+   ```
+   git remote set-url origin "https://x-access-token:<token>@github.com/HyrosEngineeringAI/<repo>.git"
+   git push origin <branch>
+   ```
+   First clone: `git clone "https://x-access-token:<token>@github.com/HyrosEngineeringAI/<repo>.git"`.
+
+Rules:
+- `Authentication failed`, `403` or `could not read Username` means the
+ token expired: request a new one and retry once, never with the old one.
+- Never ask the user for a GitHub username, password, token or SSH key, and
+ never switch the remote to SSH.
+- The token lives only in the `origin` URL inside `.git/config`. Never write
+ it into a tracked file, a commit message, a script or an env file, and do
+ not print it back unless the user asks.
+- Before pushing to `main`, summarize the changes and confirm the user wants
+ them in production. To check a change first, push a branch and use its
+ preview.
+- Tool not available: the HYROS MCP server is not connected. Ask the user to
+ add `https://mcp.hyros.com/mcp` as an MCP server in their client and sign
+ in with their HYROS account. Tool refused as not enabled ("Custom
+ dashboards are not enabled for this account."): the feature is off for
+ their account; they should contact HYROS support.
+- Commits are authored as the dashboard owner returned by the tool, not as the user.
+  Do not override the repository's `user.name` or `user.email`
