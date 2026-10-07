@@ -2,7 +2,10 @@
 
 A static page HYROS shows inside an iframe, one per account. HYROS hands the
 iframe a short-lived token over `postMessage`; the browser calls the HYROS MCP
-(`https://mcp.hyros.com/mcp`) directly with `Authorization: Bearer <token>`.
+directly with `Authorization: Bearer <token>`. HYROS sets `HYROS_MCP_URL` on
+the Vercel project when it provisions the dashboard, and `npm run build` bakes
+it into the page as a meta tag; `?mcp=qa|prod` is only for the local harness
+and manual deploys without the variable.
 Static files, one credential: the token HYROS hands the iframe.
 
 ## Read order

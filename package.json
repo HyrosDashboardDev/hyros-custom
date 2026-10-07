@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/devserver.mjs",
+    "build": "node build.mjs",
     "check": "node --test tests/*.test.mjs"
   }
 }

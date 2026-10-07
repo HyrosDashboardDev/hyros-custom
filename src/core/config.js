@@ -20,8 +20,18 @@ export const CONFIG = Object.freeze({
   ]),
 });
 
-/** `?mcp=qa` on the dashboard's own url selects QA; anything else is prod. */
-export function resolveMcpUrl(search = globalThis.location?.search || '') {
+/**
+ * The MCP url this page talks to. `<meta name="hyros-mcp-url">` wins: build.mjs
+ * writes it from HYROS_MCP_URL, which HYROS sets on the Vercel project when it
+ * provisions the dashboard. Without the meta, `?mcp=qa` on the dashboard's own
+ * url selects QA and anything else is prod; that only matters for the local
+ * harness and for manual deploys built without the variable.
+ */
+export function resolveMcpUrl({
+  search = globalThis.location?.search || '',
+  metaUrl = globalThis.document?.querySelector('meta[name="hyros-mcp-url"]')?.content,
+} = {}) {
+  if (metaUrl) return metaUrl;
   const env = new URLSearchParams(search).get('mcp');
   return env === 'qa' ? CONFIG.mcp.qa : CONFIG.mcp.prod;
 }

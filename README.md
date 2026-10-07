@@ -61,7 +61,14 @@ npm run check   # node:test, no dependencies
 
 ## Deploy
 
-Static files on Vercel. `vercel.json` only sets headers:
+Static files on Vercel. HYROS sets `HYROS_MCP_URL` on the Vercel project when
+it provisions the dashboard, and `npm run build` copies the site into
+`public/` with that url baked into the page as
+`<meta name="hyros-mcp-url">`, which wins over `?mcp=`. The build fails
+without the variable. `?mcp=qa|prod` only matters for the local harness and
+for manual deploys built without it.
+
+`vercel.json` only sets headers:
 `Content-Security-Policy: frame-ancestors https://app.hyros.com
 https://ui-test.hyros.com https://localhost:8080`, `X-Content-Type-Options:
 nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`.
