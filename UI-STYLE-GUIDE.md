@@ -217,8 +217,8 @@ colourways (lavender here).
   (`app.hyros.com · custom dashboard`): Sven (`.gate-sven`), a purple mono
   kicker (`.gate-kick`), a 30px serif headline (a `<b>` inside it turns
   purple), the explanation text, and the INK "Try again" when the
-  connection failed. Opened outside HYROS the same gate says "Open this
-  dashboard from HYROS".
+  connection failed. Outside HYROS, when the sign-in failed or the session
+  ended, the same gate says "Sign in with HYROS", with a button of that name.
 
 ## 7. The feel layer (micro-interactions)
 
@@ -261,7 +261,8 @@ npm run dev    # dashboard on http://localhost:4321, harness on http://localhost
 Open http://localhost:4323 (the harness, which plays HYROS), paste an MCP
 access token, and screenshot the framed dashboard at 1440x900: the gate
 while it connects, every tab, the loading state, and a view's error card.
-Opened directly, http://localhost:4321 shows the "Open this dashboard from
-HYROS" gate; that gate is part of the visual check too. The dev server
+Opened directly, http://localhost:4321 goes to the HYROS sign-in; press
+back to see the "Sign in with HYROS" gate, which is part of the visual check
+too. The dev server
 serves woff2, svg and png with their real types, so fonts and brand assets
 render exactly as in production.
