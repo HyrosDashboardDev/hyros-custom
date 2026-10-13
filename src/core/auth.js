@@ -3,11 +3,11 @@
  * postMessage (createHostProvider); at its own url the page signs in through
  * the MCP OAuth server with the read-only scope (createOAuthProvider).
  *
- * Contract v2 of the iframe side (docs/PROTOCOL.md); the theme messages are
+ * Contract v1 of the iframe side (docs/PROTOCOL.md); the theme messages are
  * in src/core/theme.js:
- *   dashboard -> host   { type: 'ready', version: 2 }                     first request
- *   dashboard -> host   { type: 'token-request', version: 2, reason }     every later request
- *   host -> dashboard   { type: 'token', version: 2, token, expiresAt? }
+ *   dashboard -> host   { type: 'ready', version: 1 }                     first request
+ *   dashboard -> host   { type: 'token-request', version: 1, reason }     every later request
+ *   host -> dashboard   { type: 'token', version: 1, token, expiresAt? }
  *
  * Tokens live only in memory, inside createAuth and the OAuth provider. They
  * are never written to storage, a cookie, the url or a log line.
@@ -15,7 +15,7 @@
 import { CONFIG } from './config.js';
 
 /** Version of the message contract with HYROS. Messages at any other version are ignored. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 1;
 /** How long to wait for the host to answer one request. */
 export const TOKEN_TIMEOUT_MS = 10000;
 /** A token with an `expiresAt` is renewed this long before it expires. */

@@ -64,27 +64,26 @@ test('the first request posts ready once per allowed origin, with that origin as
   const got = auth.getToken('initial');
   assert.deepEqual(win.posted.map((p) => p.targetOrigin), ORIGINS);
   for (const { data } of win.posted) {
-    assert.deepEqual(data, { type: 'ready', version: 2 });
+    assert.deepEqual(data, { type: 'ready', version: 1 });
     assert.equal(typeof data.version, 'number');
     assert.equal('source' in data, false);
   }
-  sendToken({ type: 'token', version: 2, token: 't1' });
+  sendToken({ type: 'token', version: 1, token: 't1' });
   assert.equal(await got, 't1');
 });
 
-test('tokens from an unlisted origin, another window, a string version, the v1 contract or without a token are ignored', async () => {
+test('tokens from an unlisted origin, another window, a string version or without a token are ignored', async () => {
   const { auth, sendToken, clock } = setup();
   const got = auth.getToken('initial');
-  sendToken({ type: 'token', version: 2, token: 'evil' }, { origin: 'https://evil.example' });
-  sendToken({ type: 'token', version: 2, token: 'evil' }, { source: {} });
-  sendToken({ type: 'token', version: '2', token: 'evil' });
-  sendToken({ type: 'token', version: 1, token: 'old' });
-  sendToken({ type: 'token', version: 2 });
-  sendToken({ type: 'token', version: 2, token: '' });
+  sendToken({ type: 'token', version: 1, token: 'evil' }, { origin: 'https://evil.example' });
+  sendToken({ type: 'token', version: 1, token: 'evil' }, { source: {} });
+  sendToken({ type: 'token', version: '1', token: 'evil' });
+  sendToken({ type: 'token', version: 1 });
+  sendToken({ type: 'token', version: 1, token: '' });
   sendToken('token');
   await flush();
   assert.equal(auth.state(), 'waiting');
-  sendToken({ type: 'token', version: 2, token: 'good' });
+  sendToken({ type: 'token', version: 1, token: 'good' });
   assert.equal(await got, 'good');
   assert.equal(clock.pending(), 0);
 });
@@ -92,7 +91,7 @@ test('tokens from an unlisted origin, another window, a string version, the v1 c
 test('a token without expiresAt schedules no renewal and is reused', async () => {
   const { win, auth, sendToken, clock } = setup();
   const got = auth.getToken('initial');
-  sendToken({ type: 'token', version: 2, token: 't1' });
+  sendToken({ type: 'token', version: 1, token: 't1' });
   await got;
   assert.equal(clock.pending(), 0);
   assert.equal(await auth.getToken(), 't1');
@@ -103,7 +102,7 @@ test('a token without expiresAt schedules no renewal and is reused', async () =>
 test('a token with expiresAt is renewed in the background 2 min before it expires', async () => {
   const { win, auth, sendToken, clock } = setup();
   const got = auth.getToken('initial');
-  sendToken({ type: 'token', version: 2, token: 't1', expiresAt: clock.now() + 5 * 60_000 });
+  sendToken({ type: 'token', version: 1, token: 't1', expiresAt: clock.now() + 5 * 60_000 });
   await got;
   assert.equal(clock.pending(), 1);
 
@@ -114,9 +113,9 @@ test('a token with expiresAt is renewed in the background 2 min before it expire
   assert.equal(win.posted.length, 0);
   await clock.advance(1);
   assert.equal(win.posted.length, ORIGINS.length);
-  assert.deepEqual(win.posted[0].data, { type: 'token-request', version: 2, reason: 'expiring' });
+  assert.deepEqual(win.posted[0].data, { type: 'token-request', version: 1, reason: 'expiring' });
 
-  sendToken({ type: 'token', version: 2, token: 't2', expiresAt: clock.now() + 15 * 60_000 });
+  sendToken({ type: 'token', version: 1, token: 't2', expiresAt: clock.now() + 15 * 60_000 });
   await flush();
   assert.equal(await auth.getToken(), 't2');
   assert.equal(auth.state(), 'ready');
@@ -126,7 +125,7 @@ test('a token with expiresAt is renewed in the background 2 min before it expire
 test('an expiresAt in the past or not a number is treated as absent', async () => {
   const { auth, sendToken, clock } = setup();
   const got = auth.getToken('initial');
-  sendToken({ type: 'token', version: 2, token: 't1', expiresAt: clock.now() - 1 });
+  sendToken({ type: 'token', version: 1, token: 't1', expiresAt: clock.now() - 1 });
   await got;
   assert.equal(clock.pending(), 0);
   assert.equal(await auth.getToken(), 't1');
@@ -135,7 +134,7 @@ test('an expiresAt in the past or not a number is treated as absent', async () =
 test('markInvalid then getToken(unauthorized) posts a token-request with that reason', async () => {
   const { win, auth, sendToken } = setup();
   const first = auth.getToken('initial');
-  sendToken({ type: 'token', version: 2, token: 't1' });
+  sendToken({ type: 'token', version: 1, token: 't1' });
   await first;
 
   auth.markInvalid('other');
@@ -144,8 +143,8 @@ test('markInvalid then getToken(unauthorized) posts a token-request with that re
   win.posted.length = 0;
   auth.markInvalid('t1');
   const second = auth.getToken('unauthorized');
-  assert.deepEqual(win.posted[0].data, { type: 'token-request', version: 2, reason: 'unauthorized' });
-  sendToken({ type: 'token', version: 2, token: 't2' });
+  assert.deepEqual(win.posted[0].data, { type: 'token-request', version: 1, reason: 'unauthorized' });
+  sendToken({ type: 'token', version: 1, token: 't2' });
   assert.equal(await second, 't2');
 });
 
@@ -160,8 +159,8 @@ test('no answer within 10 s rejects NO_TOKEN and leaves state missing; retry ask
 
   win.posted.length = 0;
   const retry = auth.getToken('retry');
-  assert.deepEqual(win.posted[0].data, { type: 'token-request', version: 2, reason: 'retry' });
-  sendToken({ type: 'token', version: 2, token: 't1' });
+  assert.deepEqual(win.posted[0].data, { type: 'token-request', version: 1, reason: 'retry' });
+  sendToken({ type: 'token', version: 1, token: 't1' });
   assert.equal(await retry, 't1');
   assert.equal(auth.state(), 'ready');
 });
@@ -171,7 +170,7 @@ test('concurrent requests share one round trip', async () => {
   const a = auth.getToken('initial');
   const b = auth.getToken('initial');
   assert.equal(win.posted.length, ORIGINS.length);
-  sendToken({ type: 'token', version: 2, token: 't1' });
+  sendToken({ type: 'token', version: 1, token: 't1' });
   assert.deepEqual(await Promise.all([a, b]), ['t1', 't1']);
 });
 
