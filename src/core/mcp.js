@@ -3,18 +3,18 @@
  *
  * The server runs Spring AI's STATELESS transport on `/mcp`: every call is a
  * self-contained JSON-RPC POST, no session to hold open. Auth is
- * `Authorization: Bearer <token>`, the short-lived token HYROS hands the
- * iframe (auth.js). The token defines the account; nothing else selects it.
+ * `Authorization: Bearer <token>`, the short-lived token from auth.js (handed
+ * over by HYROS or from the HYROS sign-in). The token defines the account;
+ * nothing else selects it.
  *
  * Transport errors, as McpError codes:
- *   401  token rejected        -> drop it, ask the host for a new one, retry once; then 'auth'
+ *   401  token rejected        -> drop it, ask auth.js for a new one, retry once; then 'auth'
  *   403  account or role       -> 'forbidden'
- *   429  per-account limit     -> wait 1 s, then 2 s, then 'rate_limited'. The CORS
- *                                 config of /mcp exposes no headers, so the browser
- *                                 cannot read Retry-After: the waits are fixed.
+ *   429  per-account limit     -> wait Retry-After (1 s, then 2 s without it), at most
+ *                                 twice; then 'rate_limited'
  *   abort after timeoutMs      -> 'timeout'
  *   tool outside READ_TOOLS    -> 'not_allowed', before any request
- *   not configured / no token  -> 'NO_TOKEN'
+ *   not configured / no token  -> 'NO_TOKEN', or 'SIGN_IN' when the user has to sign in
  *
  * Two identical calls in flight share one request: the MCP rejects the second
  * with "Already processing a request for id ...".
@@ -54,7 +54,7 @@ export const READ_TOOLS = Object.freeze([
 ]);
 const READ_TOOL_SET = new Set(READ_TOOLS);
 
-/** Waits before the first and second retry of a 429. */
+/** Waits before the first and second retry of a 429 that carries no Retry-After. */
 export const RATE_LIMIT_WAITS_MS = Object.freeze([1000, 2000]);
 const RATE_LIMIT_TEXT = /request limit|rate limit|too many requests/i;
 const DEFAULT_TIMEOUT_MS = 25000;
@@ -71,6 +71,16 @@ export function configure({ url, getToken, markInvalid, rateLimitWaitsMs = RATE_
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Retry-After (seconds or an HTTP date) in ms, or null. */
+export function parseRetryAfter(value, now = Date.now()) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  if (/^\d+$/.test(text)) return Number(text) * 1000;
+  if (!/[a-z]/i.test(text)) return null;
+  const at = Date.parse(text);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
 
 let _id = 0;
 const inFlight = new Map();
@@ -120,7 +130,7 @@ async function readRpcBody(res) {
 
 /**
  * One HTTP round trip. Returns `{ result }`, `{ unauthorized }` for a 401 or
- * `{ rateLimited, message }` for a 429; anything else that failed throws.
+ * `{ rateLimited, message, retryAfterMs }` for a 429; anything else that failed throws.
  */
 async function attempt(method, params, token, timeoutMs) {
   const ctrl = new AbortController();
@@ -142,7 +152,8 @@ async function attempt(method, params, token, timeoutMs) {
       return { unauthorized: true, message: errorText(await res.text()) };
     }
     if (res.status === 429) {
-      return { rateLimited: true, message: errorText(await res.text()) || 'You have reached the MCP request limit' };
+      const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
+      return { rateLimited: true, retryAfterMs, message: errorText(await res.text()) || 'You have reached the MCP request limit' };
     }
     if (res.status === 403) {
       const text = errorText(await res.text());
@@ -168,12 +179,12 @@ async function attempt(method, params, token, timeoutMs) {
   }
 }
 
-/** A token from auth.js; a NO_TOKEN rejection keeps its code, anything else becomes one. */
+/** A token from auth.js; a NO_TOKEN or SIGN_IN rejection keeps its code, anything else becomes NO_TOKEN. */
 async function tokenFor(reason) {
   try {
     return await cfg.getToken(reason);
   } catch (err) {
-    if (err?.code === 'NO_TOKEN') throw err;
+    if (err?.code === 'NO_TOKEN' || err?.code === 'SIGN_IN') throw err;
     throw new McpError(err?.message || 'No dashboard credential', null, 'NO_TOKEN');
   }
 }
@@ -199,10 +210,10 @@ async function send(method, params, timeoutMs) {
     }
 
     if (out.rateLimited) {
-      if (limited >= cfg.rateLimitWaitsMs.length) {
-        throw new McpError(`MCP rate limit (HTTP 429): ${out.message}`, { retries: limited }, 'rate_limited');
+      const wait = out.retryAfterMs ?? cfg.rateLimitWaitsMs[limited];
+      if (limited >= cfg.rateLimitWaitsMs.length || wait > timeoutMs - (Date.now() - started)) {
+        throw new McpError(`MCP rate limit (HTTP 429): ${out.message}`, { retries: limited, retryAfterMs: out.retryAfterMs ?? null }, 'rate_limited');
       }
-      const wait = Math.min(cfg.rateLimitWaitsMs[limited], timeoutMs - (Date.now() - started));
       limited += 1;
       if (wait > 0) await sleep(wait);
       continue;

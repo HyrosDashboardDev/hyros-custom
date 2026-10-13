@@ -1,7 +1,15 @@
-# postMessage contract, version 1
+# How the dashboard gets its credential
 
-HYROS (the host) embeds the dashboard in an iframe and hands it the token
-over `postMessage`, so the token never travels in a url.
+Two ways, picked when the page loads (`src/app.js`):
+
+- **Inside HYROS** (the page runs in a frame): the `postMessage` contract
+  below. HYROS (the host) hands the token over, so it never travels in a url.
+- **At its own url**: the HYROS sign-in, at the end of this document.
+
+Either way the credential is the same kind: read-only, accepted at `/mcp`
+only, held in memory.
+
+# postMessage contract, version 1
 
 ## Messages
 
@@ -62,7 +70,56 @@ expected until HYROS issues a token.
 
 - A `getCustomDashboardToken()` that returns a real short-lived token with
   read-only scope, accepted only by `/mcp`, and its expiry as `expiresAt`.
-- `exposedHeaders: Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining,
-  X-RateLimit-Reset` in the CORS config of `/mcp`. Until then the dashboard
-  cannot read `Retry-After` and waits a fixed 1 s, then 2 s, on a 429.
 - `allow-downloads` in the sandbox, only if a future view exports files.
+
+# The HYROS sign-in (the dashboard at its own url)
+
+The dashboard signs in through the HYROS MCP OAuth server, the one MCP
+clients such as Claude Code use: authorization code with PKCE, as a public
+client (no secret). `src/core/auth.js`, `createOAuthProvider`.
+
+| | |
+|---|---|
+| OAuth server | the origin of the MCP url (`https://mcp.hyros.com` for `https://mcp.hyros.com/mcp`) |
+| Registration | `POST /connect/register` once per page url and server; the `client_id` is kept in `localStorage` |
+| Sign-in | `GET /oauth2/authorize`, `scope=mcp:read`, `code_challenge_method=S256` |
+| Tokens | `POST /oauth2/token`: the code for an access and a refresh token, later the refresh token for new ones |
+| Redirect uri | the page url, keeping only `?mcp=` from the query |
+
+## Dashboard rules
+
+- Opened without `?code=`, the page goes straight to the HYROS sign-in. It
+  shows a "Sign in with HYROS" button instead when the sign-in failed, the
+  session ended, or the user came back from the sign-in page without
+  finishing, so it never loops. `?code=` and `?error=` leave the address bar
+  (`history.replaceState`) as soon as the page reads them.
+- `state` and the PKCE verifier wait in `sessionStorage` while the user is on
+  the HYROS sign-in page, and are removed when HYROS redirects back. A code
+  whose `state` does not match is refused without calling HYROS.
+- The access and the refresh token live in memory only. A new page load signs
+  in again.
+- A token response whose `scope` lacks `mcp:read` is refused: the dashboard
+  never holds more than read access.
+- With `expires_in` the token is renewed 2 minutes before it expires, in the
+  background. HYROS rotates the refresh token on every use, so the newest one
+  is always the one sent, and concurrent requests share one refresh.
+- `invalid_grant` (the session was revoked, expired or the refresh token was
+  used) and any other OAuth error drop the session and show "Sign in with
+  HYROS" again. `invalid_client` also forgets the `client_id`.
+- A sign-in that started in this tab and never came back forgets the
+  `client_id`, so the next attempt registers again: HYROS shows its own error
+  page, instead of redirecting back, for a `client_id` it does not know.
+
+## What HYROS does (HMCP-375)
+
+- Grants `mcp:read` to every dynamically registered client. A token granted
+  it is issued as a custom dashboard credential: read-only and accepted at
+  `/mcp` only, on refresh too.
+- CORS on the OAuth endpoints for any origin, without credentials.
+- `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
+  `X-RateLimit-Reset` exposed to the browser. The dashboard waits what
+  `Retry-After` says on a 429.
+- Revoking the session in HYROS cuts the dashboard off: `/mcp` answers 401
+  and the refresh answers `invalid_grant`.
+- No consent screen yet: HYROS signs a user with a live session in without
+  asking. Tracked as its own card.
