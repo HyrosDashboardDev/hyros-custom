@@ -1,7 +1,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startMock, mock, calls } from '../scripts/mock-mcp.mjs';
-import { configure, callTool, callToolPagedInfo, listTools, RATE_LIMIT_WAITS_MS } from '../src/core/mcp.js';
+import { configure, callTool, callToolPagedInfo, listTools, parseRetryAfter, RATE_LIMIT_WAITS_MS } from '../src/core/mcp.js';
 
 let server;
 let url;
@@ -108,14 +108,51 @@ test('a NO_TOKEN from the token source keeps its code', async () => {
   assert.equal(calls.length, 0);
 });
 
-test('429 three times: fixed waits, three attempts, then rate_limited with the server text', async () => {
+test('429 three times without Retry-After: fixed waits, three attempts, then rate_limited with the server text', async () => {
   wire();
-  mock.failNext({ status: 429, times: 3, retryAfter: 60, body: { error: 'You have reached the request limit' } });
-  const started = Date.now();
-  await assert.rejects(callTool('hyros_get_user_info'), (err) => err.code === 'rate_limited' && /request limit/.test(err.message));
+  mock.failNext({ status: 429, times: 3, body: { error: 'You have reached the request limit' } });
+  await assert.rejects(callTool('hyros_get_user_info'), (err) => err.code === 'rate_limited' && /request limit/.test(err.message) && err.detail.retryAfterMs === null);
   assert.equal(calls.length, 3);
-  assert.ok(Date.now() - started < 5000, 'Retry-After: 60 was not honored');
   assert.deepEqual([...RATE_LIMIT_WAITS_MS], [1000, 2000]);
+});
+
+test('429 with a short Retry-After waits that long instead of the fixed wait', async () => {
+  wire({ rateLimitWaitsMs: [5000, 5000] });
+  mock.failNext({ status: 429, retryAfter: 0, body: { error: 'You have reached the request limit' } });
+  const started = Date.now();
+  const stages = await callTool('hyros_get_stages', { request: {} });
+  assert.equal(stages.result.length, 2);
+  assert.equal(calls.length, 2);
+  assert.ok(Date.now() - started < 4000, 'the fixed 5 s wait was used instead of Retry-After: 0');
+});
+
+test('429 with a Retry-After longer than the time left fails at once with how long to wait', async () => {
+  wire();
+  mock.failNext({ status: 429, retryAfter: 60, body: { error: 'You have reached the request limit' } });
+  const started = Date.now();
+  await assert.rejects(callTool('hyros_get_user_info'), (err) => err.code === 'rate_limited' && err.detail.retryAfterMs === 60000);
+  assert.equal(calls.length, 1);
+  assert.ok(Date.now() - started < 2000, 'waited for a Retry-After past the call timeout');
+});
+
+test('parseRetryAfter reads seconds and HTTP dates, and ignores anything else', () => {
+  const now = Date.parse('2026-10-08T12:00:00Z');
+  assert.equal(parseRetryAfter('7', now), 7000);
+  assert.equal(parseRetryAfter('Thu, 08 Oct 2026 12:00:30 GMT', now), 30000);
+  assert.equal(parseRetryAfter('Thu, 08 Oct 2026 11:59:00 GMT', now), 0);
+  assert.equal(parseRetryAfter(null, now), null);
+  assert.equal(parseRetryAfter('soon', now), null);
+  assert.equal(parseRetryAfter('-5', now), null);
+});
+
+test('a SIGN_IN from the token source keeps its code', async () => {
+  configure({
+    url,
+    getToken: async () => { throw Object.assign(new Error('Sign in with your HYROS account'), { code: 'SIGN_IN' }); },
+    markInvalid: () => {},
+  });
+  await assert.rejects(callTool('hyros_get_user_info'), (err) => err.code === 'SIGN_IN');
+  assert.equal(calls.length, 0);
 });
 
 test('429 once then success returns the result', async () => {

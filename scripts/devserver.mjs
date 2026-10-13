@@ -66,5 +66,5 @@ await serve({
   headers: { 'x-content-type-options': 'nosniff' },
 });
 
-console.log(`dashboard  http://localhost:${DASHBOARD_PORT}   (direct: shows "Open this dashboard from HYROS")`);
+console.log(`dashboard  http://localhost:${DASHBOARD_PORT}   (direct: HYROS sign-in, ?mcp=qa for QA)`);
 console.log(`harness    http://localhost:${HOST_PORT}   (plays HYROS: paste a token, it answers ready and token-request)`);

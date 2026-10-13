@@ -1,11 +1,11 @@
 /**
  * The shell: wires auth, the MCP client and the data API, decides between the
- * "open from HYROS" card, the connecting/failed gate and the app, and runs the
- * tabs listed in views/registry.js.
+ * sign-in card, the connecting/failed gate and the app, and runs the tabs
+ * listed in views/registry.js.
  */
-import { createAuth, createHostProvider } from './core/auth.js';
+import { createAuth, createHostProvider, createOAuthProvider } from './core/auth.js';
 import * as mcp from './core/mcp.js';
-import { resolveMcpUrl } from './core/config.js';
+import { resolveAuthServer, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
 import { VIEW_LOAD_MS } from './core/budget.js';
 import { createData } from './data/data.js';
 import { $, esc, card, kpis } from './ui/dom.js';
@@ -19,13 +19,20 @@ const COPY = {
   rate_limited: 'HYROS is rate limiting this account. Wait a minute and press Refresh.',
   timeout: 'HYROS took too long to answer. Press Refresh again.',
 };
+const SIGN_IN_TEXT = 'Sign in with your HYROS account to see this dashboard. It can only read your data.';
 
 /** What to tell the user about a failed call. `not_allowed` and unknown errors show their own message. */
 function failureCopy(err) {
+  const retryAfterMs = err?.detail?.retryAfterMs;
+  if (err?.code === 'rate_limited' && retryAfterMs > 0) {
+    return `HYROS is rate limiting this account. Wait ${Math.ceil(retryAfterMs / 1000)} s and press Refresh.`;
+  }
   if (err?.code && COPY[err.code]) return COPY[err.code];
   return err?.message || 'Something went wrong talking to HYROS.';
 }
 
+/** Null inside HYROS. */
+let oauth = null;
 let auth;
 let data;
 /** id -> Promise<view>, imported once per page load. */
@@ -36,13 +43,30 @@ let active = null;
 /** Bumped on every render so a slow render never repaints the header state of a newer one. */
 let generation = 0;
 
-function showGate({ title, text = '', retry = false }) {
+function showGate({ title, text = '', retry = false, signIn = false }) {
   $('#app').hidden = true;
   $('#gate').hidden = false;
   $('#gateTitle').textContent = title;
   $('#gateText').textContent = text;
   $('#gateText').hidden = !text;
   $('#gateRetry').hidden = !retry;
+  $('#gateSignIn').hidden = !signIn;
+}
+
+const needsSignIn = (err) => Boolean(oauth) && (err?.code === 'SIGN_IN' || err?.code === 'auth');
+
+function showSignIn(err) {
+  const text = err?.code === 'SIGN_IN' && err.message ? err.message : SIGN_IN_TEXT;
+  showGate({ title: 'Sign in with HYROS', text, signIn: true });
+}
+
+async function signIn() {
+  showGate({ title: 'Signing in with HYROS…' });
+  try {
+    await oauth.signIn();
+  } catch (err) {
+    showGate({ title: 'Could not start the HYROS sign-in', text: err?.message || 'Something went wrong talking to HYROS.', signIn: true });
+  }
 }
 
 function setBusy(busy) {
@@ -93,6 +117,10 @@ async function show(id) {
     const view = await loadView(id);
     await withTimeout(Promise.resolve(view.render({ root, data, fmt, esc, kpis, now: data.now })), VIEW_LOAD_MS);
   } catch (err) {
+    if (needsSignIn(err)) {
+      showSignIn(err);
+      return;
+    }
     root.innerHTML = `${card({ title: 'This view could not load.', body: esc(failureCopy(err)), kind: 'err' })}
       <button type="button" data-retry>Retry</button>`;
     root.querySelector('[data-retry]').addEventListener('click', () => show(id));
@@ -123,6 +151,10 @@ async function connect(reason) {
     const account = await data.account();
     await enterApp(account);
   } catch (err) {
+    if (needsSignIn(err)) {
+      showSignIn(err);
+      return;
+    }
     showGate({ title: 'Could not connect to HYROS', text: failureCopy(err), retry: true });
   }
 }
@@ -134,21 +166,35 @@ function refresh() {
 }
 
 function boot() {
-  auth = createAuth({ provider: createHostProvider() });
-  mcp.configure({ url: resolveMcpUrl(), getToken: auth.getToken, markInvalid: auth.markInvalid });
+  const mcpUrl = resolveMcpUrl();
+  const host = createHostProvider();
+  if (!host.isAvailable()) {
+    host.dispose();
+    oauth = createOAuthProvider({ authServer: resolveAuthServer(mcpUrl), redirectUri: resolveRedirectUri() });
+  }
+  auth = createAuth({ provider: oauth || host });
+  mcp.configure({ url: mcpUrl, getToken: auth.getToken, markInvalid: auth.markInvalid });
   data = createData({ mcp });
 
-  if (!auth.isEmbedded()) {
-    showGate({ title: 'Open this dashboard from HYROS', text: 'Open this dashboard from HYROS to see your account.' });
-    return;
-  }
-
   $('#gateRetry').addEventListener('click', () => connect('retry'));
+  $('#gateSignIn').addEventListener('click', signIn);
   $('#refreshBtn').addEventListener('click', refresh);
   $('#tabs').addEventListener('click', (event) => {
     const tab = event.target.closest('.tab');
     if (tab && tab.dataset.id !== active) show(tab.dataset.id);
   });
+
+  // Back from the HYROS sign-in page, the browser may restore this page as it was left: "Signing in…".
+  window.addEventListener('pageshow', (event) => {
+    if (oauth && event.persisted && !$('#gate').hidden) showSignIn();
+  });
+
+  // Redirect straight to the sign-in, unless the user just came back from it without finishing.
+  if (oauth && !oauth.hasCallback()) {
+    if (oauth.wasAbandoned()) showSignIn();
+    else signIn();
+    return;
+  }
   connect();
 }
 

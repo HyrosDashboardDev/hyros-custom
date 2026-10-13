@@ -1,12 +1,14 @@
 # HYROS Custom Dashboard
 
-A static page HYROS shows inside an iframe, one per account. HYROS hands the
-iframe a short-lived token over `postMessage`; the browser calls the HYROS MCP
-directly with `Authorization: Bearer <token>`. HYROS sets `HYROS_MCP_URL` on
-the Vercel project when it provisions the dashboard, and `npm run build` bakes
-it into the page as a meta tag; `?mcp=qa|prod` is only for the local harness
-and manual deploys without the variable.
-Static files, one credential: the token HYROS hands the iframe.
+A static page, one per account. Inside HYROS (an iframe) HYROS hands it a
+short-lived token over `postMessage`. Opened at its own url it signs in with
+the HYROS account through the MCP OAuth server (authorization code with PKCE,
+scope `mcp:read`). Either way the browser calls the HYROS MCP directly with
+`Authorization: Bearer <token>` and the credential is read-only. HYROS sets
+`HYROS_MCP_URL` on the Vercel project when it provisions the dashboard, and
+`npm run build` bakes it into the page as a meta tag; `?mcp=qa|prod` is only
+for local runs and manual deploys without the variable.
+Static files, no API key, no secret: the only credential is the token.
 
 ## Read order
 
@@ -16,7 +18,8 @@ Static files, one credential: the token HYROS hands the iframe.
    any visual change; never invent colors or fonts.
 3. `docs/RECIPES.md`: the data of each view (which tools, which arguments,
    how to shape the rows).
-4. `docs/PROTOCOL.md`: the `postMessage` contract with HYROS (the host).
+4. `docs/PROTOCOL.md`: how the dashboard gets its credential (the
+   `postMessage` contract with HYROS, and the HYROS sign-in).
 
 ## Rules
 
@@ -26,8 +29,10 @@ Static files, one credential: the token HYROS hands the iframe.
   `src/core/mcp.js`, `src/core/auth.js` or `src/core/config.js` and never calls
   `fetch`. Need a tool the data API has no getter for? `ctx.data.call`,
   `ctx.data.paged` or `ctx.data.pagedInfo`.
-- **The token is never stored or logged.** Not in `localStorage`, a cookie,
-  the url, `console.*` or an error message.
+- **Tokens are never stored or logged.** Not in `localStorage`, a cookie,
+  the url, `console.*` or an error message. The sign-in keeps only its client
+  id in `localStorage` and, while the user is on the HYROS sign-in page, its
+  state and PKCE verifier in `sessionStorage`.
 - **Read tools only.** `READ_TOOLS` in `src/core/mcp.js` is the list; anything
   else fails with `not_allowed` before a request is made.
 - **What the HYROS iframe sandbox blocks:** no `alert`, `confirm` or `prompt`
@@ -72,21 +77,14 @@ npm run dev     # dashboard on http://localhost:4321, harness on http://localhos
 ```
 
 The harness plays HYROS: paste an MCP access token, it answers the
-dashboard's `ready` and `token-request`. Opened directly, the dashboard only
-shows "Open this dashboard from HYROS".
+dashboard's `ready` and `token-request`. Opened directly, the dashboard goes
+to the HYROS sign-in of production (`?mcp=qa` for QA).
 
 ## Where things are
 
 - `docs/RECIPES.md`: how to build the Report, CRM, Drill, Scale and Health
   views on this dashboard: which tools to call and how to shape the rows.
-- `docs/PROTOCOL.md`: the `postMessage` contract and what HYROS still lacks.
-
-## Missing on the HYROS side
-
-HYROS speaks the whole contract but does not issue the token yet, and the
-CORS config of `/mcp` exposes no headers. Until the token lands the dashboard
-inside HYROS reaches the "did not hand over the credential" card.
-Details in `docs/PROTOCOL.md`.
+- `docs/PROTOCOL.md`: the `postMessage` contract and the HYROS sign-in.
 
 ## GitHub access and deploys
 This repo is private, under `HyrosEngineeringAI` on GitHub, and Vercel

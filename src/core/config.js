@@ -1,6 +1,7 @@
 /**
  * Static configuration. Nothing here is a secret: the credential arrives at
- * runtime from the HYROS page that embeds this dashboard (see auth.js).
+ * runtime, from the HYROS page that embeds this dashboard or from the HYROS
+ * sign-in (see auth.js).
  */
 export const CONFIG = Object.freeze({
   mcp: Object.freeze({
@@ -34,4 +35,20 @@ export function resolveMcpUrl({
   if (metaUrl) return metaUrl;
   const env = new URLSearchParams(search).get('mcp');
   return env === 'qa' ? CONFIG.mcp.qa : CONFIG.mcp.prod;
+}
+
+/** The MCP server is also the OAuth server the dashboard signs in with. */
+export function resolveAuthServer(mcpUrl) {
+  return new URL(mcpUrl).origin;
+}
+
+/** This page, keeping only `?mcp=` so a QA sign-in comes back to QA. HYROS matches it exactly. */
+export function resolveRedirectUri({
+  origin = globalThis.location?.origin,
+  pathname = globalThis.location?.pathname || '/',
+  search = globalThis.location?.search || '',
+} = {}) {
+  const mcp = new URLSearchParams(search).get('mcp');
+  const query = mcp ? `?${new URLSearchParams({ mcp })}` : '';
+  return `${origin}${pathname}${query}`;
 }
