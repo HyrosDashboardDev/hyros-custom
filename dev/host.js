@@ -2,13 +2,13 @@
  * The harness side of the postMessage contract, mirroring what HYROS does in
  * customDashboardChannel.ts, plus the parts HYROS does not do yet
  * (token-request, expiresAt). Messages are accepted only from the dashboard
- * origin, from the iframe's own window and at protocol version 2. `ready` is
+ * origin, from the iframe's own window and at protocol version 1. `ready` is
  * answered with the theme, then the token; the theme is posted again on every
  * change of the selector, like HYROS does when its user switches theme. The
  * token is posted to that exact origin, never to '*'.
  */
 const DASHBOARD_ORIGIN = 'http://localhost:4321';
-const PROTOCOL_VERSION = 2;
+const PROTOCOL_VERSION = 1;
 
 const $ = (id) => document.getElementById(id);
 const frame = $('frame');

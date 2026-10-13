@@ -86,33 +86,33 @@ test('embedded: the page stays pending until HYROS posts the theme, then shows i
   const { timers, win, html, receiver, sendTheme } = setup();
   assert.equal(html.hasAttribute('data-theme-pending'), true);
 
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' });
   assert.equal(html.getAttribute('data-theme'), 'dark');
   assert.equal(html.hasAttribute('data-theme-pending'), false);
   assert.equal(receiver.current(), 'dark');
   assert.equal(timers.pending(), 0, 'the fallback timer is cleared');
-  assert.deepEqual(win.posted, [{ data: { type: 'theme-applied', version: 2, theme: 'dark' }, targetOrigin: HOST }]);
+  assert.deepEqual(win.posted, [{ data: { type: 'theme-applied', version: 1, theme: 'dark' }, targetOrigin: HOST }]);
 });
 
 test('a switch in HYROS repaints the page without a reload', () => {
   const { win, html, sendTheme } = setup();
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' });
-  sendTheme({ type: 'theme', version: 2, theme: 'white' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' });
+  sendTheme({ type: 'theme', version: 1, theme: 'white' });
   assert.equal(html.getAttribute('data-theme'), 'white');
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' });
   assert.equal(html.getAttribute('data-theme'), 'dark');
   assert.deepEqual(win.posted.map((p) => p.data.theme), ['dark', 'white', 'dark']);
 });
 
 test('themes from an unlisted origin, another window, another version or with an unknown value are ignored', () => {
   const { win, html, sendTheme } = setup();
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' }, { origin: 'https://evil.example' });
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' }, { source: {} });
-  sendTheme({ type: 'theme', version: 1, theme: 'dark' });
-  sendTheme({ type: 'theme', version: '2', theme: 'dark' });
-  sendTheme({ type: 'theme', version: 2, theme: 'light' });
-  sendTheme({ type: 'theme', version: 2 });
-  sendTheme({ type: 'token', version: 2, token: 't1' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' }, { origin: 'https://evil.example' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' }, { source: {} });
+  sendTheme({ type: 'theme', version: 2, theme: 'dark' });
+  sendTheme({ type: 'theme', version: '1', theme: 'dark' });
+  sendTheme({ type: 'theme', version: 1, theme: 'light' });
+  sendTheme({ type: 'theme', version: 1 });
+  sendTheme({ type: 'token', version: 1, token: 't1' });
   sendTheme('theme');
   assert.equal(html.getAttribute('data-theme'), DEFAULT_THEME);
   assert.equal(html.hasAttribute('data-theme-pending'), true);
@@ -126,7 +126,7 @@ test('no theme in time: the page shows itself in the default theme, and a late t
   assert.equal(html.hasAttribute('data-theme-pending'), false);
   assert.equal(html.getAttribute('data-theme'), DEFAULT_THEME);
 
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' });
   assert.equal(html.getAttribute('data-theme'), 'dark');
 });
 
@@ -136,14 +136,14 @@ test('dispose stops listening and never leaves the page invisible', () => {
   assert.equal(win.listeners.size, 0);
   assert.equal(timers.pending(), 0);
   assert.equal(html.hasAttribute('data-theme-pending'), false);
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' });
   assert.equal(html.getAttribute('data-theme'), DEFAULT_THEME);
 });
 
 test('a parent that throws on postMessage does not break the theme', () => {
   const { win, html, sendTheme } = setup();
   win.parent.postMessage = () => { throw new Error('gone'); };
-  sendTheme({ type: 'theme', version: 2, theme: 'dark' });
+  sendTheme({ type: 'theme', version: 1, theme: 'dark' });
   assert.equal(html.getAttribute('data-theme'), 'dark');
 });
 
@@ -175,7 +175,7 @@ test('inside HYROS the switch does nothing and storage is never read: HYROS deci
   const { html, receiver, sendTheme } = setup({ storage });
   assert.equal(receiver.isEmbedded(), true);
   assert.equal(html.getAttribute('data-theme'), DEFAULT_THEME);
-  sendTheme({ type: 'theme', version: 2, theme: 'white' });
+  sendTheme({ type: 'theme', version: 1, theme: 'white' });
   assert.equal(receiver.toggle(), 'white');
   assert.equal(html.getAttribute('data-theme'), 'white');
   assert.equal(storage.reads, 0);

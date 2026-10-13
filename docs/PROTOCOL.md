@@ -11,26 +11,26 @@ only, held in memory. Inside HYROS the same contract also carries the theme
 of the HYROS user; at its own url the page starts in its default theme and
 the user can switch it.
 
-# postMessage contract, version 2
+# postMessage contract, version 1
 
 ## Messages
 
 | Direction | Message | When |
 |---|---|---|
-| dashboard to host | `{ type: 'ready', version: 2 }` | the first request after the page loads |
-| dashboard to host | `{ type: 'token-request', version: 2, reason }` | every later request; `reason` is `expiring`, `unauthorized` or `retry` |
-| host to dashboard | `{ type: 'theme', version: 2, theme }` | the answer to `ready`, before the token, and again whenever the HYROS user switches theme; `theme` is `dark` or `white` |
-| host to dashboard | `{ type: 'token', version: 2, token, expiresAt? }` | the answer to `ready` and `token-request` |
-| dashboard to host | `{ type: 'theme-applied', version: 2, theme }` | after each `theme`, once the page shows in it |
+| dashboard to host | `{ type: 'ready', version: 1 }` | the first request after the page loads |
+| dashboard to host | `{ type: 'token-request', version: 1, reason }` | every later request; `reason` is `expiring`, `unauthorized` or `retry` |
+| host to dashboard | `{ type: 'theme', version: 1, theme }` | the answer to `ready`, before the token, and again whenever the HYROS user switches theme; `theme` is `dark` or `white` |
+| host to dashboard | `{ type: 'token', version: 1, token, expiresAt? }` | the answer to `ready` and `token-request` |
+| dashboard to host | `{ type: 'theme-applied', version: 1, theme }` | after each `theme`, once the page shows in it |
 
-- `version` is the number `2`. A string `"2"`, and any message of version 1,
-  is not accepted on either side.
+- `version` is the number `1`. A string `"1"` is not accepted on either side.
 - No `source` field: both sides identify each other by `event.origin` and
   `event.source`.
 - `expiresAt` is optional, epoch milliseconds. The dashboard ignores it unless
   it is a finite number in the future.
-- Version 2 added the theme. Version 1 had only `ready`, `token-request` and
-  `token`.
+- `theme` and `theme-applied` were added without a version change. A host
+  that never posts a theme still works: the page shows in the default theme
+  after the timeout.
 
 ## Dashboard rules: the token (`src/core/auth.js`)
 
@@ -38,7 +38,7 @@ the user can switch it.
   `CONFIG.hostOrigins`, with that origin as `targetOrigin`. The browser only
   delivers the one that matches the real parent.
 - A token is accepted only if `event.source === window.parent`, the origin is
-  in `CONFIG.hostOrigins`, `type === 'token'`, `version === 2` and `token` is a
+  in `CONFIG.hostOrigins`, `type === 'token'`, `version === 1` and `token` is a
   non-empty string. Anything else is ignored silently. A token that arrives
   while no request is pending is ignored too.
 - No answer within 10 s: the request fails with `NO_TOKEN` and the dashboard
@@ -57,7 +57,7 @@ the user can switch it.
   stylesheet loads, and `styles.css` keeps the page invisible and transparent
   while the mark is there. The page never paints in the wrong theme.
 - A theme is accepted only if `event.source === window.parent`, the origin is
-  in `CONFIG.hostOrigins`, `type === 'theme'`, `version === 2` and `theme` is
+  in `CONFIG.hostOrigins`, `type === 'theme'`, `version === 1` and `theme` is
   `dark` or `white`. The dashboard sets `<html data-theme>` to it, removes the
   pending mark and answers `theme-applied` to that same origin.
 - Every later `theme` repaints the page at once: no reload, and the data on

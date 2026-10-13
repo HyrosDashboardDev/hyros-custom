@@ -2,8 +2,8 @@
  * The HYROS theme. Inside HYROS (an iframe) the host posts the theme its user
  * has, before the token, and again whenever the user switches it:
  *
- *   host -> dashboard   { type: 'theme', version: 2, theme: 'dark' | 'white' }
- *   dashboard -> host   { type: 'theme-applied', version: 2, theme }
+ *   host -> dashboard   { type: 'theme', version: 1, theme: 'dark' | 'white' }
+ *   dashboard -> host   { type: 'theme-applied', version: 1, theme }
  *
  * The theme lands on <html data-theme>, and the tokens in styles.css follow
  * it. index.html marks <html data-theme-pending> when the page runs in a
