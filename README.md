@@ -18,8 +18,10 @@ HYROS page ──iframe──> dashboard (static files)
      │                      │
      │  ready / token-request
      │ <────────────────────┤  postMessage, origins checked on both sides
-     │  token (+ expiresAt) │
+     │  theme, token        │
      ├────────────────────> │
+     │  theme-applied       │
+     │ <────────────────────┤
                             │  POST https://mcp.hyros.com/mcp
                             │  Authorization: Bearer <token>
                             └────────────────────> HYROS MCP
@@ -33,8 +35,8 @@ dashboard at its own url
      │  POST /mcp with the access token, refresh before it expires
 ```
 
-- `src/core/`: config, auth (postMessage and the HYROS sign-in), the MCP
-  client, dates, time limits.
+- `src/core/`: config, auth (postMessage and the HYROS sign-in), the theme,
+  the MCP client, dates, time limits.
 - `src/data/data.js`: the data API views get as `ctx.data`.
 - `src/views/`: one folder per tab, listed in `src/views/registry.js`.
   `src/views/_template/` is the skeleton of a new one.
@@ -42,7 +44,8 @@ dashboard at its own url
 - `styles.css` and `assets/`: the design system, the self-hosted fonts and
   the brand assets.
 
-Tokens stay in memory. Both ways of getting one are in `docs/PROTOCOL.md`;
+Tokens stay in memory. Both ways of getting one, and how the theme arrives,
+are in `docs/PROTOCOL.md`;
 the rules for adding views are in `CLAUDE.md` and `VIEWS.md`.
 
 ## Design system
@@ -52,6 +55,27 @@ mono address bar, mono labels, serif figures, Inter for the rest, and one
 purple accent that marks what HYROS attributed or selected. Every color is
 a token in `styles.css`; fonts and brand assets are self-hosted under
 `assets/`. Read `UI-STYLE-GUIDE.md` before any visual change.
+
+## The theme
+
+HYROS has two themes, dark (its default) and white, and the dashboard follows
+the one its user has. Inside HYROS the theme arrives with the token, before the
+page shows, and again whenever the user switches it. At its own url the
+dashboard starts white, and a sun/moon switch next to Refresh (and on the
+sign-in screen) lets the user pick dark; the choice is kept in this browser's
+`localStorage`. Inside HYROS the switch is hidden: HYROS decides.
+
+- The theme is on `<html data-theme="dark">` or `<html data-theme="white">`.
+- `styles.css` defines every color token twice: in `:root` (white) and in
+  `:root[data-theme="dark"]`. Anything styled with tokens follows the theme on
+  its own, including a view's `style.css`.
+- A color written by hand does not follow it. Use a token, or add one to both
+  blocks.
+- Code that draws colors itself (a canvas chart, for example) reads
+  `document.documentElement.dataset.theme`, or the token values with
+  `getComputedStyle(document.documentElement).getPropertyValue('--brand')`,
+  and draws again when `data-theme` changes (a `MutationObserver` on
+  `<html>`).
 
 ## Run it locally
 
@@ -63,10 +87,11 @@ npm run dev
   HYROS sign-in of the production MCP;
   `http://localhost:4321/?mcp=qa` signs in against QA.
 - `http://localhost:4323`: the harness, which plays HYROS. It frames the
-  dashboard with the same sandbox HYROS uses, answers `ready` and
-  `token-request` with the token you paste, and logs every message (never the
-  token). Pick `prod` or `qa` to choose the MCP (`?mcp=qa` on the dashboard url).
-  Tick "send expiresAt" to exercise background renewal.
+  dashboard with the same sandbox HYROS uses, answers `ready` with the theme
+  and the token you paste and `token-request` with the token, and logs every
+  message (never the token). Pick `prod` or `qa` to choose the MCP (`?mcp=qa`
+  on the dashboard url). Switch the theme selector to see the dashboard follow
+  it. Tick "send expiresAt" to exercise background renewal.
 
 Use `localhost`, not `127.0.0.1`: the dashboard only accepts tokens from the
 origins in `src/core/config.js`, and the sign-in sends you back to the exact

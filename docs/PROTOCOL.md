@@ -1,4 +1,4 @@
-# How the dashboard gets its credential
+# How the dashboard gets its credential and its theme
 
 Two ways, picked when the page loads (`src/app.js`):
 
@@ -7,31 +7,38 @@ Two ways, picked when the page loads (`src/app.js`):
 - **At its own url**: the HYROS sign-in, at the end of this document.
 
 Either way the credential is the same kind: read-only, accepted at `/mcp`
-only, held in memory.
+only, held in memory. Inside HYROS the same contract also carries the theme
+of the HYROS user; at its own url the page starts in its default theme and
+the user can switch it.
 
-# postMessage contract, version 1
+# postMessage contract, version 2
 
 ## Messages
 
 | Direction | Message | When |
 |---|---|---|
-| dashboard to host | `{ type: 'ready', version: 1 }` | the first request after the page loads |
-| dashboard to host | `{ type: 'token-request', version: 1, reason }` | every later request; `reason` is `expiring`, `unauthorized` or `retry` |
-| host to dashboard | `{ type: 'token', version: 1, token, expiresAt? }` | the answer to either |
+| dashboard to host | `{ type: 'ready', version: 2 }` | the first request after the page loads |
+| dashboard to host | `{ type: 'token-request', version: 2, reason }` | every later request; `reason` is `expiring`, `unauthorized` or `retry` |
+| host to dashboard | `{ type: 'theme', version: 2, theme }` | the answer to `ready`, before the token, and again whenever the HYROS user switches theme; `theme` is `dark` or `white` |
+| host to dashboard | `{ type: 'token', version: 2, token, expiresAt? }` | the answer to `ready` and `token-request` |
+| dashboard to host | `{ type: 'theme-applied', version: 2, theme }` | after each `theme`, once the page shows in it |
 
-- `version` is the number `1`. A string `"1"` is not accepted on either side.
+- `version` is the number `2`. A string `"2"`, and any message of version 1,
+  is not accepted on either side.
 - No `source` field: both sides identify each other by `event.origin` and
   `event.source`.
 - `expiresAt` is optional, epoch milliseconds. The dashboard ignores it unless
   it is a finite number in the future.
+- Version 2 added the theme. Version 1 had only `ready`, `token-request` and
+  `token`.
 
-## Dashboard rules (`src/core/auth.js`)
+## Dashboard rules: the token (`src/core/auth.js`)
 
 - Each request is posted to `window.parent` once per origin in
   `CONFIG.hostOrigins`, with that origin as `targetOrigin`. The browser only
   delivers the one that matches the real parent.
 - A token is accepted only if `event.source === window.parent`, the origin is
-  in `CONFIG.hostOrigins`, `type === 'token'`, `version === 1` and `token` is a
+  in `CONFIG.hostOrigins`, `type === 'token'`, `version === 2` and `token` is a
   non-empty string. Anything else is ignored silently. A token that arrives
   while no request is pending is ignored too.
 - No answer within 10 s: the request fails with `NO_TOKEN` and the dashboard
@@ -44,32 +51,48 @@ only, held in memory.
   credential".
 - The token lives only in memory.
 
+## Dashboard rules: the theme (`src/core/theme.js`)
+
+- In a frame, `index.html` marks `<html data-theme-pending>` before the
+  stylesheet loads, and `styles.css` keeps the page invisible and transparent
+  while the mark is there. The page never paints in the wrong theme.
+- A theme is accepted only if `event.source === window.parent`, the origin is
+  in `CONFIG.hostOrigins`, `type === 'theme'`, `version === 2` and `theme` is
+  `dark` or `white`. The dashboard sets `<html data-theme>` to it, removes the
+  pending mark and answers `theme-applied` to that same origin.
+- Every later `theme` repaints the page at once: no reload, and the data on
+  screen stays.
+- No theme within 1.5 s: the page shows itself in the default theme, `white`,
+  so an error screen is never hidden. A theme that arrives later still applies.
+- At its own url there is no host: the page shows at once in `white`, or in
+  the theme the user picked with the page's own switch (kept in
+  `localStorage` under `hyros-dashboard-theme`, applied by `index.html` before
+  the first paint). The switch is hidden inside HYROS, and the saved choice is
+  never read there.
+
 ## Host rules
 
 - Accept a message only if `event.origin` is the dashboard url's origin and
   `event.source` is the iframe's `contentWindow`, and it matches the contract.
-- Post the token to that exact origin, never to `'*'`.
+- Post the theme and the token to that exact origin, never to `'*'`.
+- Answer `ready` with the theme first, then the token. Post the theme again on
+  every switch.
+- Keep the dashboard covered until `theme-applied` arrives, with a fallback
+  shortly after the iframe `load` for a page that does not speak the contract.
 
-## What HYROS does today
+## What HYROS does (`customDashboardChannel.ts`, `customDashboardProtocol.ts`)
 
-Branch `HMCP-339-custom-dashboard-embed`, `customDashboardChannel.ts` and
-`customDashboardProtocol.ts`:
-
-| | Today |
+| | |
 |---|---|
-| `ready` | Accepted, calls `onReady`, answered with a token if there is one |
-| `token-request` | Accepted (any `reason`, or none), answered like `ready`, does not call `onReady` |
-| `expiresAt` | Sent in the `token` message when the token source provides a finite number |
-| token | Asked from `getCustomDashboardToken()` on every request. It resolves `undefined`, so nothing is answered |
+| `ready` | Calls `onReady`, posts the theme of the HYROS user, then a token |
+| `token-request` | Answered like `ready` without the theme (any `reason`, or none), does not call `onReady` |
+| theme switch | Posts `theme` again (HMCP-392) |
+| `theme-applied` | Removes the HYROS loading overlay (HMCP-392) |
+| token | A short-lived, read-only dashboard credential with its `expiresAt` (HMCP-368) |
 | iframe sandbox | `allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox`, `allow="clipboard-write"` |
-
-So inside HYROS the dashboard always reaches the 10 s timeout. That is
-expected until HYROS issues a token.
 
 ## Missing in HYROS
 
-- A `getCustomDashboardToken()` that returns a real short-lived token with
-  read-only scope, accepted only by `/mcp`, and its expiry as `expiresAt`.
 - `allow-downloads` in the sandbox, only if a future view exports files.
 
 # The HYROS sign-in (the dashboard at its own url)
