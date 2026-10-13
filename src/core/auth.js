@@ -3,7 +3,8 @@
  * postMessage (createHostProvider); at its own url the page signs in through
  * the MCP OAuth server with the read-only scope (createOAuthProvider).
  *
- * Contract v1 of the iframe side (docs/PROTOCOL.md):
+ * Contract v1 of the iframe side (docs/PROTOCOL.md); the theme messages are
+ * in src/core/theme.js:
  *   dashboard -> host   { type: 'ready', version: 1 }                     first request
  *   dashboard -> host   { type: 'token-request', version: 1, reason }     every later request
  *   host -> dashboard   { type: 'token', version: 1, token, expiresAt? }
@@ -13,6 +14,7 @@
  */
 import { CONFIG } from './config.js';
 
+/** Version of the message contract with HYROS. Messages at any other version are ignored. */
 export const PROTOCOL_VERSION = 1;
 /** How long to wait for the host to answer one request. */
 export const TOKEN_TIMEOUT_MS = 10000;

@@ -9,6 +9,9 @@ scope `mcp:read`). Either way the browser calls the HYROS MCP directly with
 `npm run build` bakes it into the page as a meta tag; `?mcp=qa|prod` is only
 for local runs and manual deploys without the variable.
 Static files, no API key, no secret: the only credential is the token.
+Inside HYROS the page also follows the HYROS theme (dark or white), posted
+over the same contract; at its own url it starts white and has its own
+dark/white switch, hidden inside HYROS.
 
 ## Read order
 
@@ -18,29 +21,31 @@ Static files, no API key, no secret: the only credential is the token.
    any visual change; never invent colors or fonts.
 3. `docs/RECIPES.md`: the data of each view (which tools, which arguments,
    how to shape the rows).
-4. `docs/PROTOCOL.md`: how the dashboard gets its credential (the
-   `postMessage` contract with HYROS, and the HYROS sign-in).
+4. `docs/PROTOCOL.md`: how the dashboard gets its credential and its theme
+   (the `postMessage` contract with HYROS, and the HYROS sign-in).
 
 ## Rules
 
 - **`src/core/` is the core. Do not edit it without asking.** Config, auth,
-  the MCP client, dates and time limits live there.
+  the theme, the MCP client, dates and time limits live there.
 - **Views talk to HYROS only through `ctx.data`.** A view never imports
   `src/core/mcp.js`, `src/core/auth.js` or `src/core/config.js` and never calls
   `fetch`. Need a tool the data API has no getter for? `ctx.data.call`,
   `ctx.data.paged` or `ctx.data.pagedInfo`.
 - **Tokens are never stored or logged.** Not in `localStorage`, a cookie,
   the url, `console.*` or an error message. The sign-in keeps only its client
-  id in `localStorage` and, while the user is on the HYROS sign-in page, its
+  id in `localStorage` (the theme switch keeps the theme there too) and, while the user is on the HYROS sign-in page, its
   state and PKCE verifier in `sessionStorage`.
 - **Read tools only.** `READ_TOOLS` in `src/core/mcp.js` is the list; anything
   else fails with `not_allowed` before a request is made.
 - **What the HYROS iframe sandbox blocks:** no `alert`, `confirm` or `prompt`
   (they do nothing), no downloads (no `allow-downloads`). `localStorage` only
   inside `try/catch`: the frame is partitioned and Safari can block it.
-- **Colors only as tokens in `styles.css` `:root`.** No hex literal in `src/`
-  (views' `style.css` included) or in inline styles; `npm run check` fails
-  on one.
+- **Colors only as tokens in `styles.css`.** Every color token has a value in
+  `:root` (white theme) and in `:root[data-theme="dark"]`; a new one goes in
+  both. No hex literal in `src/` (views' `style.css` included) or in inline
+  styles; `npm run check` fails on one. A color written by hand does not
+  follow the theme.
 - **Derived metrics are re-derived after summing, never averaged** (ROAS,
   ROI, CPL, CTR: `docs/RECIPES.md` "Derived metrics").
 - **Every view ships a `SPEC.md`** next to its `view.js`.
@@ -84,7 +89,8 @@ to the HYROS sign-in of production (`?mcp=qa` for QA).
 
 - `docs/RECIPES.md`: how to build the Report, CRM, Drill, Scale and Health
   views on this dashboard: which tools to call and how to shape the rows.
-- `docs/PROTOCOL.md`: the `postMessage` contract and the HYROS sign-in.
+- `docs/PROTOCOL.md`: the `postMessage` contract (token and theme) and the
+  HYROS sign-in.
 
 ## GitHub access and deploys
 This repo is private, under `HyrosEngineeringAI` on GitHub, and Vercel
