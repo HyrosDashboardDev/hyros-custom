@@ -163,3 +163,22 @@ test('the try detector itself: catches a bare access, accepts a guarded one', ()
   assert.equal(insideTry(bad, bad.indexOf('localStorage')), false);
   assert.equal(insideTry(good, good.indexOf('localStorage')), true);
 });
+
+/** The custom properties a block declares, with their values. */
+function tokensOf(css, selector) {
+  const start = css.indexOf(`${selector} {`);
+  assert.ok(start >= 0, `styles.css has a ${selector} block`);
+  const block = css.slice(start, css.indexOf('\n}', start));
+  return new Map([...block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+}
+
+test('every color token of the white theme has a value in the dark theme too', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const white = tokensOf(css, ':root');
+  const dark = tokensOf(css, ':root[data-theme="dark"]');
+  const isColor = (value) => HEX_COLOR.test(value) || /rgba?\(/.test(value);
+  for (const [name, value] of white) {
+    if (isColor(value)) assert.ok(dark.has(name), `${name} has no value in :root[data-theme="dark"]; a color without one does not follow the theme`);
+  }
+  for (const name of dark.keys()) assert.ok(white.has(name), `${name} is only in the dark theme`);
+});

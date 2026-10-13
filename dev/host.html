@@ -28,12 +28,15 @@
   <div class="layout">
     <aside>
       <h1>Harness: plays HYROS</h1>
-      <p class="hint">Answers <code>ready</code> and <code>token-request</code> with the token below. Without a token it stays silent, like HYROS today. The token stays in this tab's memory: never stored, never logged.</p>
+      <p class="hint">Answers <code>ready</code> with the theme, then the token below, and <code>token-request</code> with the token. Without a token it stays silent, like HYROS today. The token stays in this tab's memory: never stored, never logged.</p>
       <label>Bearer token
         <textarea id="token" spellcheck="false" autocomplete="off" placeholder="Paste a HYROS MCP access token"></textarea>
       </label>
       <label>MCP
         <select id="mcp"><option value="prod">prod (mcp.hyros.com)</option><option value="qa">qa (mcp-qa.hyros.com)</option></select>
+      </label>
+      <label>HYROS theme, posted on ready and on every change
+        <select id="theme"><option value="dark">dark (HYROS default)</option><option value="white">white</option></select>
       </label>
       <label class="row"><input type="checkbox" id="sendExpiry"> send expiresAt, in <input type="number" id="expiryMinutes" min="1" value="15"> minutes</label>
       <div class="buttons">

@@ -6,6 +6,7 @@
 import { createAuth, createHostProvider, createOAuthProvider } from './core/auth.js';
 import * as mcp from './core/mcp.js';
 import { resolveAuthServer, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
+import { createThemeReceiver } from './core/theme.js';
 import { VIEW_LOAD_MS } from './core/budget.js';
 import { createData } from './data/data.js';
 import { $, esc, card, kpis } from './ui/dom.js';
@@ -165,7 +166,28 @@ function refresh() {
   show(active);
 }
 
+/** The theme switch exists only at the dashboard's own url: inside HYROS the theme is HYROS's. */
+function wireThemeSwitch(theme) {
+  if (theme.isEmbedded()) return;
+  const buttons = document.querySelectorAll('.theme-toggle');
+  const label = () => (theme.current() === 'dark' ? 'Switch to the white theme' : 'Switch to the dark theme');
+  for (const button of buttons) {
+    button.hidden = false;
+    button.title = label();
+    button.setAttribute('aria-label', label());
+    button.addEventListener('click', () => {
+      theme.toggle();
+      for (const other of buttons) {
+        other.title = label();
+        other.setAttribute('aria-label', label());
+      }
+    });
+  }
+}
+
 function boot() {
+  // Before the first request for a token: HYROS answers `ready` with the theme first.
+  wireThemeSwitch(createThemeReceiver());
   const mcpUrl = resolveMcpUrl();
   const host = createHostProvider();
   if (!host.isAvailable()) {
