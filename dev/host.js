@@ -2,8 +2,10 @@
  * The harness side of the postMessage contract, mirroring what HYROS does in
  * customDashboardChannel.ts, plus the parts HYROS does not do yet
  * (token-request, expiresAt). Messages are accepted only from the dashboard
- * origin, from the iframe's own window and at protocol version 1. The token
- * is posted to that exact origin, never to '*'.
+ * origin, from the iframe's own window and at protocol version 1. `ready` is
+ * answered with the theme, then the token; the theme is posted again on every
+ * change of the selector, like HYROS does when its user switches theme. The
+ * token is posted to that exact origin, never to '*'.
  */
 const DASHBOARD_ORIGIN = 'http://localhost:4321';
 const PROTOCOL_VERSION = 1;
@@ -34,6 +36,11 @@ function tokenMessage() {
   return message;
 }
 
+function postTheme() {
+  if (!frame.contentWindow) return;
+  frame.contentWindow.postMessage({ type: 'theme', version: PROTOCOL_VERSION, theme: $('theme').value }, DASHBOARD_ORIGIN);
+}
+
 /** Posts the token if there is one; says whether it did. */
 function answer() {
   const message = tokenMessage();
@@ -46,7 +53,12 @@ window.addEventListener('message', (event) => {
   if (event.origin !== DASHBOARD_ORIGIN || event.source !== frame.contentWindow) return;
   const data = event.data;
   if (!data || typeof data !== 'object' || data.version !== PROTOCOL_VERSION) return;
+  if (data.type === 'theme-applied') {
+    log('theme-applied', String(data.theme));
+    return;
+  }
   if (data.type !== 'ready' && data.type !== 'token-request') return;
+  if (data.type === 'ready') postTheme();
   const answered = answer();
   const reason = data.type === 'token-request' ? `reason ${String(data.reason)}` : '';
   const expiry = answered && $('sendExpiry').checked ? `, expiresAt in ${$('expiryMinutes').value} min` : '';
@@ -56,6 +68,10 @@ window.addEventListener('message', (event) => {
 $('sendNow').addEventListener('click', () => log('send now', answer() ? 'token posted' : 'no token to send'));
 $('reload').addEventListener('click', load);
 $('mcp').addEventListener('change', load);
+$('theme').addEventListener('change', () => {
+  postTheme();
+  log('theme', `${$('theme').value} posted`);
+});
 $('clearLog').addEventListener('click', () => $('log').replaceChildren());
 
 load();

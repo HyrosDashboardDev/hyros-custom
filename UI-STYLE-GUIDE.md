@@ -11,7 +11,8 @@ cited here and lives in this repo.
 
 The single source of truth for every value below is
 [`styles.css`](./styles.css) at the repo root: its `:root` block defines all
-tokens, and **no color may ever be hardcoded outside it**. `src/` contains
+tokens for the white theme and `:root[data-theme="dark"]` the same tokens for
+the dark one, and **no color may ever be hardcoded outside them**. `src/` contains
 zero color literals, views included; `npm run check` fails on a hex color in
 any `src/**/*.js` or `src/views/**/style.css`. Keep it that way.
 
@@ -19,16 +20,20 @@ any `src/**/*.js` or `src/views/**/style.css`. Keep it that way.
 
 ## 1. Principles
 
-1. **Cream ground, white windows.** The page is warm cream (`--bg`). Product
-   lives in white windows with a hairline, radius 12 and the three-dot bar
-   with a centered mono address (`.win` + `.winbar`). Never a dark surface
-   in the working UI; INK is reserved for the console and the primary button.
+1. **A ground, and windows on it.** In the white theme the page is warm cream
+   (`--bg`) and product lives in white windows; in the dark theme the ground
+   is the HYROS dark grey and the windows a step lighter. Either way a window
+   has a hairline, radius 12 and the three-dot bar with a centered mono
+   address (`.win` + `.winbar`). The theme is HYROS's choice, never the
+   dashboard's: a view never forces one or paints a surface outside the
+   tokens. INK is reserved for the console and the primary button.
 2. **Purple marks what HYROS did.** Brand purple paints what HYROS attributed,
    changed or selected: the attributed Revenue/ROAS columns (the lavender
    band), the highlight KPI tile, the active tab, sorted headers, drill
    links, the attribution-model label, focus rings. It never means "good".
 3. **INK is the action.** The one primary action per screen
-   (`button.primary`) is an INK button, radius 7. In the working dashboard
+   (`button.primary`) is an INK button, radius 7 (near black in the white
+   theme, near white in the dark one, like the HYROS primary button). In the working dashboard
    that is Refresh in the topbar; on the connection gate, when it is the
    only thing on screen, it is "Try again". Everything else is a white
    hairline button, including the Retry on a view's error card. Never two
@@ -36,8 +41,8 @@ any `src/**/*.js` or `src/views/**/style.css`. Keep it that way.
 4. **Labels mono, figures serif, the rest Inter.** Every label, header, pill,
    badge and caption is Geist Mono 10.5px uppercase. Every big figure is
    P22 Mackinac. Body and cells are Inter 12.5 to 14px.
-5. **Status colors live in data only.** Green `#1F8A5B` and terracotta
-   `#B5533A` appear inside cells, pills and money tones, never on chrome,
+5. **Status colors live in data only.** Green (`--good`) and terracotta
+   (`--bad`) appear inside cells, pills and money tones, never on chrome,
    icons or buttons.
 6. **Sven sparingly.** The lavender pixel Sven appears in exactly two
    moments: the connection gate and loading states. Never decorate the
@@ -54,32 +59,52 @@ any `src/**/*.js` or `src/views/**/style.css`. Keep it that way.
 
 ## 2. Color tokens (`styles.css` `:root`)
 
-| Token | Value | Use |
-|---|---|---|
-| `--bg` | `#FAF9F5` | the cream page ground |
-| `--surface` | `#FFFFFF` | windows, cards, the chrome |
-| `--surface-2` | `#FCFBF8` | KPI tiles, table header rows, quiet cards, drawer head |
-| `--surface-3` | `#F6F5F0` | panel ground, hovers, bar tracks |
-| `--surface-4` | `#EDEBE3` | cream2: segmented-control tracks, window-bar dots |
-| `--lavbg` | `#EEEEFB` | the HYROS band: attributed columns, active tab, highlight tile, purple pills |
-| `--lav` | `#A5A4FA` | lavender data: share bars, Sven |
-| `--border` | `rgba(31,30,29,.11)` | every hairline |
-| `--border-2` | `rgba(31,30,29,.18)` | input/select borders |
-| `--rule` | `rgba(31,30,29,.06)` | row dividers inside a window |
-| `--ink` | `#1F1E1D` | text, the primary button, the console |
-| `--ink-2` | `#55534E` | secondary text |
-| `--ink-3` | `#8B8984` | mono labels, quiet text |
-| `--brand` | `#5150F6` | THE accent: what HYROS attributed, changed or selected |
-| `--brand-2` | `#403FD4` | purple hover |
-| `--good` | `#1F8A5B` | positive money and status, data only |
-| `--bad` | `#B5533A` | negative money, status and errors, data only |
-| `--bad-fill` | `rgba(217,119,87,.16)` | the terracotta tint behind bad pills and error notes |
-| `--warn` | `#B0781E` | warnings: partial data, no-show or refunded, "needs attention"; never an error |
-| `--warn-fill` | `rgba(176,120,30,.14)` | the amber tint behind warning pills |
+Two themes, the two themes HYROS has. **White** is `:root`, the default and
+the CL1 look. **Dark** is `:root[data-theme="dark"]`: grounds, borders and
+text follow the HYROS app's dark theme, and the accent keeps the brand hue,
+lifted so it reads on dark. Inside HYROS the page takes the theme its user
+has (`docs/PROTOCOL.md`); at its own url it starts white and the user can
+switch it with `.theme-toggle`. Only colors change between themes: sizes,
+radii and fonts are the same.
 
-Tints are built from these with rgba (purple `rgba(81,80,246,.3)` borders,
-`.16` focus rings; green `rgba(31,138,91,.07)` fills), never new hex values.
-Pink and rainbow hairlines are not part of this system.
+| Token | White | Dark | Use |
+|---|---|---|---|
+| `--bg` | `#FAF9F5` | `#181818` | the page ground |
+| `--surface` | `#FFFFFF` | `#1E1E1E` | windows, cards, the chrome |
+| `--surface-2` | `#FCFBF8` | `#222222` | KPI tiles, table header rows, quiet cards, drawer head |
+| `--surface-3` | `#F6F5F0` | `#262626` | panel ground, hovers, bar tracks |
+| `--surface-4` | `#EDEBE3` | `#2E2E2E` | segmented-control tracks, window-bar dots |
+| `--lavbg` | `#EEEEFB` | `#24233F` | the HYROS band: active tab, highlight tile, purple pills, attributed cells under the pointer |
+| `--lavbg-2` | `#F4F4FD` | `#1F1E33` | the HYROS band at rest: attributed table cells |
+| `--lav` | `#A5A4FA` | `#A5A4FA` | lavender data: share bars, Sven |
+| `--border` | `rgba(31,30,29,.11)` | `rgba(255,255,255,.10)` | every hairline |
+| `--border-2` | `rgba(31,30,29,.18)` | `rgba(255,255,255,.17)` | input/select borders |
+| `--rule` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.06)` | row dividers inside a window |
+| `--chip-hover` | `rgba(255,255,255,.55)` | `rgba(255,255,255,.06)` | a segmented-control chip under the pointer |
+| `--count-fill` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.08)` | the count inside a chip |
+| `--glass` | `rgba(255,255,255,.88)` | `rgba(24,24,24,.88)` | the sticky horizontal scrollbar |
+| `--scrim` | `rgba(31,30,29,.32)` | `rgba(0,0,0,.55)` | behind the drawer |
+| `--ink` | `#1F1E1D` | `#EDEFF8` | text, the primary button, the console |
+| `--ink-2` | `#55534E` | `#B7B7B7` | secondary text |
+| `--ink-3` | `#8B8984` | `#8D8D8D` | mono labels, quiet text |
+| `--ink-hover` | `#000000` | `#FFFFFF` | the primary button under the pointer |
+| `--on-ink` | `#FFFFFF` | `#181818` | text on an INK fill (the primary button) |
+| `--brand` | `#5150F6` | `#9796FB` | THE accent: what HYROS attributed, changed or selected |
+| `--brand-2` | `#403FD4` | `#B4B3FD` | purple hover |
+| `--brand-line` | `rgba(81,80,246,.3)` | `rgba(151,150,251,.35)` | the border of a lavender pill, badge or tile |
+| `--brand-line-2` | `rgba(81,80,246,.35)` | `rgba(151,150,251,.4)` | the border of a sale in the journey timeline |
+| `--brand-ring` | `rgba(81,80,246,.16)` | `rgba(151,150,251,.25)` | the focus ring of an input |
+| `--good` | `#1F8A5B` | `#5BC98C` | positive money and status, data only |
+| `--good-fill` / `--good-line` | `rgba(31,138,91,.07)` / `.3` | `rgba(91,201,140,.12)` / `.35` | the tint and border of a green pill |
+| `--bad` | `#B5533A` | `#EE786C` | negative money, status and errors, data only |
+| `--bad-fill` / `--bad-line` | `rgba(217,119,87,.16)` / `rgba(181,83,58,.3)` | `rgba(238,120,108,.14)` / `.35` | the tint and border behind bad pills and error notes |
+| `--warn` | `#B0781E` | `#F0AF5B` | warnings: partial data, no-show or refunded, "needs attention"; never an error |
+| `--warn-fill` / `--warn-line` | `rgba(176,120,30,.14)` / `.3` | `rgba(240,175,91,.14)` / `.35` | the amber tint and border of a warning pill |
+
+Every tint is a token with a value in both blocks, never an rgba written in
+a rule: a color written by hand does not follow the theme. A new color goes
+into `:root` and `:root[data-theme="dark"]` together. Pink and rainbow
+hairlines are not part of this system.
 
 ## 3. Shape and elevation
 
@@ -89,7 +114,9 @@ Pink and rainbow hairlines are not part of this system.
 - `--shadow-win: 0 26px 60px -34px rgba(31,30,29,.35)` for windows (`.win`).
   `--shadow-card: 0 12px 34px -26px rgba(31,30,29,.35)` for cards and bare
   table wraps. `--shadow-pop: 0 24px 50px -30px rgba(31,30,29,.4)` for
-  floating panels; the drawer carries its own left-cast shadow.
+  floating panels; the drawer carries its own left-cast shadow
+  (`--shadow-drawer`). In the dark theme a shadow barely shows, so cards and
+  chips have none and the hairline carries the edge.
 - Borders are always 1px hairlines (`--border`; `--border-2` on inputs);
   row dividers inside a window use `--rule`.
 
@@ -156,6 +183,11 @@ colourways (lavender here).
   `src/views/registry.js` (`VIEWS.md`).
 - **Section title** `h2.section`: a mono label above a block of the view,
   with an optional `.rowcount` beside it (mono, not uppercase).
+- **Theme switch** `.theme-toggle`: a 34px hairline icon button, the HYROS
+  moon in the white theme and sun in the dark one, `--ink-2` turning `--ink`
+  on hover. Left of Refresh in the topbar and in the top right corner of the
+  gate (`.gate-theme`). Shown only at the dashboard's own url; inside HYROS
+  it stays hidden because the theme is HYROS's. Never an INK button.
 - **Segmented control** `.chipset` / `.chip`: a cream2 track (radius 8,
   padding 3) with 12.5px chips; the active chip (`.chip.active`) is a white
   card with INK text and a 1px shadow. Chip counts (`.chip-count`) are mono
@@ -245,7 +277,8 @@ keep tables dense; prefix a view's own classes with the view id and keep
 them in the view's `style.css`; test at 1440x900 (primary): the dashboard is
 a desktop tool that also has to survive a narrow iframe (the 640px rules).
 
-**Never**: dark surfaces in the working UI; pink or a rainbow hairline;
+**Never**: a color in only one of the two theme blocks; a view that forces
+a theme; pink or a rainbow hairline;
 purple to mean "good"; green or terracotta on chrome; the serif below 17px
 or in running text; Inter above 500 weight;
 new hex literals in `src/` or inline styles; zebra striping; Sven beyond
@@ -259,8 +292,9 @@ npm run dev    # dashboard on http://localhost:4321, harness on http://localhost
 ```
 
 Open http://localhost:4323 (the harness, which plays HYROS), paste an MCP
-access token, and screenshot the framed dashboard at 1440x900: the gate
-while it connects, every tab, the loading state, and a view's error card.
+access token, and screenshot the framed dashboard at 1440x900 in **both
+themes** (the harness's theme selector switches it live): the gate while it
+connects, every tab, the loading state, and a view's error card.
 Opened directly, http://localhost:4321 goes to the HYROS sign-in; press
 back to see the "Sign in with HYROS" gate, which is part of the visual check
 too. The dev server

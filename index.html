@@ -6,11 +6,19 @@
   <meta name="robots" content="noindex, nofollow">
   <title>HYROS Custom Dashboard</title>
   <link rel="icon" href="./assets/brand/hyros-mark-blue.svg" type="image/svg+xml">
+  <!-- Before the first paint. In a frame (inside HYROS) the page waits invisible for the theme HYROS posts, and src/core/theme.js clears the mark. At its own url a dark theme picked with the switch applies at once (THEME_STORAGE_KEY in src/core/theme.js). -->
+  <script>
+    try {
+      if (window.parent !== window) document.documentElement.setAttribute('data-theme-pending', '');
+      else if (localStorage.getItem('hyros-dashboard-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    } catch { /* storage blocked: the default theme */ }
+  </script>
   <link rel="stylesheet" href="./styles.css">
   <script type="module" src="./src/app.js"></script>
 </head>
 <body>
   <div id="gate" class="gate">
+    <button type="button" class="theme-toggle gate-theme" hidden><svg class="i-moon" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M2.63095 9.2889C2.86837 12.8123 5.75035 15.6789 9.1995 15.8362C11.633 15.9457 13.8094 14.769 15.1151 12.9149C15.6559 12.1555 15.3658 11.6492 14.4623 11.8203C14.0204 11.9024 13.5653 11.9366 13.0905 11.916C9.86559 11.7792 7.22761 8.98104 7.21442 5.67659C7.20783 4.78719 7.38589 3.94569 7.70904 3.17944C8.06517 2.33109 7.6365 1.92744 6.81213 2.29004C4.20054 3.43257 2.41332 6.16233 2.63095 9.2889Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="i-sun" viewBox="-1 -1 14 14" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.57"/><path d="M7 2.71V1M7 13v-1.71M11.29 7H13M1 7h1.71M10.03 3.97l1.21-1.21M2.76 11.24l1.21-1.21M10.03 10.03l1.21 1.21M2.76 2.76l1.21 1.21"/></g></svg></button>
     <div class="win gate-card">
       <div class="winbar"><i></i><i></i><i></i><span>app.hyros.com &middot; custom dashboard</span></div>
       <div class="gate-body">
@@ -29,6 +37,7 @@
       <div class="brand"><img class="brand-logo" src="./assets/brand/hyros-logo-blue.svg" alt="Hyros"><span class="brand-sub">Custom Dashboard</span></div>
       <span class="spacer"></span>
       <span id="acctLabel" class="acct"></span>
+      <button type="button" class="theme-toggle" hidden><svg class="i-moon" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M2.63095 9.2889C2.86837 12.8123 5.75035 15.6789 9.1995 15.8362C11.633 15.9457 13.8094 14.769 15.1151 12.9149C15.6559 12.1555 15.3658 11.6492 14.4623 11.8203C14.0204 11.9024 13.5653 11.9366 13.0905 11.916C9.86559 11.7792 7.22761 8.98104 7.21442 5.67659C7.20783 4.78719 7.38589 3.94569 7.70904 3.17944C8.06517 2.33109 7.6365 1.92744 6.81213 2.29004C4.20054 3.43257 2.41332 6.16233 2.63095 9.2889Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="i-sun" viewBox="-1 -1 14 14" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="2.57"/><path d="M7 2.71V1M7 13v-1.71M11.29 7H13M1 7h1.71M10.03 3.97l1.21-1.21M2.76 11.24l1.21-1.21M10.03 10.03l1.21 1.21M2.76 2.76l1.21 1.21"/></g></svg></button>
       <button type="button" id="refreshBtn" class="primary">Refresh</button>
     </header>
     <nav class="tabs" id="tabs"></nav>
