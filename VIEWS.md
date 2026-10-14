@@ -110,6 +110,20 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
   `.cohort-row`; a journey `.timeline` / `.tl-item` / `.tl-icon`; clicks
   `.clicks` / `.click-row` / `.click-page`.
 
+Two shared modules build on the kit; import them from `view.js`:
+
+- `src/ui/table.js`: `sortRows(rows, { col, dir })` (a sorted copy, missing
+  values last), `nextSort(sort, col, firstDir)` for a header click, and
+  `sortHeader({ col, label, cls }, sort)` for the `<th>`.
+- `src/ui/drill.js`: the drawer and the drill behind a number.
+  `openCohortDrill(ctx, { title, tags, metric, label, note })` opens the
+  leads that touched the row's source tags (`metric: 'leads'`) or their
+  `'sales'` / `'calls'`; `openLeadJourney(ctx, email)` opens one lead's
+  journey and click history. Both mount the drawer inside `ctx.root`, run
+  their calls in sequence and say when a list is cut short. The pieces
+  (`openDrawer`, `loadCohort`, `loadRecords`, `loadJourney`, the
+  `render*` functions) are exported for a view that needs another flow.
+
 View-specific classes go in the view's `style.css`, **prefixed with the view
 id** (`.health-check`, never `.check`), using only the tokens in
 `styles.css` `:root`. No color literal in `view.js` or `style.css`: `npm run
