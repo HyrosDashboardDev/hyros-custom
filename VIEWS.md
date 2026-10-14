@@ -74,7 +74,7 @@ Partial states are the view's job:
 | key | what |
 |---|---|
 | `root` | the element the view renders into (a fresh `<div class="view">` per render) |
-| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `invalidate`, `now`. Which tools to call and how to shape the rows: `docs/RECIPES.md` |
+| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `cached`, `invalidate`, `now`. Which tools to call and how to shape the rows: `docs/RECIPES.md` |
 | `fmt` | `src/ui/fmt.js`: `money(v)`, `moneyIn(v, code)`, `money0(v)`, `int(v)`, `pct(v)`, `ratio(v)`, `date(iso)`, `datetime(iso)`, `currencyCode(code)`. Money is in the account currency; a missing value prints `-` |
 | `esc(s)` | HTML-escape; use it on every string that came from HYROS |
 | `kpis(list)` | KPI tiles HTML, already wrapped in `<div class="kpis">`: `[{ label, value, sub?, cls? }]`. `label`, `value` and `sub` are rendered as **escaped text** (no HTML inside them; pass values already formatted with `fmt`). `cls: 'hy'` goes on the tile and makes it the one highlight tile of the screen; `cls: 'good'` or `'bad'` goes on the figure (`.kpi-value`), the money tone; any other `cls` is ignored |
@@ -122,8 +122,16 @@ follows:
 
 - **Derived metrics are re-derived after summing, never averaged.** A
   rolled-up row sums the additive parts (cost, revenue, clicks, ...) and
-  computes ROAS, ROI, CPL, CTR and the rest from the sums
-  (`docs/RECIPES.md` "Derived metrics").
+  computes ROAS, ROI, CPL, CTR and the rest from the sums. Use
+  `src/data/metrics.js` (`derive`, `aggregate`, `rollup`, `CATALOG`) instead
+  of writing the formulas again; `tests/metrics.test.mjs` pins them to a real
+  report screen.
+- **What a render loaded can be kept for the life of the page** with
+  `ctx.data.cached(key, loader)`: the loader runs once per key, a rejected
+  one is dropped so the next render tries again, and Refresh
+  (`ctx.data.invalidate()`) clears every key. Put everything the result
+  depends on in the key (`report:<model>:<start>:<end>`), so another tab can
+  reuse it by asking for the same key.
 - **Money and numbers go through `ctx.fmt`.** It knows the account currency
   and prints `-` for a missing value.
 - **Dates stay as HYROS returns them** until render; format them only when

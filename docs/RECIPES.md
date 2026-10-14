@@ -35,7 +35,13 @@ the docs disagree, the docs win.
 - `src/core/budget.js` has `TIMEOUTS` (`default` 15 s, `slow` 45 s) and
   `clampTimeout` for per-call timeouts.
 - `ctx.data.account()`, `adAccounts()`, `sources()` and `stages()` are
-  cached for the life of the page; three views asking cost one call.
+  cached for the life of the page; three views asking cost one call. Any
+  other load a view wants to keep goes through `ctx.data.cached(key, loader)`,
+  which Refresh clears too.
+- `src/data/metrics.js` is the metric engine (`CATALOG`, `derive`,
+  `aggregate`, `rollup`) and `src/data/report-levels.js` the report's level
+  model (`REPORT_FIELDS`, `LEVELS_BY_TYPE`, `normalizeRow`, `buildLevels`,
+  `buildRanges`). Import them; do not copy the formulas.
 
 ## Start a view
 
@@ -126,7 +132,9 @@ failed view.
 
 ### 5. Derived metrics
 
-Native rows keep HYROS's own numbers; a derived value is computed only when
+`derive(row)` in `src/data/metrics.js` computes them and
+`tests/metrics.test.mjs` checks it against a real report screen; the table
+below is what it does. Native rows keep HYROS's own numbers; a derived value is computed only when
 the API did not supply one, except the core set, which is always recomputed
 so totals agree with their parts. Never average a derived metric across
 children: sum the additive parts and re-derive.
