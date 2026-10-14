@@ -331,6 +331,9 @@ subscriptions. `ctx.data.stages()` gives the stage names and counts.
 
 ## Drill
 
+`src/ui/drill.js` implements this recipe (`openCohortDrill`,
+`openLeadJourney`); a view calls it instead of repeating the steps.
+
 The click-through behind a report number. Sources carry a `tag`; a rolled-up
 row carries the union of its members' tags (Report step 6).
 
