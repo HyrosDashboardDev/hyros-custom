@@ -1,7 +1,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startMock, mock, calls } from '../scripts/mock-mcp.mjs';
-import { configure, callTool, callToolPagedInfo, listTools, parseRetryAfter, RATE_LIMIT_WAITS_MS } from '../src/core/mcp.js';
+import { configure, callTool, callToolPagedInfo, listTools, parseRetryAfter, RATE_LIMIT_WAITS_MS, READ_TOOLS } from '../src/core/mcp.js';
 
 let server;
 let url;
@@ -69,6 +69,13 @@ test('a tool outside READ_TOOLS fails not_allowed before touching the network', 
   wire();
   await assert.rejects(callTool('hyros_create_lead', { request: { email: 'x@y.z' } }), (err) => err.code === 'not_allowed');
   assert.equal(calls.length, 0);
+});
+
+test('READ_TOOLS holds read tools only, the CRM aggregations included', () => {
+  for (const name of READ_TOOLS) assert.match(name, /^hyros_(get|check|assert)_/, name);
+  for (const name of ['hyros_get_leads_aggregation', 'hyros_get_sales_aggregation', 'hyros_get_calls_aggregation']) {
+    assert.ok(READ_TOOLS.includes(name), name);
+  }
 });
 
 test('two identical calls in flight share one request', async () => {

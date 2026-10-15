@@ -1,0 +1,36 @@
+/* Scale: view-scoped styles (from hyros-ai features/scale), tokens only.
+   The SVG carries geometry only; every stroke comes from here. */
+.scale-card { padding-bottom: 14px; margin-bottom: 12px; }
+.scale-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.scale-head b { font-size: 14.5px; font-weight: 500; }
+.scale-head .sub { flex: 1; }
+.scale-verdict { font-size: 13px; font-weight: 500; white-space: nowrap; }
+@media (max-width: 600px) { .scale-verdict { white-space: normal; } }
+.scale-notes { margin-top: 8px; }
+
+/* Controls: the account chips scroll inside their track; the end date is a kit date input. */
+.scale-end { display: inline-flex; align-items: center; gap: 8px; }
+
+/* The plot fills the card; its height follows the width (aspect ratio) so a wide screen gets a taller chart, not a flatter one. */
+.scale-body { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .scale-body { grid-template-columns: 1fr; } }
+.scale-plot { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 8px; row-gap: 4px; }
+.scale-ylabels { grid-row: 1; display: flex; flex-direction: column; justify-content: space-between; text-align: right; min-height: 160px; }
+.scale-xlabels { grid-column: 2; display: flex; justify-content: space-between; }
+.scale-ylabels span, .scale-xlabels span { font-size: 10.5px; color: var(--ink-3); font-family: var(--mono); line-height: 1; white-space: nowrap; }
+.scale-chart { width: 100%; height: auto; aspect-ratio: 5 / 1; min-height: 160px; max-height: 300px; display: block; grid-column: 2; grid-row: 1; overflow: visible; }
+.scale-chart .scale-axis { stroke: var(--border-2); stroke-width: 1; }
+.scale-chart .scale-grid { stroke: var(--rule); stroke-width: 1; }
+.scale-chart .scale-avg { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.scale-chart .scale-marg { fill: none; stroke: var(--brand); stroke-width: 1.8; stroke-dasharray: 5 4; }
+.scale-chart .scale-ceil { stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 3 4; }
+.scale-chart .scale-sat { stroke: var(--good); stroke-width: 1.5; }
+.scale-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-2); margin-top: 4px; }
+.scale-legend i { display: inline-block; width: 16px; height: 0; border-top: 1.6px solid var(--ink); vertical-align: middle; margin-right: 5px; }
+.scale-legend i.scale-marg { border-top-style: dashed; border-color: var(--brand); }
+.scale-legend i.scale-ceil { border-top-style: dotted; border-color: var(--bad); }
+.scale-legend i.scale-sat { border-color: var(--good); }
+.scale-stats { display: grid; gap: 8px; }
+.scale-stat { padding: 9px 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
+.scale-stat .kpi-label { margin-bottom: 3px; }
+.scale-stat b { font-family: var(--serif); font-weight: 400; font-size: 17px; font-variant-numeric: tabular-nums; }

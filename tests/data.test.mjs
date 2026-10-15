@@ -112,3 +112,40 @@ test('a failed getter is not cached', async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal((await data.account()).email, 'owner@example.test');
 });
+
+test('cached(key, loader) runs the loader once per key until invalidate()', async () => {
+  const data = createData({ mcp: fakeMcp() });
+  let runs = 0;
+  const loader = async () => { runs += 1; return { rows: [runs] }; };
+  const [a, b] = await Promise.all([data.cached('report:x', loader), data.cached('report:x', loader)]);
+  assert.equal(a, b);
+  assert.equal(runs, 1);
+  await data.cached('report:y', loader);
+  assert.equal(runs, 2);
+
+  data.invalidate();
+  assert.deepEqual(await data.cached('report:x', loader), { rows: [3] });
+});
+
+test('cached() drops a rejected loader and never shadows a getter', async () => {
+  const mcp = fakeMcp();
+  const data = createData({ mcp });
+  let fail = true;
+  const loader = async () => { if (fail) { fail = false; throw new Error('boom'); } return 'ok'; };
+  await assert.rejects(data.cached('crm:leads', loader), /boom/);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(await data.cached('crm:leads', loader), 'ok');
+
+  assert.equal(await data.cached('account', async () => 'mine'), 'mine');
+  assert.equal((await data.account()).email, 'owner@example.test');
+});
+
+test('peek(key) reads a memo without loading or caching anything', async () => {
+  const data = createData({ mcp: fakeMcp() });
+  assert.equal(data.peek('report:30d'), undefined);
+  assert.equal(data.peek('account'), undefined);
+  await data.cached('report:30d', async () => ({ rows: [1] }));
+  assert.deepEqual(await data.peek('report:30d'), { rows: [1] });
+  data.invalidate();
+  assert.equal(data.peek('report:30d'), undefined);
+});

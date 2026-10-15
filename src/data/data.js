@@ -11,7 +11,9 @@
  *   sources()     { rows, truncated } with the raw source rows
  *   stages()      raw stage rows
  *   call / paged / pagedInfo   passthrough to the MCP client for any other read tool
- *   invalidate(key?)           drop one cached getter, or all of them
+ *   cached(key, loader)        a view's own memo: `loader()` once per key until invalidate()
+ *   peek(key)                  the promise cached() holds for `key`, or undefined; never loads
+ *   invalidate(key?)           drop one cached getter, or all of them (memos included)
  *   now()                      the clock views should use
  */
 export function createData({ mcp, now = () => new Date() }) {
@@ -72,6 +74,11 @@ export function createData({ mcp, now = () => new Date() }) {
     call: (tool, args, opts) => mcp.callTool(tool, args, opts),
     paged: (tool, args, opts) => mcp.callToolPaged(tool, args, opts),
     pagedInfo: (tool, args, opts) => mcp.callToolPagedInfo(tool, args, opts),
+
+    // Prefixed so a view key can never shadow a getter.
+    cached: (key, loader) => once(`view:${key}`, loader),
+    // Read another view's memo without starting (or caching) a load of your own.
+    peek: (key) => cache.get(`view:${key}`),
 
     invalidate(key) {
       if (key === undefined) cache.clear();

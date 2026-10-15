@@ -1,0 +1,24 @@
+/* Performance Report: only what the shared kit (styles.css) does not cover.
+   Tokens only, every class prefixed with report-. */
+
+/* the custom range: two kit date inputs side by side */
+.report-custom { display: inline-flex; align-items: center; gap: 6px; }
+
+/* attribution window: a short number input between two quiet labels */
+.report-window { display: inline-flex; align-items: center; gap: 6px; }
+.report-window input[type="number"] { width: 76px; }
+.report-window input:disabled { opacity: .45; }
+
+.report-toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+
+/* pushes the two panel buttons to the right of the row */
+.report-spacer { flex: 1 1 auto; }
+
+/* the ad-account picker: one column, the type pill at the end of the row */
+.report-acct-list { columns: 1; }
+.report-acct-list .col-opt span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.report-win { margin-bottom: 18px; }
