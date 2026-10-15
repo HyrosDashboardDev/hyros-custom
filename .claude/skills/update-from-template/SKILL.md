@@ -1,6 +1,6 @@
 ---
 name: update-from-template
-description: Bring the HYROS dashboard template's latest changes (fixes, new tabs, core updates) into this dashboard with a git merge, on a branch the user previews before production. Use when the user asks to update the dashboard, to get the template's latest version, fixes or tabs, or asks whether an update is available.
+description: Bring the HYROS dashboard template's latest changes (fixes, new tabs, core updates) into this dashboard with a git merge that goes to production once the user confirms. Use when the user asks to update the dashboard, to get the template's latest version, fixes or tabs, or asks whether an update is available.
 ---
 
 # Update from the template
@@ -61,7 +61,7 @@ echo "${BASE:-no match}"
   template's history was rewritten). Tell the user it cannot be updated
   automatically and stop. Never merge with `--allow-unrelated-histories`
   alone: without a base, every file the dashboard changed conflicts.
-- A commit: anchor on a branch for the update:
+- A commit: anchor on a local branch for the update:
 
 ```bash
 git switch -c template-update
@@ -91,22 +91,33 @@ the edit is lost unless it is moved somewhere the dashboard owns (an own
 view, or `custom.js`). Then `git add` the resolved paths and
 `git commit --no-edit`.
 
-## 5. Check and preview
+`template-update` is a local branch only: it keeps `main` untouched until
+the user confirms. Never push it.
+
+## 5. Check and confirm
 
 1. `npm run check` must pass. A failure in an own view usually means the
    template changed something the view used: fix the view, not the
    template's files.
-2. Push the branch: `git push origin template-update`. Vercel deploys a
-   preview of it.
-3. Give the user the preview and a summary: the template commits brought
-   in, the conflicts and how each was resolved.
+2. Give the user a summary: the template commits brought in, the conflicts
+   and how each was resolved, and any edit of theirs the template's version
+   replaced.
+3. Ask the user to confirm the update goes to production.
 
 ## 6. Production
 
-Only when the user confirms, after looking at the preview: merge
-`template-update` into `main` (`git switch main`, `git merge --ff-only
-template-update`, `git push origin main`). A push to `main` is a production
-deploy. Then delete the branch locally and on `origin`.
+Only when the user confirms:
+
+```bash
+git switch main
+git merge --ff-only template-update
+git push origin main
+git branch -d template-update
+```
+
+A push to `main` is a production deploy. When the user does not confirm,
+leave `main` as it is: `git switch main` and ask before deleting the
+`template-update` branch.
 
 The next update repeats steps 1, 2, 4, 5 and 6; step 3 is never needed
 again.
