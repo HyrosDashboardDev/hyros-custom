@@ -44,6 +44,23 @@ dashboard at its own url
 - `styles.css` and `assets/`: the design system, the self-hosted fonts and
   the brand assets.
 
+## Tabs
+
+- **Performance Report**: spend, revenue and ROAS by traffic source, ad
+  account, campaign, ad set or ad, for a range and an attribution model,
+  with a drill from a number to the leads, sales or calls behind it.
+- **CRM**: the leads, sales, calls and subscriptions of a range, with
+  server-side filters, counts from the aggregation tools and one lead's
+  journey.
+- **Scale**: the marginal CAC curve of the chosen ad accounts (and of the
+  top ad sets once the Report has loaded the last 30 days).
+- **Health**: verified domains, Google tracking parameters and whether the
+  HYROS script is on each site.
+- **Account**: the account the dashboard is looking at.
+
+Each tab's data and states are in its `SPEC.md`; the tools behind them in
+`docs/RECIPES.md`.
+
 Tokens stay in memory. Both ways of getting one, and how the theme arrives,
 are in `docs/PROTOCOL.md`;
 the rules for adding views are in `CLAUDE.md` and `VIEWS.md`.

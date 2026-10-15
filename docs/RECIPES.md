@@ -55,7 +55,8 @@ write `SPEC.md` first, add the id to `src/views/registry.js`. The contract
 One `hyros_get_attribution_report` call per ad account, per level, per date
 range, then rollups in the browser. The HYROS report screen's Campaign,
 Traffic and Account tabs are not report levels: they are built by joining
-ad-set rows to `hyros_get_sources` and grouping.
+ad-set rows to `hyros_get_sources` and grouping. `src/views/report/` is this
+recipe built (its `SPEC.md` has the cache keys other tabs can read).
 
 ### 1. Date ranges
 
@@ -105,19 +106,26 @@ const page = await ctx.data.pagedInfo('hyros_get_attribution_report', {
     ids: [adAccountId],
     isAdAccountId: true,
     timeGroupingOption: 'SOURCE_LINK',       // the only grouping an ad-account id allows
-    pageSize: 250,
     newestFirst: true,                       // oldest-first fills the page with ads that no longer run
     sourceConfiguration: 'ALL_SOURCES',      // how the report screens attribute
+    reportSourceVisibility: true,            // leave deleted source links out, like the report screens
     fields: REPORT_FIELDS,                   // every metric you will show; unrequested ones come back null
-    // windowAttributionDaysRange: 7,        // LAST_CLICK only
+    // windowAttributionDaysRange: 7,        // LAST_CLICK only, 1 to 365
     // leadStage: ['Customer'],              // must match account stage names, see ctx.data.stages()
   },
-}, { maxPages: 40, pageSize: 250, timeoutMs: TIMEOUTS.default });
+}, { maxPages: 8, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
 ```
 
-Run the calls in sequence. One ad account failing (unsupported level,
-disconnected integration) becomes a warning for that account, never a
-failed view.
+Run the calls in sequence, and give the render a deadline
+(`start + VIEW_LOAD_MS - 15000`): an account with many ad accounts needs one
+call per ad account, so the last ones may not fit; list them as skipped
+instead of failing the view. 8 pages are the newest 2,000 sources of an ad
+account; say so when `truncated` is true. One ad account failing
+(unsupported level, disconnected integration) becomes a warning for that
+account, never a failed view. Rows carry `id`, `name`, `parentId`,
+`parentName` and the metrics, but no category or traffic source: stamp the
+ad account id of the call on each row (`_account`) and get the rest from
+the join (step 6).
 
 ### 4. Normalize a row
 
@@ -161,9 +169,23 @@ revenue 0 gives profit -4,129.58 and ROI -100.00%.
 
 ### 6. Rollups
 
-Join each ad-set row to its source (`ctx.data.sources()`, by `id`): the
-source gives `name` (ad-set rows sometimes come back unnamed), `tag`,
-`category.name`, `trafficSource.name` and `adAccountId`. Then:
+Join each ad-set row to its source by id. Do not page the whole source
+list (`ctx.data.sources()`): a large account has more than 10,000 sources,
+which is 40 calls and still cut short. Ask only for the ids on screen,
+50 at a time, in sequence, and remember what came back for the life of the
+page:
+
+```js
+ctx.data.pagedInfo('hyros_get_sources', { request: {
+  adSourceIds: ids,                           // at most 50 ad-set row ids
+  includeOrganic: true, includeDisregarded: true,
+} }, { maxPages: 2, pageSize: 250, deadline, timeoutMs });
+```
+
+A row's `id` matches the source's `adSource.adSourceId`. The source gives
+`name` (ad-set rows sometimes come back unnamed), `tag`, `category.name`
+and `trafficSource.name`. An ad row joins through its `parentId` (the ad
+set). `buildLevels` in `src/data/report-levels.js` does the grouping:
 
 | Tab | Group ad-set rows by | Label |
 |---|---|---|
@@ -289,26 +311,48 @@ A sensible default column set: `clicks`, `cost`, `totalRevenue`, `revenue`,
 
 ## CRM
 
-Four lists for the window the view shows, paged in parallel (they are four
-different tools, so they do not collide on the "already processing" rule),
-each with `pageSize: 250` and a page cap. Each list's `truncated` flag is
-shown on its own.
+Four lists (leads, sales, calls, subscriptions) for the window the view
+shows. Load only the one on screen, and the others when the user opens
+them: a large account has thousands of leads and sales a month, and four
+lists of 8 pages each do not fit in one render. `src/views/crm/` is this
+recipe built.
 
 ```js
-const from = dayStart(window.from, tz);
-const to = dayEnd(window.to, tz, now);
-const paged = { pageSize: 250, maxPages: 40 };
-const [leads, sales, calls, subs] = await Promise.all([
-  ctx.data.pagedInfo('hyros_get_leads',         { request: { fromDate: from, toDate: to } }, paged),
-  ctx.data.pagedInfo('hyros_get_sales',         { request: { fromDate: from, toDate: to } }, paged),
-  ctx.data.pagedInfo('hyros_get_calls',         { request: { fromDate: from, toDate: to } }, paged),
-  ctx.data.pagedInfo('hyros_get_subscriptions', { request: { fromDate: from, toDate: to } }, paged),
-]);
+const fromDate = dayStart(start, tz);
+const toDate = dayEnd(end, tz, now);          // never a bound in a future month
+const page = await ctx.data.pagedInfo('hyros_get_leads',
+  { request: { fromDate, toDate, ...filters } },
+  { maxPages: 8, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
 ```
 
-Dates: leads are ISO; sales, calls and subscriptions use the legacy
-`EEE MMM dd HH:mm:ss zzz yyyy` form, and so does the lead embedded in them.
-Read every date with `parseHyrosDate(value, offsetSuffix(tz))`.
+The lists come newest first, so a `truncated` list is "showing newest
+2,000". Filter on the server, with the tool's own parameters: `emails`
+(prefixes), `stage` and `tags` on leads, `isRecurringSale` and
+`saleRefundedState` on sales, `qualified` and `qualificationStages` on
+calls, `subscriptionStates` on subscriptions. Leads have no parameter for
+"has a source": filter that on the loaded rows and say it applies to them.
+
+Counts for the tiles come from the aggregation tools, not from the loaded
+rows, so they hold when the list is cut short. Send them the same range and
+filters as the list:
+
+| Tool | `attribute` | What it answers |
+|---|---|---|
+| `hyros_get_leads_aggregation` | `STAGE` | `totalCount` = leads in the range; the `Customer` group |
+| `hyros_get_leads_aggregation` | `FIRST_SOURCE_TAG` | leads with a first source = sum of `groups[].count` + `remainingCount` |
+| `hyros_get_sales_aggregation` | `FIRST_SOURCE_TAG` | `totalCount` = sales; `groups[].details.revenue` is USD (HYROS stable price) and covers sales with a first source only |
+| `hyros_get_calls_aggregation` | `CALL_QUALIFICATION` | `totalCount` = calls; the groups are qualification stage names, which do not say which one counts as qualified: ask again with `qualified: true` for that tile |
+
+Each answers `{ groups: [{ key, count, details? }], remainingCount, totalCount }`.
+The groups are not a total: a lead without the attribute is in no group,
+and with `TAG` a lead is in one group per tag. Pass `groupsLimit: 1000`.
+There is no aggregation for subscriptions; count the loaded rows and mark
+the tile "+" when the list was cut.
+
+Dates: `creationDate` on leads, sales and calls is ISO; `refundDate`, the
+subscription dates and click dates still come in the legacy
+`EEE MMM dd HH:mm:ss zzz yyyy` form. Read every date with
+`parseHyrosDate(value, offsetSuffix(tz))`, which takes both.
 
 Money on a sale or subscription: the `price` object (`price.price`,
 `price.currency`) is in the account currency and wins; the undocumented
@@ -324,10 +368,10 @@ What to keep from each row:
 | Call | `id`, `lead.email`, lead name, `date` = `creationDate`, `name` or `tag`, `state` (else `QUALIFIED` / `UNQUALIFIED` from `qualified`), the ad = `firstSource.sourceLinkAd.name` or `lastSource.sourceLinkAd.name`. Calls carry full attribution on the call itself, richer than the lead row |
 | Subscription | `id` or `subscriptionId`, `lead.email`, `date` = `startDate` or `creationDate`, `endDate`, `name` or `planId`, price, `periodicity`, `status`, `provider.integration.name` |
 
-Income per lead: the lead object has no revenue field. Sum the window's
-sales by lower-cased email and join. Totals worth a tile: leads, attributed
-leads, customers (`stage === 'Customer'`), income, calls, qualified calls,
-subscriptions. `ctx.data.stages()` gives the stage names and counts.
+Income per lead: the lead object has no revenue field. Show it where one
+lead is open (the Drill journey sums its sales in the account currency)
+rather than joining every sale of the window to every lead.
+`ctx.data.stages()` gives the stage names for the stage filter.
 
 ## Drill
 
@@ -359,15 +403,21 @@ row carries the union of its members' tags (Report step 6).
 
 One `hyros_get_marginal_cac_curve` call per target, in sequence, each one
 independent: a curve that errors is stored with its message so the tab can
-say why it is empty.
+say why it is empty. `src/views/scale/` is this recipe built.
 
-- Targets: every ad account at `level: 'ACCOUNT'`, plus the top 6 ad sets by
-  30-day cost at `level: 'SOURCE_LINK'` (from the Report's 30-day ad-set
-  rows, or your own list).
-- Request: `{ id, level, startDate, endDate }` with `startDate` 89 days
-  before `endDate` (account level caps history at 90 days). Account level
-  has no LTV, so its ceiling is a caller `cacCeiling` or none; ad sets get
-  HYROS's LTV break-even ceiling (`ceilingBasis` says which).
+- Targets: the ad accounts the user picks at `level: 'ACCOUNT'`, plus the
+  top 6 ad sets by 30-day cost at `level: 'SOURCE_LINK'`. Ranking ad sets
+  needs the Report's 30-day ad-set rows: read them with
+  `ctx.data.peek('report:LAST_CLICK:0:<start>:<end>:adset')` (it never loads
+  anything) and leave the ad sets out when they are not there.
+- Request: `{ id, level, startDate, endDate, attributionModel: 'LAST_CLICK' }`
+  with `startDate` 89 days before `endDate` (account level caps history at
+  90 days). The tool's default model is `FIRST_CLICK`; send `LAST_CLICK` so
+  the curve speaks the Report's default model. Account level has no LTV and
+  rejects `ltvWindow`, so its ceiling is a caller `cacCeiling` or none
+  (without one the only saturation it reports is spend that buys no extra
+  customers); ad sets get HYROS's LTV break-even ceiling (`ceilingBasis`
+  says which).
 - The curve is computed live from 90 days of spend and often needs more than
   15 s: use `TIMEOUTS.slow`.
 - Response (`result` may wrap it): `curve: [{ spendPerDay, days, newCustomers, avgCac, marginalCac }]`
@@ -380,16 +430,17 @@ say why it is empty.
 
 ## Health (tracking health)
 
-Three independent checks, cheapest first, so a slow answer never starves the
+Three independent checks (and a fourth that confirms the third), cheapest first, so a slow answer never starves the
 others. Each check records `{ status: 'ok' | 'empty' | 'skipped' | 'failed', reason?, ms? }`
 and the tile says it ("skipped: time budget", "HYROS did not answer").
 Neither tool has a documented argument or reply shape: read replies
 tolerantly, and treat a reply you cannot read as a failed check, not as an
-empty result.
+empty result. `src/views/health/` is this recipe built.
 
-1. Domains: `hyros_get_domains` (`{ request: {} }`) answers the account's
-   verified tracking domains (a bare list, or `result` / `domains` holding
-   strings or `{ domain | name | url }`). Keep at most 20.
+1. Domains: `hyros_get_domains` takes no arguments (call it with `{}`) and
+   answers the account's verified tracking domains as a bare list of
+   strings (read `result` / `domains` and `{ domain | name | url }` too, in
+   case the shape changes). Keep at most 20.
 2. Google tracking parameters, only when an ad account of type `GOOGLE` or
    `GOOGLE_V2` exists: `hyros_check_tracking_parameters_for_integrations`
    with `{ request: { type } }` for `SEARCH` and `PERFORMANCE_MAX`. Rows come
@@ -400,15 +451,20 @@ empty result.
    `co.uk`-style suffixes) and check `https://<apex>/` and
    `https://www.<apex>/`, apex and www together so a cap never leaves half a
    site out, at most 12 URLs. `hyros_assert_script_presence_on_domain`
-   takes `{ domains: [url, ...] }` with **at most 3 URLs per call** and
-   answers a map `url -> SCRIPT_FOUND | SCRIPT_NOT_FOUND`. It fetches every
-   page live: use `TIMEOUTS.slow`, and skip it rather than start it with
-   little time left.
-4. Visits cross-check, only for URLs that read "not found": the check reads
-   the raw page, so a script a site builder injects at runtime is reported
-   missing on sites HYROS is tracking. Recent clicks are the proof a site is
-   tracked: take the ids of the 50 most recently active leads (CRM recipe),
-   call `hyros_get_lead_clicks` with `{ request: { leadIds, fromDate, pageSize: 250 } }`
-   for the last 7 days, at most 4 pages, and collect the hosts of `page`
-   (without `www.`). A host with visits is tracked whatever the script check
-   said.
+   takes `{ request: { domains: [url, ...] } }` with **at most 3 URLs per
+   call** and answers a map `url -> SUCCESSFUL | SCRIPT_DETECTED |
+   SCRIPT_NOT_FOUND | DOMAIN_NOT_FOUND | TIMEOUT_ERROR | UNKNOWN_ERROR`.
+   `SUCCESSFUL` and `SCRIPT_DETECTED` mean the script is there,
+   `SCRIPT_NOT_FOUND` is the only answer that means it is missing, and the
+   other three are inconclusive ("couldn't check"). It fetches every page
+   live: use `TIMEOUTS.slow`, and skip it rather than start it with little
+   time left.
+4. Visits cross-check, only when some URL did not answer `SUCCESSFUL` or
+   `SCRIPT_DETECTED`: the check reads the raw page, so a script a site
+   builder injects at runtime is reported missing on sites HYROS is
+   tracking. Recent clicks are the proof a site is tracked: take the ids of
+   the 50 newest leads (`hyros_get_leads` with `{ request: { pageSize: 50 } }`
+   answers newest by join date), call `hyros_get_lead_clicks` with
+   `{ request: { leadIds, fromDate, pageSize: 250 } }` for the last 7 days,
+   at most 4 pages, and collect the hosts of `page` (without `www.`). A host
+   with visits is tracked whatever the script check said.
