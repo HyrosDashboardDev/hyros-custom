@@ -5,11 +5,19 @@ description: Add a new tab (view) to the HYROS Custom Dashboard the plug-and-pla
 
 # Add a view
 
+**Working on the template itself** (`origin` is
+`HyrosEngineeringAI/hyros-custom`): the view is a template tab. Use an id
+without the `custom-` prefix, register it in `TEMPLATE_VIEWS` in
+`src/views/registry.js`, and never touch `src/views/custom.js`. See
+"Working on the template itself" in `CLAUDE.md`.
+
 Read `VIEWS.md` and `CLAUDE.md` first, then `UI-STYLE-GUIDE.md` before any
 markup or CSS. `src/views/account/` (with its `SPEC.md`) is the worked
 example; `src/views/_template/` is the skeleton.
 
-1. Pick an id (`^[a-z][a-z0-9-]{1,30}$`). Copy the skeleton:
+1. Pick an id (`^[a-z][a-z0-9-]{1,30}$`) starting with `custom-`, e.g.
+   `custom-funnel`, so a tab the template adds later never takes the
+   folder. Copy the skeleton:
    `cp -r src/views/_template src/views/<id>` and set `id` (equal to the
    folder name), `title`, `version`, `description`, `style`, `tools` and
    `author` on the `view` object in `view.js`.
@@ -31,8 +39,10 @@ example; `src/views/_template/` is the skeleton.
 4. `style.css` only for view-specific classes, prefixed with the id, using
    the tokens in `styles.css` `:root`. No hex colors anywhere under `src/`.
    No `style.css` needed: delete it and set `style: false`.
-5. Register the id in `VIEWS` in `src/views/registry.js` (array order is
-   tab order).
+5. Register the id in `CUSTOM_VIEWS` in `src/views/custom.js` (array order
+   is tab order; own tabs come after the template's). Never edit
+   `src/views/registry.js`: it belongs to the template and changes with its
+   updates.
 6. Verify: `npm run check` must pass (the view contract, `SPEC.md`
    present, no fetch, no core imports, no native dialogs, no hex colors).
    Then `npm run dev`, open http://localhost:4323 (the harness), paste an

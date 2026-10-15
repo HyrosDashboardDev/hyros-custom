@@ -13,6 +13,26 @@ Inside HYROS the page also follows the HYROS theme (dark or white), posted
 over the same contract; at its own url it starts white and has its own
 dark/white switch, hidden inside HYROS.
 
+## Working on the template itself
+
+This file is written for the owner of one dashboard. When
+`git remote get-url origin` ends in `HyrosEngineeringAI/hyros-custom.git`,
+this is the template every dashboard is generated from and updated from,
+worked on by HYROS developers. Then:
+
+- A new tab is a template tab: an id without the `custom-` prefix, added to
+  `TEMPLATE_VIEWS` in `src/views/registry.js`. Every dashboard gets it on
+  its next update.
+- Never change `src/views/custom.js`. It belongs to each dashboard; a change
+  here reaches every dashboard as one of its own tabs or conflicts with
+  their own list on update. It stays with both arrays empty.
+- A change to a file a dashboard owner edits (`styles.css`, `index.html`,
+  `CLAUDE.md`) conflicts in every dashboard that edited it too. Keep such
+  changes small, and prefer a new file or a view's own `style.css`.
+- "GitHub access and deploys" and the `update-from-template` skill do not
+  apply: this repository is public, the developer uses their own GitHub
+  credentials, and changes go through pull requests to `main`.
+
 ## Read order
 
 1. `VIEWS.md`: the view contract (folder layout, the `view` object, `ctx`,
@@ -60,12 +80,16 @@ dark/white switch, hidden inside HYROS.
 
 Details in `VIEWS.md`; the `add-view` skill walks the same steps.
 
-1. `cp -r src/views/_template src/views/<id>` and set `id` (equal to the
+1. Pick an id starting with `custom-` (e.g. `custom-funnel`), then
+   `cp -r src/views/_template src/views/<id>` and set `id` (equal to the
    folder name), `title`, `version`, `description`, `style`, `tools` and
    `author` on the `view` object.
 2. Write `SPEC.md` first: the tools, the rows shape, the states.
 3. Write `render(ctx)` (`ctx = { root, data, fmt, esc, kpis, now }`) with
-   the shared kit, then add `'<id>'` to `VIEWS` in `src/views/registry.js`.
+   the shared kit, then add `'<id>'` to `CUSTOM_VIEWS` in
+   `src/views/custom.js`. Never edit `src/views/registry.js`: it lists the
+   template's tabs and changes with template updates. To hide a template
+   tab, add its id to `HIDDEN_VIEWS` in `custom.js`.
 4. `npm run check`, then `npm run dev` and look at the tab through the
    harness.
 
@@ -84,6 +108,14 @@ npm run dev     # dashboard on http://localhost:4321, harness on http://localhos
 The harness plays HYROS: paste an MCP access token, it answers the
 dashboard's `ready` and `token-request`. Opened directly, the dashboard goes
 to the HYROS sign-in of production (`?mcp=qa` for QA).
+
+## Updating from the template
+
+This dashboard was generated from the public template
+`https://github.com/HyrosEngineeringAI/hyros-custom` (branch `main`). When
+the user asks to update the dashboard, or to bring in the template's latest
+fixes or tabs, follow the `update-from-template` skill. Never update
+without the user asking.
 
 ## Where things are
 

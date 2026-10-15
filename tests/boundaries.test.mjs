@@ -103,6 +103,21 @@ test('every registered view exports the contract and matches its folder', async 
   }
 });
 
+test('the account\'s tabs live in custom.js, prefixed custom-, and only hide template tabs', async () => {
+  const { CUSTOM_VIEWS, HIDDEN_VIEWS } = await import(pathToFileURL(join(SRC, 'views/custom.js')).href);
+  const { TEMPLATE_VIEWS } = await import(pathToFileURL(join(SRC, 'views/registry.js')).href);
+  assert.ok(Array.isArray(CUSTOM_VIEWS) && Array.isArray(HIDDEN_VIEWS), 'custom.js exports CUSTOM_VIEWS and HIDDEN_VIEWS arrays');
+  for (const id of CUSTOM_VIEWS) {
+    assert.match(id, /^custom-/, `custom view '${id}' must start with custom- so a template tab never takes its folder`);
+  }
+  for (const id of TEMPLATE_VIEWS) {
+    assert.doesNotMatch(id, /^custom-/, `template view '${id}' must not use the custom- prefix, it belongs to the account`);
+  }
+  for (const id of HIDDEN_VIEWS) {
+    assert.ok(TEMPLATE_VIEWS.includes(id), `HIDDEN_VIEWS names '${id}', which is not a template tab; remove it from CUSTOM_VIEWS instead`);
+  }
+});
+
 test('every registered view folder has a SPEC.md', async () => {
   const { VIEWS } = await import(pathToFileURL(join(SRC, 'views/registry.js')).href);
   for (const id of VIEWS) {
