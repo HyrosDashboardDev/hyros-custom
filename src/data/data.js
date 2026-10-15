@@ -12,6 +12,7 @@
  *   stages()      raw stage rows
  *   call / paged / pagedInfo   passthrough to the MCP client for any other read tool
  *   cached(key, loader)        a view's own memo: `loader()` once per key until invalidate()
+ *   peek(key)                  the promise cached() holds for `key`, or undefined; never loads
  *   invalidate(key?)           drop one cached getter, or all of them (memos included)
  *   now()                      the clock views should use
  */
@@ -76,6 +77,8 @@ export function createData({ mcp, now = () => new Date() }) {
 
     // Prefixed so a view key can never shadow a getter.
     cached: (key, loader) => once(`view:${key}`, loader),
+    // Read another view's memo without starting (or caching) a load of your own.
+    peek: (key) => cache.get(`view:${key}`),
 
     invalidate(key) {
       if (key === undefined) cache.clear();

@@ -139,3 +139,13 @@ test('cached() drops a rejected loader and never shadows a getter', async () => 
   assert.equal(await data.cached('account', async () => 'mine'), 'mine');
   assert.equal((await data.account()).email, 'owner@example.test');
 });
+
+test('peek(key) reads a memo without loading or caching anything', async () => {
+  const data = createData({ mcp: fakeMcp() });
+  assert.equal(data.peek('report:30d'), undefined);
+  assert.equal(data.peek('account'), undefined);
+  await data.cached('report:30d', async () => ({ rows: [1] }));
+  assert.deepEqual(await data.peek('report:30d'), { rows: [1] });
+  data.invalidate();
+  assert.equal(data.peek('report:30d'), undefined);
+});
