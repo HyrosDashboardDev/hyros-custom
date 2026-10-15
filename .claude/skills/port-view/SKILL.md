@@ -5,13 +5,20 @@ description: Bring a view into the HYROS Custom Dashboard from another copy of t
 
 # Port a view
 
+**Working on the template itself** (`origin` is
+`HyrosEngineeringAI/hyros-custom`): the view is a template tab. Use an id
+without the `custom-` prefix, register it in `TEMPLATE_VIEWS` in
+`src/views/registry.js`, and never touch `src/views/custom.js`. See
+"Working on the template itself" in `CLAUDE.md`.
+
 A view travels as its folder: `src/views/<id>/` with `view.js`, `SPEC.md`
 and, when the view has one, `style.css`. Nothing outside the folder belongs
 to it. The contract is `VIEWS.md`.
 
 **Import a folder (another copy of this dashboard):**
-copy it to `src/views/<id>/` and add the id to `VIEWS` in
-`src/views/registry.js`. Read its `SPEC.md` first: if it calls a tool that
+copy it to `src/views/<id>/` and add the id to `CUSTOM_VIEWS` in
+`src/views/custom.js`. Its id must start with `custom-`: rename the folder
+and the `id` on its `view` object when it does not. Read its `SPEC.md` first: if it calls a tool that
 is not in `READ_TOOLS` (`src/core/mcp.js`), or a `ctx.data` getter this
 dashboard lacks, say so before registering it. Check its `style.css` uses
 only tokens from `styles.css` and that its classes are prefixed with its id.

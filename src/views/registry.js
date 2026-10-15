@@ -1,5 +1,13 @@
 /**
- * The tabs, in order. Each id is a folder under src/views/ holding a view.js
- * that exports `view`. This is the only place a view is added.
+ * The tabs, in order: the template's, minus the ones src/views/custom.js
+ * hides, then the account's own from custom.js. Each id is a folder under
+ * src/views/ holding a view.js that exports `view`.
+ *
+ * This file belongs to the template and changes with its updates. Add or
+ * hide a tab in src/views/custom.js, never here.
  */
-export const VIEWS = ['report', 'crm', 'scale', 'health', 'account'];
+import { CUSTOM_VIEWS, HIDDEN_VIEWS } from './custom.js';
+
+export const TEMPLATE_VIEWS = ['report', 'crm', 'scale', 'health', 'account'];
+
+export const VIEWS = [...TEMPLATE_VIEWS.filter((id) => !HIDDEN_VIEWS.includes(id)), ...CUSTOM_VIEWS];

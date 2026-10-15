@@ -14,15 +14,25 @@ src/views/<id>/
   SPEC.md      the portable spec                                      required
 ```
 
-Registry: `src/views/registry.js`
+Registry: two files, so the template's tabs and the account's own never
+share a line and a template update merges without conflicts.
 
 ```js
-export const VIEWS = ['account'];   // tab order
+// src/views/custom.js: the account's, the template never changes it
+export const CUSTOM_VIEWS = ['custom-funnel'];   // tab order, after the template's
+export const HIDDEN_VIEWS = ['scale'];           // template tabs not shown
+
+// src/views/registry.js: the template's, changes with template updates
+export const TEMPLATE_VIEWS = ['report', 'crm', 'scale', 'health', 'account'];
+export const VIEWS = [...TEMPLATE_VIEWS minus HIDDEN_VIEWS, ...CUSTOM_VIEWS];
 ```
 
-The array order is the tab order. Remove an id to unplug a view without
-deleting its folder. Folders whose name starts with `_` are skeletons
-(`src/views/_template/`) and are never registered.
+The array order is the tab order. An account's own view has an id that
+starts with `custom-`, so a tab the template adds later never takes its
+folder. To unplug a template view without deleting its folder, add its id
+to `HIDDEN_VIEWS`; to unplug an own view, remove it from `CUSTOM_VIEWS`.
+Folders whose name starts with `_` are skeletons (`src/views/_template/`)
+and are never registered.
 
 ## 1. The `view` object
 
@@ -190,7 +200,8 @@ Porting notes · Open limitations.
 
 A view travels as its folder: `view.js`, `style.css` and `SPEC.md`. Copy it
 into `src/views/<id>/` of another copy of this dashboard and add the id to
-`registry.js`. A different dashboard can reuse `view.js` and `style.css`
+`CUSTOM_VIEWS` in `src/views/custom.js` (renaming it to `custom-<id>` if it
+is not prefixed yet). A different dashboard can reuse `view.js` and `style.css`
 unchanged if it provides the same `ctx`: the `ctx.data` getters the view
 calls and the row shapes its `SPEC.md` names. When the code cannot travel,
 `SPEC.md` is the requirement.
@@ -204,6 +215,8 @@ calls and the row shapes its `SPEC.md` names. When the code cannot travel,
 - every registered view exports `view` with `id` (equal to its folder),
   `title` and `render`;
 - every registered view folder has a `SPEC.md`;
+- the ids in `CUSTOM_VIEWS` start with `custom-`, the template's never do,
+  and `HIDDEN_VIEWS` only names template tabs;
 - no hex color literal in `src/**/*.js` or `src/views/**/style.css`;
 - no file uses `alert`, `confirm` or `prompt` (the HYROS iframe sandbox
   blocks them);
@@ -215,7 +228,8 @@ the data API.
 
 ## 8. Adding a view, step by step
 
-1. Pick an id (`^[a-z][a-z0-9-]{1,30}$`) and copy the skeleton:
+1. Pick an id (`^[a-z][a-z0-9-]{1,30}$`, starting with `custom-`) and copy
+   the skeleton:
    `cp -r src/views/_template src/views/<id>`.
 2. In `view.js`, set `id` (equal to the folder name), `title`, `version`,
    `description`, `style`, `tools` and `author`. Delete `style.css` and set
@@ -224,7 +238,7 @@ the data API.
    the states. Check `docs/RECIPES.md` for the tool shapes and limits.
 4. Write `render(ctx)`: data through `ctx.data`, numbers through `ctx.fmt`,
    every string through `ctx.esc`, the shared kit before new CSS.
-5. Add the id to `VIEWS` in `src/views/registry.js`.
+5. Add the id to `CUSTOM_VIEWS` in `src/views/custom.js`.
 6. `npm run check`.
 7. `npm run dev`, open http://localhost:4323 (the harness), paste a token,
    and look at the tab: data, a refresh, and the empty and warning states.
