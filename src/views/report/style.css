@@ -1,0 +1,32 @@
+/* Performance Report: only what the shared kit (styles.css) does not cover.
+   Tokens only, every class prefixed with report-. */
+
+/* the custom range: two date inputs dressed like the kit's inputs */
+.report-custom { display: inline-flex; align-items: center; gap: 6px; }
+.report-custom input[type="date"] {
+  padding: 6px 10px; background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: var(--r-btn); color: var(--ink); font: inherit; font-size: 13px;
+  color-scheme: light dark;
+}
+.report-custom input[type="date"]:focus {
+  outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring);
+}
+
+/* attribution window: a short number input between two quiet labels */
+.report-window { display: inline-flex; align-items: center; gap: 6px; }
+.report-window input[type="number"] { width: 76px; }
+.report-window input:disabled { opacity: .45; }
+
+.report-toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+}
+
+/* pushes the two panel buttons to the right of the row */
+.report-spacer { flex: 1 1 auto; }
+
+/* the ad-account picker: one column, the type pill at the end of the row */
+.report-acct-list { columns: 1; }
+.report-acct-list .col-opt span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.report-win { margin-bottom: 18px; }
