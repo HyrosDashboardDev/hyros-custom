@@ -38,7 +38,8 @@ dashboard at its own url
 - `src/core/`: config, auth (postMessage and the HYROS sign-in), the theme,
   the MCP client, dates, time limits.
 - `src/data/data.js`: the data API views get as `ctx.data`.
-- `src/views/`: one folder per tab, listed in `src/views/registry.js`.
+- `src/views/`: one folder per tab. `src/views/registry.js` lists the
+  template's tabs and `src/views/custom.js` the account's own.
   `src/views/_template/` is the skeleton of a new one.
 - `src/app.js`: boot, the connection gate, header, tabs, Refresh.
 - `styles.css` and `assets/`: the design system, the self-hosted fonts and
