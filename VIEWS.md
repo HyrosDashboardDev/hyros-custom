@@ -74,7 +74,7 @@ Partial states are the view's job:
 | key | what |
 |---|---|
 | `root` | the element the view renders into (a fresh `<div class="view">` per render) |
-| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `invalidate`, `now`. Which tools to call and how to shape the rows: `docs/RECIPES.md` |
+| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `cached`, `invalidate`, `now`. Which tools to call and how to shape the rows: `docs/RECIPES.md` |
 | `fmt` | `src/ui/fmt.js`: `money(v)`, `moneyIn(v, code)`, `money0(v)`, `int(v)`, `pct(v)`, `ratio(v)`, `date(iso)`, `datetime(iso)`, `currencyCode(code)`. Money is in the account currency; a missing value prints `-` |
 | `esc(s)` | HTML-escape; use it on every string that came from HYROS |
 | `kpis(list)` | KPI tiles HTML, already wrapped in `<div class="kpis">`: `[{ label, value, sub?, cls? }]`. `label`, `value` and `sub` are rendered as **escaped text** (no HTML inside them; pass values already formatted with `fmt`). `cls: 'hy'` goes on the tile and makes it the one highlight tile of the screen; `cls: 'good'` or `'bad'` goes on the figure (`.kpi-value`), the money tone; any other `cls` is ignored |
@@ -97,7 +97,7 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
 - Pills: `.pill` (`.ok`, `.bad`, `.stage`, `.warn`, `.fb`, `.hy`).
 - Badges: `.badge` (`.live`).
 - Segmented control: `.chipset` / `.chip` (`.active`) / `.chip-count`.
-- Controls row: `.controls` (search inputs, selects, chipsets).
+- Controls row: `.controls` (search, number and date inputs, selects, chipsets).
 - Panels: `.fpanel` + `h3` + `.fhint`, `.fcols` (2-up grid that stacks on
   narrow frames), `.fshare` / `.fshare-head` / `.fshare-bar` share bars.
 - Text: `.clip.clip-s`, `.clip.clip-m`, `.clip.clip-l` (clipped cells),
@@ -109,6 +109,20 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
   `.drawer-body`, `.drawer-section`; a lead cohort `.cohort` /
   `.cohort-row`; a journey `.timeline` / `.tl-item` / `.tl-icon`; clicks
   `.clicks` / `.click-row` / `.click-page`.
+
+Two shared modules build on the kit; import them from `view.js`:
+
+- `src/ui/table.js`: `sortRows(rows, { col, dir })` (a sorted copy, missing
+  values last), `nextSort(sort, col, firstDir)` for a header click, and
+  `sortHeader({ col, label, cls }, sort)` for the `<th>`.
+- `src/ui/drill.js`: the drawer and the drill behind a number.
+  `openCohortDrill(ctx, { title, tags, metric, label, note })` opens the
+  leads that touched the row's source tags (`metric: 'leads'`) or their
+  `'sales'` / `'calls'`; `openLeadJourney(ctx, email)` opens one lead's
+  journey and click history. Both mount the drawer inside `ctx.root`, run
+  their calls in sequence and say when a list is cut short. The pieces
+  (`openDrawer`, `loadCohort`, `loadRecords`, `loadJourney`, the
+  `render*` functions) are exported for a view that needs another flow.
 
 View-specific classes go in the view's `style.css`, **prefixed with the view
 id** (`.health-check`, never `.check`), using only the tokens in
@@ -122,8 +136,16 @@ follows:
 
 - **Derived metrics are re-derived after summing, never averaged.** A
   rolled-up row sums the additive parts (cost, revenue, clicks, ...) and
-  computes ROAS, ROI, CPL, CTR and the rest from the sums
-  (`docs/RECIPES.md` "Derived metrics").
+  computes ROAS, ROI, CPL, CTR and the rest from the sums. Use
+  `src/data/metrics.js` (`derive`, `aggregate`, `rollup`, `CATALOG`) instead
+  of writing the formulas again; `tests/metrics.test.mjs` pins them to a real
+  report screen.
+- **What a render loaded can be kept for the life of the page** with
+  `ctx.data.cached(key, loader)`: the loader runs once per key, a rejected
+  one is dropped so the next render tries again, and Refresh
+  (`ctx.data.invalidate()`) clears every key. Put everything the result
+  depends on in the key (`report:<model>:<start>:<end>`), so another tab can
+  reuse it by asking for the same key.
 - **Money and numbers go through `ctx.fmt`.** It knows the account currency
   and prints `-` for a missing value.
 - **Dates stay as HYROS returns them** until render; format them only when

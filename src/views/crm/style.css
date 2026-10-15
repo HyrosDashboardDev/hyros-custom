@@ -1,0 +1,7 @@
+/* CRM view. Shared kit first (.controls .chipset .chip .chip-count .kpis
+   table.dense .note .empty .pill); only what the kit lacks lives here, tokens only. */
+.crm-controls { margin-bottom: 12px; }
+.crm-custom { display: inline-flex; align-items: center; gap: 6px; }
+.controls input.crm-tags { flex: 0 1 200px; min-width: 140px; }
+.crm-hint { font-size: 12px; }
+.crm-retry { margin-left: 8px; padding: 4px 10px; font-size: 12.5px; }
