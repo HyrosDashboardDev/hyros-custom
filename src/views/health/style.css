@@ -1,0 +1,17 @@
+/* Health: view-scoped styles (from hyros-ai features/health), tokens only. */
+.health-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 13px; min-width: 0; flex-wrap: wrap; }
+.health-row:last-child { border-bottom: 0; }
+.health-row code { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+/* A check's message at reading size (never the grey footnote): "Check failed: ...", "Skipped ...". */
+.health-msg { flex: 1; min-width: 0; font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.health-row .pill + code, .health-row .pill + .health-msg { margin-left: 2px; }
+/* A leading status pill gets one width, so the names and messages after it line up row to row. */
+.health-row > .pill:first-child { min-width: 64px; text-align: center; }
+.health-row > .pill:first-child + code { flex: 0 0 34%; }
+.health-status { display: flex; align-items: center; gap: 10px; padding: 8px 0 10px; font-size: 13px; }
+.health-errors .health-msg { color: var(--ink); }
+
+.health-variants { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 0 0 8px 12px; border-bottom: 1px solid var(--rule); }
+.health-variants .sub { font-family: var(--mono); font-size: 11px; }
+.health-site { border-bottom: 0; }
+.health-unchecked { padding-top: 8px; font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
