@@ -340,13 +340,13 @@ button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color
 .chip.active, .chip.active:hover { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-chip); }
 .chip:disabled { opacity: .35; }
 
-input[type="search"], select, input[type="number"] {
+input[type="search"], select, input[type="number"], input[type="date"] {
   padding: 7px 12px; background: var(--surface); border: 1px solid var(--border-2);
   border-radius: var(--r-btn); color: var(--ink); font: inherit; font-size: 13.5px;
 }
 /* the search grows into free space but never forces the row to wrap */
 .controls input[type="search"] { flex: 1 1 150px; min-width: 130px; max-width: 250px; }
-input[type="search"]:focus, select:focus, input[type="number"]:focus {
+input[type="search"]:focus, select:focus, input[type="number"]:focus, input[type="date"]:focus {
   outline: none; border-color: var(--brand);
   box-shadow: 0 0 0 3px var(--brand-ring);
 }
