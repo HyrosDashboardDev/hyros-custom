@@ -8,13 +8,8 @@
 @media (max-width: 600px) { .scale-verdict { white-space: normal; } }
 .scale-notes { margin-top: 8px; }
 
-/* Controls: the account chips scroll inside their track; the end date input wears the kit's input look. */
+/* Controls: the account chips scroll inside their track; the end date is a kit date input. */
 .scale-end { display: inline-flex; align-items: center; gap: 8px; }
-.scale-end input[type="date"] {
-  padding: 6px 10px; background: var(--surface); border: 1px solid var(--border-2);
-  border-radius: var(--r-btn); color: var(--ink); font: inherit; font-size: 13px;
-}
-.scale-end input[type="date"]:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
 
 /* The plot fills the card; its height follows the width (aspect ratio) so a wide screen gets a taller chart, not a flatter one. */
 .scale-body { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; align-items: start; }

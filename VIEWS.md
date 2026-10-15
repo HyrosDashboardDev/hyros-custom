@@ -97,7 +97,7 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
 - Pills: `.pill` (`.ok`, `.bad`, `.stage`, `.warn`, `.fb`, `.hy`).
 - Badges: `.badge` (`.live`).
 - Segmented control: `.chipset` / `.chip` (`.active`) / `.chip-count`.
-- Controls row: `.controls` (search inputs, selects, chipsets).
+- Controls row: `.controls` (search, number and date inputs, selects, chipsets).
 - Panels: `.fpanel` + `h3` + `.fhint`, `.fcols` (2-up grid that stacks on
   narrow frames), `.fshare` / `.fshare-head` / `.fshare-bar` share bars.
 - Text: `.clip.clip-s`, `.clip.clip-m`, `.clip.clip-l` (clipped cells),

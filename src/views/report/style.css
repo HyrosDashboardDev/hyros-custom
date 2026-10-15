@@ -1,16 +1,8 @@
 /* Performance Report: only what the shared kit (styles.css) does not cover.
    Tokens only, every class prefixed with report-. */
 
-/* the custom range: two date inputs dressed like the kit's inputs */
+/* the custom range: two kit date inputs side by side */
 .report-custom { display: inline-flex; align-items: center; gap: 6px; }
-.report-custom input[type="date"] {
-  padding: 6px 10px; background: var(--surface); border: 1px solid var(--border-2);
-  border-radius: var(--r-btn); color: var(--ink); font: inherit; font-size: 13px;
-  color-scheme: light dark;
-}
-.report-custom input[type="date"]:focus {
-  outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring);
-}
 
 /* attribution window: a short number input between two quiet labels */
 .report-window { display: inline-flex; align-items: center; gap: 6px; }

@@ -65,9 +65,9 @@ function rangeControls(ctx, today) {
   const chips = RANGE_KEYS.map((k) => `<button type="button" class="chip${state.rangeKey === k ? ' active' : ''}" data-crm-range="${k}">${RANGE_LABELS[k]}</button>`).join('');
   const custom = state.rangeKey === 'custom' ? `
     <span class="crm-custom">
-      <input type="date" class="crm-date" data-crm-from data-crm-keep="from" value="${ctx.esc(state.custom.start)}" max="${ctx.esc(today)}" aria-label="Start date">
+      <input type="date" data-crm-from data-crm-keep="from" value="${ctx.esc(state.custom.start)}" max="${ctx.esc(today)}" aria-label="Start date">
       <span class="sub">to</span>
-      <input type="date" class="crm-date" data-crm-to data-crm-keep="to" value="${ctx.esc(state.custom.end)}" max="${ctx.esc(today)}" aria-label="End date">
+      <input type="date" data-crm-to data-crm-keep="to" value="${ctx.esc(state.custom.end)}" max="${ctx.esc(today)}" aria-label="End date">
     </span>` : '';
   return `<div class="chipset crm-range">${chips}</div>${custom}`;
 }
