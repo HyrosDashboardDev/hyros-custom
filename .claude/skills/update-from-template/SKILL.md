@@ -33,37 +33,52 @@ from, so say so and stop.
 git remote get-url template >/dev/null 2>&1 \
   || git remote add template https://github.com/HyrosEngineeringAI/hyros-custom.git
 git fetch template
-git merge-base --is-ancestor template/main HEAD && echo up-to-date
+git merge-base HEAD template/main || echo not-anchored
 ```
 
-`up-to-date`: tell the user the dashboard already has the latest template
-and stop. Otherwise summarize what the update brings (`git log --oneline
---no-merges HEAD..template/main` once anchored; before the first anchor,
-the template commits after the base found in step 3) and ask the user
-whether to go on.
+**Anchored** (a commit is printed): the history already shares an ancestor
+with the template.
 
-## 3. Anchor the history (first update only)
+```bash
+git merge-base --is-ancestor template/main HEAD && echo up-to-date
+git log --oneline --no-merges HEAD..template/main
+```
 
-Skip this step when `git merge-base HEAD template/main` prints a commit:
-the history is already anchored.
-
-Otherwise find the template commit this dashboard was generated from. Its
-files are exactly those of the dashboard's first commit, so both commits
-point to the same git tree:
+**`not-anchored`** (no update ran yet): find the template commit this
+dashboard was generated from now, before asking anything. Its files are
+exactly those of the dashboard's first commit, so both commits point to the
+same git tree:
 
 ```bash
 TREE=$(git rev-parse "$(git rev-list --max-parents=0 HEAD | tail -1)^{tree}")
 BASE=$(git log template/main --format='%H %T' | awk -v t="$TREE" '$2==t {print $1; exit}')
-echo "${BASE:-no match}"
+if [ -z "$BASE" ]; then echo "no match"
+elif [ "$BASE" = "$(git rev-parse template/main)" ]; then echo up-to-date
+else echo "BASE=$BASE"; git log --oneline --no-merges "$BASE..template/main"; fi
 ```
+
+Note the `BASE=` hash it prints: step 3 needs it, and a shell variable
+does not survive into the next command.
+
+Do not use `HEAD..template/main` here: before the anchor, git sees no
+shared history and lists every template commit ever made.
 
 - `no match`: this dashboard was not generated from this template (or the
   template's history was rewritten). Tell the user it cannot be updated
   automatically and stop. Never merge with `--allow-unrelated-histories`
   alone: without a base, every file the dashboard changed conflicts.
-- A commit: anchor on a local branch for the update:
+- `up-to-date`: tell the user the dashboard already has the latest template
+  and stop. Do not anchor: there is nothing to merge.
+- Otherwise: summarize what the commits listed bring and ask the user
+  whether to go on.
+
+## 3. Anchor the history (first update only)
+
+Only when step 2 printed `not-anchored`. Anchor on a local branch for the
+update, with the hash step 2 printed as `BASE=`:
 
 ```bash
+BASE=<the hash step 2 printed>
 git switch -c template-update
 git merge -s ours --allow-unrelated-histories --no-edit -m "Anchor to template commit $BASE" "$BASE"
 ```
@@ -98,8 +113,17 @@ showing:
    and rename its class prefix in `view.js` and `style.css`. Add every own
    tab, in the dashboard's order, to `CUSTOM_VIEWS` in
    `src/views/custom.js`.
-3. Each template id missing from the dashboard's list was unplugged by the
-   user: add it to `HIDDEN_VIEWS`.
+3. A template tab the user unplugged is one that was in the list of the
+   template commit the dashboard last took and is missing from the
+   dashboard's list. Compare against that commit, not against
+   `TEMPLATE_VIEWS`: tabs the template added since then were never in the
+   dashboard and must not be hidden.
+
+   ```bash
+   git show "$(git merge-base HEAD template/main)":src/views/registry.js
+   ```
+
+   Add each unplugged id to `HIDDEN_VIEWS`.
 4. Take the template's `registry.js` (`git checkout --theirs
    src/views/registry.js`): after the move nothing of the dashboard's is
    left in it.
@@ -130,7 +154,8 @@ lines, and that the template's fixes there will not reach it. The way out,
 if they want it later: copy the tab to `custom-<id>`, keep their changes in
 the copy and hide the original with `HIDDEN_VIEWS` (the `add-view` skill).
 
-Then `git add` the resolved paths and `git commit --no-edit`.
+When the merge stopped on conflicts, `git add` the resolved paths and
+`git commit --no-edit`. A merge without conflicts already made its commit.
 
 `template-update` is a local branch only: it keeps `main` untouched until
 the user confirms. Never push it.
@@ -157,7 +182,8 @@ git branch -d template-update
 
 A push to `main` is a production deploy. When the user does not confirm,
 leave `main` as it is: `git switch main` and ask before deleting the
-`template-update` branch.
+`template-update` branch. It is not merged into `main`, so deleting it takes
+`git branch -D template-update`.
 
 The next update repeats steps 1, 2, 4, 5 and 6; step 3 is never needed
 again.

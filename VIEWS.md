@@ -201,7 +201,9 @@ Porting notes · Open limitations.
 A view travels as its folder: `view.js`, `style.css` and `SPEC.md`. Copy it
 into `src/views/<id>/` of another copy of this dashboard and add the id to
 `CUSTOM_VIEWS` in `src/views/custom.js` (renaming it to `custom-<id>` if it
-is not prefixed yet). A different dashboard can reuse `view.js` and `style.css`
+is not prefixed yet). Into the template itself, it goes to `TEMPLATE_VIEWS`
+in `src/views/registry.js` without the `custom-` prefix (drop it from the
+folder, the `id` and the class prefix). A different dashboard can reuse `view.js` and `style.css`
 unchanged if it provides the same `ctx`: the `ctx.data` getters the view
 calls and the row shapes its `SPEC.md` names. When the code cannot travel,
 `SPEC.md` is the requirement.
@@ -227,6 +229,11 @@ The other tests in `tests/` cover the auth handshake, the MCP client and
 the data API.
 
 ## 8. Adding a view, step by step
+
+These are the steps in a dashboard. In the template repository itself
+(`origin` is `HyrosEngineeringAI/hyros-custom`), the id has no `custom-`
+prefix and step 5 adds it to `TEMPLATE_VIEWS` in `src/views/registry.js`;
+`src/views/custom.js` is never changed there.
 
 1. Pick an id (`^[a-z][a-z0-9-]{1,30}$`, starting with `custom-`) and copy
    the skeleton:

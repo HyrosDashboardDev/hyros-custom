@@ -46,7 +46,9 @@ the docs disagree, the docs win.
 ## Start a view
 
 Copy `src/views/_template/` to `src/views/<id>/`, set the `view` fields,
-write `SPEC.md` first, add the id to `CUSTOM_VIEWS` in `src/views/custom.js`. The contract
+write `SPEC.md` first, add the id to `CUSTOM_VIEWS` in `src/views/custom.js`. The id
+starts with `custom-` (in the template itself: no prefix, and the id goes to
+`TEMPLATE_VIEWS` in `src/views/registry.js`). The contract
 (the `view` object, `ctx`, the shared markup kit, `SPEC.md`) is `VIEWS.md`;
 `npm run check` verifies it. `src/views/account/` is the worked example.
 

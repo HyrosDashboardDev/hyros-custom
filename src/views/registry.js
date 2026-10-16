@@ -3,8 +3,10 @@
  * hides, then the account's own from custom.js. Each id is a folder under
  * src/views/ holding a view.js that exports `view`.
  *
- * This file belongs to the template and changes with its updates. Add or
- * hide a tab in src/views/custom.js, never here.
+ * This file belongs to the template and changes with its updates. In a
+ * dashboard, add or hide a tab in src/views/custom.js, never here. In the
+ * template repository itself, template tabs are added here, to
+ * TEMPLATE_VIEWS (CLAUDE.md, "Working on the template itself").
  */
 import { CUSTOM_VIEWS, HIDDEN_VIEWS } from './custom.js';
 
