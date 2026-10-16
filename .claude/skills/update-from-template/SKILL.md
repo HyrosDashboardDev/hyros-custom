@@ -78,18 +78,59 @@ git switch template-update 2>/dev/null || git switch -c template-update
 git merge --no-edit template/main
 ```
 
-Resolve conflicts with this rule, and list each resolution for the user:
+Git merges on its own every change that touches different lines on each
+side, including both sides' changes to the same file. What it cannot merge
+it leaves as conflict blocks (`<<<<<<<` dashboard, `=======`, template
+`>>>>>>>`), listed by `git status`. Work through them in this order.
 
-| Path | Keep |
+### 4a. Tabs listed in `registry.js` (dashboards created before `custom.js`)
+
+When `src/views/custom.js` did not exist in the dashboard before this merge,
+its own tabs were listed in `VIEWS` in `src/views/registry.js`, and the
+merge conflicts there. Move them before resolving that file, or they stop
+showing:
+
+1. Compare the dashboard's list (`git show HEAD:src/views/registry.js`)
+   with the template's `TEMPLATE_VIEWS`.
+2. Each id the dashboard has and the template does not is an own tab. If it
+   does not start with `custom-`, rename it: `git mv src/views/<id>
+   src/views/custom-<id>`, then set `id: 'custom-<id>'` in its `view.js`
+   and rename its class prefix in `view.js` and `style.css`. Add every own
+   tab, in the dashboard's order, to `CUSTOM_VIEWS` in
+   `src/views/custom.js`.
+3. Each template id missing from the dashboard's list was unplugged by the
+   user: add it to `HIDDEN_VIEWS`.
+4. Take the template's `registry.js` (`git checkout --theirs
+   src/views/registry.js`): after the move nothing of the dashboard's is
+   left in it.
+
+Tell the user which tabs were renamed and which were hidden.
+
+### 4b. Resolve each conflict
+
+Resolve block by block, never a whole file at once: `git checkout --theirs`
+or `--ours` on a file also throws away the other side's changes that git
+had already merged in it.
+
+| Path | Conflict blocks |
 |---|---|
-| `src/core/`, `src/data/`, `src/ui/`, `src/app.js`, `src/views/registry.js`, the template's own views, `styles.css`, `index.html`, `build.mjs`, `vercel.json`, `tests/`, `docs/`, `.claude/skills/`, `CLAUDE.md`, `VIEWS.md`, `UI-STYLE-GUIDE.md` | the template's (`git checkout --theirs <path>`) |
-| `src/views/custom.js`, `src/views/custom-*/` | the dashboard's (`git checkout --ours <path>`) |
-| anything else | show the user both sides and ask |
+| `src/core/`, `src/views/registry.js` | keep the template's side of each block. The rules say these are not edited, and a dashboard that keeps its own version stops receiving the template's fixes there. Tell the user what was replaced. |
+| everything else | the user decides, block by block |
 
-When the user had edited a file the template's version replaces, say so:
-the edit is lost unless it is moved somewhere the dashboard owns (an own
-view, or `custom.js`). Then `git add` the resolved paths and
-`git commit --no-edit`.
+For a block the user decides, show both sides in plain words: what the
+dashboard has, what the template brings, and what each one does in the
+dashboard. The user keeps the dashboard's, the template's, or a combination
+you write and show them first. Group the small blocks of one file into one
+question. When a file was deleted on one side and changed on the other, ask
+whether to keep it.
+
+When the user keeps their own version of a block in a template tab, tell
+them that tab will conflict again whenever the template changes the same
+lines, and that the template's fixes there will not reach it. The way out,
+if they want it later: copy the tab to `custom-<id>`, keep their changes in
+the copy and hide the original with `HIDDEN_VIEWS` (the `add-view` skill).
+
+Then `git add` the resolved paths and `git commit --no-edit`.
 
 `template-update` is a local branch only: it keeps `main` untouched until
 the user confirms. Never push it.
@@ -99,9 +140,8 @@ the user confirms. Never push it.
 1. `npm run check` must pass. A failure in an own view usually means the
    template changed something the view used: fix the view, not the
    template's files.
-2. Give the user a summary: the template commits brought in, the conflicts
-   and how each was resolved, and any edit of theirs the template's version
-   replaced.
+2. Give the user a summary: the template commits brought in, the tabs moved
+   to `custom.js`, and every conflict with the side kept.
 3. Ask the user to confirm the update goes to production.
 
 ## 6. Production
