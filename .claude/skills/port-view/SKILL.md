@@ -34,5 +34,6 @@ rows shape the spec documents, reuse `view.js` and `style.css` if they were
 provided, keep the `id` and `version` from the spec, and note in the new
 `SPEC.md` what changed.
 
-Always finish with `npm run check`, then `npm run dev` and a look at the
-tab on http://localhost:4321, signed in with the HYROS account.
+Always finish with `npm run check`. The user looks at the tab on their
+dashboard once it is in production (see "GitHub access and deploys" in
+`CLAUDE.md`).
