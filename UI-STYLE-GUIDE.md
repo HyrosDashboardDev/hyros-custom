@@ -291,12 +291,10 @@ reduced-motion opt-out.
 npm run dev    # dashboard on http://localhost:4321, harness on http://localhost:4323
 ```
 
-Open http://localhost:4323 (the harness, which plays HYROS), paste an MCP
-access token, and screenshot the framed dashboard at 1440x900 in **both
-themes** (the harness's theme selector switches it live): the gate while it
-connects, every tab, the loading state, and a view's error card.
-Opened directly, http://localhost:4321 goes to the HYROS sign-in; press
-back to see the "Sign in with HYROS" gate, which is part of the visual check
-too. The dev server
+Open http://localhost:4321, sign in with the HYROS account, and screenshot
+the dashboard at 1440x900 in **both themes** (its dark/white switch): every
+tab, the loading state, and a view's error card. Opened directly, the page
+goes to the HYROS sign-in; press back to see the "Sign in with HYROS" gate,
+which is part of the visual check too. The dev server
 serves woff2, svg and png with their real types, so fonts and brand assets
 render exactly as in production.
