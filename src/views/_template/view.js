@@ -1,6 +1,8 @@
 /**
  * The skeleton of a view. Copy this folder to src/views/<id>/, set the fields
- * below, write SPEC.md first, then add the id to CUSTOM_VIEWS in src/views/custom.js.
+ * below, write SPEC.md first, then add the id to CUSTOM_VIEWS in src/views/custom.js
+ * (id starting with custom-). In the template repository itself, add it to
+ * TEMPLATE_VIEWS in src/views/registry.js instead, without the prefix.
  * Folders starting with "_" are never registered. The contract is in VIEWS.md.
  *
  * ctx = { root, data, fmt, esc, kpis, now }

@@ -1,6 +1,6 @@
 ---
 name: add-view
-description: Add a new tab (view) to the HYROS Custom Dashboard the plug-and-play way: view folder from the template, SPEC.md, render through ctx.data, registry, npm run check. Use when asked to add a report, tab, analysis, chart or "view" to the dashboard.
+description: Add a new tab (view) to the HYROS Custom Dashboard the plug-and-play way: view folder from the template, SPEC.md, render through ctx.data, register it in custom.js (TEMPLATE_VIEWS in registry.js inside the template itself), npm run check. Use when asked to add a report, tab, analysis, chart or "view" to the dashboard.
 ---
 
 # Add a view
