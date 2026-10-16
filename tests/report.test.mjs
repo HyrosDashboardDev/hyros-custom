@@ -181,6 +181,15 @@ test('the whole ad-set load is stored for Scale only when complete, and then a r
   assert.equal(again.rows.length, 2);
 });
 
+test('ad sets HYROS returns no source for are counted and named in a note', async () => {
+  const env = setup({ report: (id) => [row(`${id}1`), row(`${id}2`)], sources: (ids) => ids.slice(0, 1).map((id) => src(id)) });
+  const out = await loadReport(env.data, { ...base, selected: [FB], supported: [FB], memo: new Map(), deadline: far() });
+  assert.equal(out.join.sourceless, 1);
+  assert.equal(out.join.unjoined, 0);
+  const notes = notesHtml(ctx, { ...out, unsupported: [], noAdLevel: [] });
+  assert.match(notes, /HYROS has no source for 1 ad sets\.<\/b> They group under Uncategorised/);
+});
+
 test('a failed account keeps the whole load out of the cache', async () => {
   const env = setup({ report: (id) => (id === '202' ? new Error('nope') : [row(`${id}1`)]) });
   await loadReport(env.data, { ...base, selected: [FB, GG], supported: [FB, GG], memo: new Map(), deadline: far() });

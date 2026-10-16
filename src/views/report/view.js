@@ -239,6 +239,9 @@ export function notesHtml(ctx, m) {
   } else if (m.join.unjoined) {
     out.push(`<div class="note"><b>Source details skipped for ${fmt.int(m.join.unjoined)} ${unit}: time budget.</b> They group under Uncategorised and unknown, and their drills are off. <button type="button" class="linkish" data-load-rest>Load the rest</button></div>`);
   }
+  if (m.join.sourceless) {
+    out.push(`<div class="note"><b>HYROS has no source for ${fmt.int(m.join.sourceless)} ${unit}.</b> They group under Uncategorised and unknown, and their drills are off.</div>`);
+  }
   return out.join('');
 }
 
