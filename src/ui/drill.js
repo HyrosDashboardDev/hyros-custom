@@ -28,6 +28,8 @@ export const BATCH = 50;
 export const BATCH_MAX_PAGES = 4;
 /** Click history window: bounded (the docs recommend a fromDate) but wide enough for a long journey. */
 export const CLICKS_LOOKBACK_DAYS = 365;
+/** Click history: 2 pages of 250 before the drawer says the list was cut short. */
+export const CLICKS_MAX_PAGES = 2;
 
 const LOADING = '<div class="empty"><img class="sven-load" src="./assets/brand/sven-lavender.svg" alt="">Loading…</div>';
 
@@ -223,9 +225,10 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
 
 /**
  * One lead: its journey and, best effort, its click history of the last
- * year. A failed clicks call becomes `clicksError`; a failed journey throws.
- * Returns { journey: { lead, sales, calls, journey }, clicks, clicksError } or
- * null when HYROS has no lead with that email.
+ * year (at most CLICKS_MAX_PAGES pages; `clicksTruncated` when more exist).
+ * A failed clicks call becomes `clicksError`; a failed journey throws.
+ * Returns { journey: { lead, sales, calls, journey }, clicks, clicksTruncated,
+ * clicksError } or null when HYROS has no lead with that email.
  */
 export async function loadJourney(data, email, { tz = null, deadline = null } = {}) {
   const fromDate = dayStart(addDays(ymdInTz(data.now(), tz), -CLICKS_LOOKBACK_DAYS), tz);
@@ -233,7 +236,8 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
   // Two different tools, so they do not collide on "already processing".
   const [journeyRes, clicksRes] = await Promise.allSettled([
     data.call('hyros_get_lead_journey', { request: { emails: [email], includeEvents: true } }, { timeoutMs }),
-    data.call('hyros_get_lead_clicks', { request: { emails: [email], fromDate, pageSize: 100 } }, { timeoutMs }),
+    data.pagedInfo('hyros_get_lead_clicks', { request: { emails: [email], fromDate } },
+      { maxPages: CLICKS_MAX_PAGES, pageSize: 250, deadline, timeoutMs }),
   ]);
   if (journeyRes.status === 'rejected') throw journeyRes.reason;
 
@@ -267,7 +271,7 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
       })),
     },
     clicks: clicksRes.status === 'fulfilled'
-      ? listOf(clicksRes.value).map((c) => ({
+      ? (clicksRes.value?.rows || []).map((c) => ({
           date: iso(c.date),
           page: c.page || c.trackedUrl || null,
           previousUrl: c.previousUrl || null,
@@ -275,6 +279,7 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
           platform: c.adspendType === 'NONE' ? null : c.adspendType || null,
         }))
       : [],
+    clicksTruncated: clicksRes.status === 'fulfilled' && Boolean(clicksRes.value?.truncated),
     clicksError,
   };
 }
@@ -368,7 +373,7 @@ const JOURNEY_ICONS = {
 };
 
 /** `{ subtitle, html }` for one lead. `model` is what loadJourney answered. */
-export function renderJourney(ctx, { journey: j, clicks = [], clicksError = null }) {
+export function renderJourney(ctx, { journey: j, clicks = [], clicksTruncated = false, clicksError = null }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const l = j.lead || {};
@@ -395,7 +400,7 @@ export function renderJourney(ctx, { journey: j, clicks = [], clicksError = null
     ? `<div class="drawer-section">Click history</div><div class="note err">Click history could not be fetched: ${e(clicksError)}</div>`
     : '';
   const clickRows = clicks.length ? `
-    <div class="drawer-section">Click history · ${fmt.int(clicks.length)} tracked clicks</div>
+    <div class="drawer-section">Click history · ${fmt.int(clicks.length)}${clicksTruncated ? '+' : ''} tracked clicks${clicksTruncated ? ', list cut short' : ''}</div>
     <div class="clicks">${clicks.map((c) => `
       <div class="click-row">
         <div class="click-page">${e((c.page || '').replace(/^https?:\/\//, ''))}

@@ -397,9 +397,11 @@ row carries the union of its members' tags (Report step 6).
 - One lead: `hyros_get_lead_journey` with
   `{ request: { emails: [email], includeEvents: true } }` gives
   `{ lead, sales, calls, journey: [{ type, date, name, keyword, extra, subNames }] }`;
-  `hyros_get_lead_clicks` with `{ request: { emails: [email], fromDate, pageSize: 100 } }`
-  (`fromDate` a year back; `email` is deprecated) gives
-  `result: [{ date, page | trackedUrl, previousUrl, sourceLinkName, adspendType }]`.
+  `hyros_get_lead_clicks` with `{ request: { emails: [email], fromDate } }`
+  (`fromDate` a year back; `email` is deprecated) through `pagedInfo`
+  (`pageSize: 250`, `maxPages: 2`) gives
+  `result: [{ date, page | trackedUrl, previousUrl, sourceLinkName, adspendType }]`;
+  when more pages exist the count reads "N+ tracked clicks, list cut short".
   The clicks call is best effort: a failure must not blank the journey.
 - Open the drill as a panel inside the view. No modals.
 
