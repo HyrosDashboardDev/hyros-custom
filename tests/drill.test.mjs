@@ -26,6 +26,10 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
     },
     pagedInfo: async (name, args, opts) => {
       calls.push({ name, args, opts });
+      if (name === 'hyros_get_lead_clicks') {
+        if (clicks instanceof Error) throw clicks;
+        return { rows: clicks?.result || [], truncated: Boolean(clicks?.nextPageId) };
+      }
       running += 1;
       maxRunning = Math.max(maxRunning, running);
       log.push(`start ${args.request.leadIds[0]}`);
@@ -99,9 +103,19 @@ test('loadJourney asks for the journey and a year of clicks from the account day
   const j = data.calls.find((c) => c.name === 'hyros_get_lead_journey');
   const c = data.calls.find((x) => x.name === 'hyros_get_lead_clicks');
   assert.deepEqual(j.args, { request: { emails: ['u1@example.test'], includeEvents: true } });
-  assert.deepEqual(c.args, { request: { emails: ['u1@example.test'], fromDate: '2025-09-15T00:00:00-05:00', pageSize: 100 } });
+  assert.deepEqual(c.args, { request: { emails: ['u1@example.test'], fromDate: '2025-09-15T00:00:00-05:00' } });
+  assert.equal(c.opts.maxPages, 2);
+  assert.equal(c.opts.pageSize, 250);
   assert.equal(out.clicks[0].platform, null);
+  assert.equal(out.clicksTruncated, false);
   assert.equal(out.clicksError, null);
+});
+
+test('loadJourney flags a click history with more pages, and the drawer says so', async () => {
+  const data = fakeData({ journey: [{ lead: lead(1) }], clicks: { result: [{ date: '2026-09-01T10:00:00Z', page: 'https://shop.test/a' }], nextPageId: 'p3' } });
+  const out = await loadJourney(data, 'u1@example.test');
+  assert.equal(out.clicksTruncated, true);
+  assert.match(renderJourney(ctx, out).html, /Click history · 1\+ tracked clicks, list cut short/);
 });
 
 test('loadRecords sends the date range with every batch', async () => {
