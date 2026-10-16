@@ -92,8 +92,8 @@ template itself" above.
    `src/views/custom.js`. Never edit `src/views/registry.js`: it lists the
    template's tabs and changes with template updates. To hide a template
    tab, add its id to `HIDDEN_VIEWS` in `custom.js`.
-4. `npm run check`, then `npm run dev`, open `http://localhost:4321`, sign
-   in with the HYROS account and look at the tab.
+4. `npm run check`. The user looks at the tab on their dashboard once it
+   is in production (see "GitHub access and deploys").
 
 The shell shows "Loading…" while `render` runs, an error card with Retry if
 it throws or takes longer than 2 minutes, and calls it again on Refresh (after
@@ -107,10 +107,9 @@ npm run check   # node:test, no deps: auth, MCP client, data API, these rules
 npm run dev     # dashboard on http://localhost:4321, harness on http://localhost:4323
 ```
 
-Opened directly, the dashboard goes to the HYROS sign-in of production
-(`?mcp=qa` for QA): this is how the user looks at a change. The harness
-plays HYROS and needs a pasted MCP access token, which the user does not
-have: never send the user to it.
+`npm run dev` is for HYROS developers working on the template. The user
+checks a change on their deployed dashboard (see "GitHub access and
+deploys"); never send them to the dev server.
 
 ## Updating from the template
 
@@ -168,11 +167,12 @@ Rules:
 - The token lives only in the `origin` URL inside `.git/config`. Never write
  it into a tracked file, a commit message, a script or an env file, and do
  not print it back unless the user asks.
-- Before pushing to `main`, summarize the changes and confirm the user wants
- them in production. To check a change first, test it locally: `npm run dev`
- and open `http://localhost:4321`, which signs in with the user's HYROS
- account. A branch can still be pushed to keep work safe; it gives the user
- nothing to look at.
+- Before pushing to `main`, run `npm run check`, summarize the changes and
+ confirm the user wants them in production. There is no local or preview
+ check: the user looks at a change on their dashboard in HYROS once the
+ deploy is done, a minute or two after the push. If it is wrong, fix it or
+ `git revert` it and push again. A branch can still be pushed to keep work
+ safe; it gives the user nothing to look at.
 - Tool not available: the HYROS MCP server is not connected. Ask the user to
  add `https://mcp.hyros.com/mcp` as an MCP server in their client and sign
  in with their HYROS account. Tool refused as not enabled ("Custom

@@ -45,9 +45,9 @@ example; `src/views/_template/` is the skeleton.
    updates.
 6. Verify: `npm run check` must pass (the view contract, `SPEC.md`
    present, no fetch, no core imports, no native dialogs, no hex colors).
-   Then `npm run dev`, open http://localhost:4321, sign in with the HYROS
-   account and look at the tab: data, Refresh, and the warning and empty
-   states.
+   Then, once the user confirms and it is in production (see "GitHub
+   access and deploys" in `CLAUDE.md`), ask them to look at the tab on
+   their dashboard: data, Refresh, and the warning and empty states.
 
 **Changing a template tab** (`report`, `crm`, `scale`, `health`,
 `account`): editing it in place works, but its changes conflict with every
