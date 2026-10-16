@@ -287,16 +287,8 @@ reduced-motion opt-out.
 
 ## 9. Verifying a visual change
 
-```bash
-npm run dev    # dashboard on http://localhost:4321, harness on http://localhost:4323
-```
-
-Open http://localhost:4323 (the harness, which plays HYROS), paste an MCP
-access token, and screenshot the framed dashboard at 1440x900 in **both
-themes** (the harness's theme selector switches it live): the gate while it
-connects, every tab, the loading state, and a view's error card.
-Opened directly, http://localhost:4321 goes to the HYROS sign-in; press
-back to see the "Sign in with HYROS" gate, which is part of the visual check
-too. The dev server
-serves woff2, svg and png with their real types, so fonts and brand assets
-render exactly as in production.
+A visual change is checked on the deployed dashboard, once it is in
+production (see "GitHub access and deploys" in `CLAUDE.md`). Ask the user
+to look at it in **both themes** (inside HYROS it follows the HYROS theme;
+at its own url it has a dark/white switch): every tab, the loading state,
+and a view's error card.
