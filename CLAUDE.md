@@ -78,7 +78,9 @@ worked on by HYROS developers. Then:
 
 ## Add a view
 
-Details in `VIEWS.md`; the `add-view` skill walks the same steps.
+Details in `VIEWS.md`; the `add-view` skill walks the same steps. These are
+the steps in a dashboard; in the template itself, see "Working on the
+template itself" above.
 
 1. Pick an id starting with `custom-` (e.g. `custom-funnel`), then
    `cp -r src/views/_template src/views/<id>` and set `id` (equal to the
