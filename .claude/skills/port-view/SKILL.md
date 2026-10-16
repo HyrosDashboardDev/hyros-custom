@@ -35,4 +35,4 @@ provided, keep the `id` and `version` from the spec, and note in the new
 `SPEC.md` what changed.
 
 Always finish with `npm run check`, then `npm run dev` and a look at the
-tab through the harness on http://localhost:4323.
+tab on http://localhost:4321, signed in with the HYROS account.

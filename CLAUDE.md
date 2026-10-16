@@ -92,8 +92,8 @@ template itself" above.
    `src/views/custom.js`. Never edit `src/views/registry.js`: it lists the
    template's tabs and changes with template updates. To hide a template
    tab, add its id to `HIDDEN_VIEWS` in `custom.js`.
-4. `npm run check`, then `npm run dev` and look at the tab through the
-   harness.
+4. `npm run check`, then `npm run dev`, open `http://localhost:4321`, sign
+   in with the HYROS account and look at the tab.
 
 The shell shows "Loading…" while `render` runs, an error card with Retry if
 it throws or takes longer than 2 minutes, and calls it again on Refresh (after
@@ -107,9 +107,10 @@ npm run check   # node:test, no deps: auth, MCP client, data API, these rules
 npm run dev     # dashboard on http://localhost:4321, harness on http://localhost:4323
 ```
 
-The harness plays HYROS: paste an MCP access token, it answers the
-dashboard's `ready` and `token-request`. Opened directly, the dashboard goes
-to the HYROS sign-in of production (`?mcp=qa` for QA).
+Opened directly, the dashboard goes to the HYROS sign-in of production
+(`?mcp=qa` for QA): this is how the user looks at a change. The harness
+plays HYROS and needs a pasted MCP access token, which the user does not
+have: never send the user to it.
 
 ## Updating from the template
 
@@ -128,8 +129,11 @@ without the user asking.
 
 ## GitHub access and deploys
 This repo is private, under `HyrosEngineeringAI` on GitHub, and Vercel
-deploys it: **a push to `main` is a production deploy**; any other branch
-gets a deployed preview.
+deploys it: **a push to `main` is a production deploy**. Any other branch
+also gets a preview deployment, but nobody can open it: the user has no
+access to the GitHub or Vercel dashboards, and the token below cannot read
+deployments (GitHub answers 403). Never offer a branch preview, and never
+send the user to GitHub or Vercel to find one.
 
 The user has no GitHub credentials for it and must never need any. Access
 comes from a token issued by the HYROS MCP tool
@@ -165,8 +169,10 @@ Rules:
  it into a tracked file, a commit message, a script or an env file, and do
  not print it back unless the user asks.
 - Before pushing to `main`, summarize the changes and confirm the user wants
- them in production. To check a change first, push a branch and use its
- preview.
+ them in production. To check a change first, test it locally: `npm run dev`
+ and open `http://localhost:4321`, which signs in with the user's HYROS
+ account. A branch can still be pushed to keep work safe; it gives the user
+ nothing to look at.
 - Tool not available: the HYROS MCP server is not connected. Ask the user to
  add `https://mcp.hyros.com/mcp` as an MCP server in their client and sign
  in with their HYROS account. Tool refused as not enabled ("Custom
