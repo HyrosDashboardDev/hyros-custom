@@ -49,6 +49,15 @@ example; `src/views/_template/` is the skeleton.
    MCP token and look at the tab: data, Refresh, and the warning and empty
    states.
 
+**Changing a template tab** (`report`, `crm`, `scale`, `health`,
+`account`): editing it in place works, but its changes conflict with every
+template update that touches the same lines, and the user decides each
+conflict. To keep a variant apart from template updates, copy the folder to
+`src/views/custom-<id>/` (set the new `id` and class prefix), make the
+changes there, add it to `CUSTOM_VIEWS` and hide the original with
+`HIDDEN_VIEWS` in `src/views/custom.js`. The copy no longer receives the
+template's fixes to the original; say so to the user.
+
 Never edit `src/core/` to add a tab. If `ctx.data` is missing a getter a
 view needs, use `ctx.data.call`, `paged` or `pagedInfo`; propose a new
 getter in `src/data/data.js` only when several views need the same data,
