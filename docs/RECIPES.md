@@ -429,21 +429,30 @@ rather than joining every sale of the window to every lead.
 The click-through behind a number. Sources carry a `tag`; a rolled-up
 row carries the union of its members' tags (Report step 6).
 
-- Cohort: `ctx.data.call('/leads', { tags, pageSize: 250 })`. The `tags`
-  filter is OR and takes at most 50 tags: a rolled-up row sends the tags of
-  its members with the clicked column above 0, the biggest first, and when
-  some are left out the panel says "first N of M sources" instead of showing
-  a bare 0. A tag holding a comma cannot be sent (the array goes as one
-  comma-separated value), so it counts as left out. More leads exist when
-  the body carries a `nextPageId`. Say in the panel that the cohort is the
-  leads that touched those sources, which is not the attribution-credited
-  count in the cell (models reassign credit). The cohort has no date
-  filter: a source tag only records the lead's first touch of that source.
-- Sales and calls of the cohort: there is no tag filter on `/sales` or
-  `/calls`, so take the cohort's lead ids and page `/sales` / `/calls` with
-  `{ leadIds, fromDate, toDate }` (the report's range) in batches of 50 (the
-  filter's cap), in sequence, at most 4 pages of 250 per batch. Any
+- Credited (Last click, First click): the source a model credits is the one
+  stored on the sale, call or lead as its last or first source (with every
+  source included, `sourceConfiguration: 'ALL_SOURCES'`). Sales and calls:
+  `ctx.data.pagedInfo('/sales' | '/calls', { lastSourceTags | firstSourceTags, fromDate, toDate })`
+  (the report's range), the row's tags with the clicked column above 0 in
+  batches of 50 (the filter's cap), in sequence, at most 4 pages of 250 per
+  batch. List refunded sales but leave them out of the count and the total,
+  as the report's Sales and Revenue do. Say in the panel what was matched and
+  that the attribution window is not applied.
+- Touched (Scientific, which no filter reproduces): the cohort is
+  `ctx.data.call('/leads', { tags, pageSize: 250 })`, the leads that touched
+  those sources, which is not the attribution-credited count in the cell; say
+  so in the panel. More leads exist when the body carries a `nextPageId`. The
+  cohort has no date filter: a source tag only records the lead's first touch
+  of that source. Its sales or calls: the cohort's lead ids on
+  `/sales` / `/calls` with `{ leadIds, fromDate, toDate }` in batches of 50
+  (the filter's cap), in sequence, at most 4 pages of 250 per batch. Any
   truncation reads "newest shown".
+- The `tags` filter of `/leads` is OR and takes at most 50 tags: a rolled-up
+  row sends the tags of its members with the clicked column above 0, the
+  biggest first, and when some are left out the panel says "first N of M
+  sources" instead of showing a bare 0. A tag holding a comma cannot be sent
+  on any of these filters (the array goes as one comma-separated value), so
+  it counts as left out.
 - One lead: `ctx.data.call('/leads/journey', { emails: [email], includeEvents: true })`
   gives `result: [{ lead, sales, calls, carts, subscriptions, linkedLeads, journey: [{ type, date, name, keyword, extra, subNames }] }]`
   (no paging; `ids` instead of `emails` must be the leads' SHA-256 ids).
