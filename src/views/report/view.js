@@ -12,7 +12,7 @@ import { sortRows, nextSort, sortHeader } from '../../ui/table.js';
 import { openCohortDrill } from '../../ui/drill.js';
 import {
   LEVELS, LEVEL_LABEL, CHILD_LEVEL, HY, KPIS, DRILL_METRIC, SELECTABLE, loadKindOf,
-  readCols, writeCols, activeCols, colPanelHtml, formatCell, toneClass, rowDrillTags,
+  readCols, writeCols, activeCols, colPanelHtml, formatCell, toneClass, rowDrillTags, drillTags,
   levelRows, enrichAds, filterRows,
 } from './columns.js';
 import {
@@ -383,7 +383,7 @@ function wireBody(ctx, rows, cols) {
     e.stopPropagation();
     const row = rows[Number(btn.dataset.i)];
     const col = cols.find((c) => c.k === btn.dataset.key);
-    const tags = rowDrillTags(row);
+    const tags = drillTags(row, btn.dataset.key);
     if (!row || !tags) return;
     openCohortDrill(ctx, {
       title: row.name || row.id,
@@ -391,6 +391,7 @@ function wireBody(ctx, rows, cols) {
       metric: btn.dataset.metric,
       label: col?.l || '',
       note: state.level === 'ad' && row._parentSet ? `ad set cohort: ${row._parentSet}` : '',
+      range: current?.range ? { start: current.range.start, end: current.range.end } : null,
     });
   }));
 }

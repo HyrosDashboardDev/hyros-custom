@@ -39,14 +39,16 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
 
 const lead = (i, extra = {}) => ({ id: `L${i}`, email: `u${i}@example.test`, creationDate: '2026-09-01T10:00:00-05:00', ...extra });
 
-test('loadCohort asks for one page of 250 leads by tag, caps tags at 40 and drops merged leads', async () => {
+test('loadCohort asks for one page of 250 leads by tag, sends the first 50 tags, counts the rest and drops merged leads', async () => {
   const data = fakeData({ leads: [lead(1), lead(2, { originLead: { id: 'L1' } }), lead(3)], nextPageId: 'p2' });
-  const tags = Array.from({ length: 45 }, (_, i) => `@t${i}`);
+  const tags = Array.from({ length: 55 }, (_, i) => `@t${i}`);
   const out = await loadCohort(data, [...tags, '@t0', null]);
   assert.equal(data.calls.length, 1);
   assert.equal(data.calls[0].name, 'hyros_get_leads');
   assert.equal(data.calls[0].args.request.pageSize, 250);
-  assert.equal(data.calls[0].args.request.tags.length, 40);
+  assert.deepEqual(data.calls[0].args.request.tags, tags.slice(0, 50));
+  assert.equal(out.tagsSent, 50);
+  assert.equal(out.tagsLeft, 5);
   assert.deepEqual(out.ids, ['L1', 'L3']);
   assert.equal(out.truncated, true);
 });
@@ -102,6 +104,15 @@ test('loadJourney asks for the journey and a year of clicks from the account day
   assert.equal(out.clicksError, null);
 });
 
+test('loadRecords sends the date range with every batch', async () => {
+  const data = fakeData();
+  const dates = { fromDate: '2026-01-01T00:00:00-05:00', toDate: '2026-09-30T23:59:59-05:00' };
+  await loadRecords(data, 'sales', Array.from({ length: 60 }, (_, i) => `L${i}`), { dates });
+  assert.equal(data.calls.length, 2);
+  assert.ok(data.calls.every((c) => c.args.request.fromDate === dates.fromDate && c.args.request.toDate === dates.toDate));
+  assert.match(renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 3, inRange: true }).subtitle, /^0 sales in the range from 3 touched leads/);
+});
+
 test('loadJourney: failed clicks do not fail the journey; a failed journey throws; no lead is null', async () => {
   const ok = await loadJourney(fakeData({ journey: [{ lead: lead(1) }], clicks: new Error('clicks down') }), 'u1@example.test');
   assert.equal(ok.clicksError, 'clicks down');
@@ -138,6 +149,14 @@ test('renderers state truncation, empty lists and failed clicks', () => {
   assert.match(renderCohort(ctx, { leads: [{ email: 'a@x.test' }], truncated: true }).subtitle, /1\+ leads.*newest 250 shown/);
   assert.match(renderCohort(ctx, { leads: [] }).html, /class="empty"/);
   assert.match(renderRecords(ctx, { kind: 'calls', records: [], cohortSize: 3 }).html, /No calls recorded/);
+
+  const cut = renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 0, tagsSent: 50, tagsLeft: 23 });
+  assert.match(cut.subtitle, /^0\+ sales/);
+  assert.match(cut.subtitle, /first 50 of 73 sources/);
+  assert.match(cut.html, /No sales from the first 50 of 73 sources\. The other 23 were not queried/);
+  assert.doesNotMatch(cut.html, /No sales recorded/);
+  assert.match(renderCohort(ctx, { leads: [], tagsSent: 50, tagsLeft: 1 }).html, /No leads from the first 50 of 51 sources/);
+  assert.doesNotMatch(renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 3, tagsSent: 3 }).subtitle, /sources<\/span>/);
   const j = renderJourney(ctx, { journey: { lead: {}, sales: [], journey: [] }, clicks: [], clicksError: 'down' });
   assert.match(j.html, /note err">Click history could not be fetched: down/);
   assert.match(j.html, /No journey events/);
