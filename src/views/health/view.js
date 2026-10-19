@@ -8,7 +8,7 @@
  */
 import { ymdInTz } from '../../core/dates.js';
 import { VIEW_LOAD_MS } from '../../core/budget.js';
-import { runChecks, groupSites, siteSummary, isFlagged, hasGoogleAccount, PENDING } from './checks.js';
+import { runChecks, groupSites, siteSummary, isFlagged, hasGoogleAccount, PENDING, MAX_PARAM_ROWS } from './checks.js';
 
 const DEADLINE_MARGIN_MS = 15000;
 const CHECK_NAME = { domains: 'verified domains', params: 'tracking params', script: 'script presence', visits: 'recent visits' };
@@ -157,14 +157,17 @@ export function html(ctx, h, { adAccounts, account }) {
 
   let paramsBody;
   if (paramRows.length) {
-    paramsBody = paramRows.map((r) => {
+    // The panel lists the flagged rows first and stops at MAX_PARAM_ROWS; the tile above counts every row.
+    const listed = [...flagged, ...paramRows.filter((r) => !isFlagged(r))].slice(0, MAX_PARAM_ROWS);
+    const more = paramRows.length - listed.length;
+    paramsBody = listed.map((r) => {
       const bad = isFlagged(r);
       const label = [r.campaignName, r.adGroupName].filter(Boolean).join(' / ') || r.adName || r.name || String(r.adGroupId || r.campaignId || r.id || '');
       const link = r.trackingUrlTemplate || r.finalUrlSuffix || '';
       return `<div class="health-row"><span class="pill">${esc(r._type)}</span><code title="${esc(link)}">${esc(label)}</code>
         ${r.customerId ? `<span class="sub">${esc(r.customerId)}</span>` : ''}
         <span class="pill ${bad ? 'bad' : 'ok'}">${bad ? 'missing / invalid' : 'ok'}</span></div>`;
-    }).join('');
+    }).join('') + (more > 0 ? `<div class="sub">${esc(fmt.int(more))} more ads not listed (${esc(fmt.int(paramRows.length))} checked, missing ones first)</div>` : '');
   } else if (!hasGoogle) {
     paramsBody = `<div class="empty">${esc(SKIP_LINE['no Google ad accounts connected'])}</div>`;
   } else if (statusLine(checks.params)) {

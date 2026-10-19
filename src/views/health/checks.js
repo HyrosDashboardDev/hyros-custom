@@ -13,11 +13,11 @@
 import { TIMEOUTS, clampTimeout } from '../../core/budget.js';
 import { addDays } from '../../core/dates.js';
 
-export const MAX_DOMAINS = 20;
 /** AssertScriptPresenceRequest.MAX_DOMAINS: the MCP refuses more URLs per call. */
 export const MAX_URLS_PER_CALL = 3;
 /** 4 batches at most; the deadline usually stops earlier. */
 export const MAX_SITE_URLS = 12;
+/** Parameter rows listed in the panel; the tile counts every row. */
 export const MAX_PARAM_ROWS = 50;
 /** A script batch is not started with less than this left before the deadline. */
 export const SLOW_MIN_LEFT_MS = 8000;
@@ -59,7 +59,7 @@ async function timed(run) {
 export function readDomains(d) {
   const list = Array.isArray(d) ? d : (Array.isArray(d?.result) ? d.result : (Array.isArray(d?.domains) ? d.domains : null));
   if (!list) return null;
-  return list.map((x) => (typeof x === 'string' ? x : x?.domain || x?.name || x?.url)).filter(Boolean).map(String).slice(0, MAX_DOMAINS);
+  return list.map((x) => (typeof x === 'string' ? x : x?.domain || x?.name || x?.url)).filter(Boolean).map(String);
 }
 
 /**
@@ -84,7 +84,7 @@ export function readParamRows(r) {
   else if (Array.isArray(r?.result)) rows = r.result;
   else if (Array.isArray(r?.ads)) rows = r.ads;
   else if (isMap(r) && ('valid' in r || 'campaignId' in r || 'adGroupId' in r)) rows = [r];
-  return rows ? rows.slice(0, MAX_PARAM_ROWS) : null;
+  return rows;
 }
 
 /** A parameter row HYROS flagged: the DTO's `valid: false`; older shapes by `missing` or `ok: false`. */
