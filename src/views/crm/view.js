@@ -14,7 +14,7 @@ import { sortRows, nextSort } from '../../ui/table.js';
 import { openLeadJourney } from '../../ui/drill.js';
 import {
   TABS, TAB_BY_KEY, RANGE_KEYS, RECURRING, REFUNDED, QUALIFIED, SUBSCRIPTION_STATES,
-  defaultFilters, emailParam, filterParams, resolveRange,
+  defaultFilters, emailParam, filterParams, resolveRange, droppedTags, MAX_VALUES,
 } from './filters.js';
 import { loadTab, headline, knownCount } from './load.js';
 import { tableHtml, tabsHtml, tilesHtml, countText, DEFAULT_SORT } from './markup.js';
@@ -170,6 +170,10 @@ function paint(ctx, { range, model = null, stages = [], loading = false, today =
     notes.push(`<div class="note err"><b>Some totals could not load.</b> ${model.aggErrors.map((e) => ctx.esc(`${e.name}: ${e.message}`)).join('; ')}</div>`);
   }
   const shortSearch = state.search.trim() && !emailParam(state.search);
+  const extraTags = tab === 'leads' ? droppedTags(state.filters.leads.tags) : 0;
+  if (tab === 'leads' && stages === null) {
+    notes.push('<div class="note">The stage list could not load, so the Stage filter only offers "All stages". Refresh to try again.</div>');
+  }
 
   el.innerHTML = `
     <div class="controls crm-controls">${tabsHtml(ctx, tab, chipCounts(ctx, range, model))}</div>
@@ -178,6 +182,7 @@ function paint(ctx, { range, model = null, stages = [], loading = false, today =
       <input type="search" data-crm-search data-crm-keep="search" placeholder="Email starts with…" value="${ctx.esc(state.search)}" aria-label="Email search">
       ${tabControls(ctx, stages)}
       ${shortSearch ? '<span class="sub crm-hint">type at least 3 characters</span>' : ''}
+      ${extraTags ? `<span class="sub crm-hint">only the first ${MAX_VALUES} tags are used, ${ctx.esc(ctx.fmt.int(extraTags))} left out</span>` : ''}
     </div>
     ${notes.join('')}
     ${range.error ? '' : tilesHtml(ctx, tab, model, { range, filters: state.filters })}
@@ -274,8 +279,9 @@ async function run(ctx) {
 
   let stages = [];
   if (state.tab === 'leads') {
-    try { stages = await ctx.data.stages(); } catch { stages = []; }
-    if (!Array.isArray(stages)) stages = Array.isArray(stages?.result) ? stages.result : [];
+    // null (not []) marks a failed load, so paint can say why the Stage filter is empty.
+    try { stages = await ctx.data.stages(); } catch { stages = null; }
+    if (stages !== null && !Array.isArray(stages)) stages = Array.isArray(stages?.result) ? stages.result : [];
     if (!live()) return;
   }
   paint(ctx, { range, stages, loading: true, today });
