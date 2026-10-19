@@ -172,9 +172,15 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   column above 0, the biggest first (every tag when none has any). The drill
   sends the first 50 (the cap of GET /leads) and, when it leaves some out, says
   "first N of M sources" and never shows a bare 0. An Ad row drills with its
-  parent ad set's tag and the note `ad set cohort: <ad set name>`. Sales and
-  Calls drills pass the report's range, so they list only the records made
-  in it ("N sales in the range"); the Leads cohort has no date filter.
+  parent ad set's tag and the note `ad set cohort: <ad set name>`. The drill
+  also gets the report's range and model. Under Last click and First click,
+  Sales and Calls list what the model credits to the row: the records made in
+  the range whose stored last (or first) source is one of its tags (the
+  `lastSourceTags` / `firstSourceTags` filters, every tag, 50 per call), with
+  refunded sales listed but not counted ("N sales credited in the range");
+  Leads list the leads that touched the row's sources. Under Scientific,
+  which no filter reproduces, Sales and Calls are those leads' sales or calls
+  in the range ("touched ≠ credited").
 
 ## Rules honoured
 - Metrics re-derived after summing (never averaged); money and numbers via
@@ -205,7 +211,10 @@ require, the snake_case row keys read by `normalizeRow`, and the source join by
 - At most 2,000 rows (8 pages of 250, newest first) per ad account and level.
 - Non-aggregatable metrics (CAC, percentages HYROS computes per row, forecasts)
   print "-" on rolled-up rows and in totals.
-- The drill cohort is the leads that touched the row's sources, not the
-  attribution-credited count in the cell; an Ad row's cohort is its ad set's.
+- The credited drill reads the source stored on each sale or call: it
+  matches the cell under Last and First click with every source included,
+  but does not apply the report's attribution window. Under Scientific, and
+  for Leads, the drill is the touched cohort, not the credited count. An Ad row drills with its ad set's
+  tag.
 - No CSV export (the HYROS frame blocks downloads), no column drag to reorder,
   no lead-stage filter.

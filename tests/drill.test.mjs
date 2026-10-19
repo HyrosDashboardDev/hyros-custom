@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadCohort, loadRecords, loadJourney, renderCohort, renderRecords, renderJourney, priceOf, leadIncome } from '../src/ui/drill.js';
+import {
+  loadCohort, loadRecords, loadCredited, loadJourney, renderCohort, renderRecords, renderCredited, renderJourney, priceOf, leadIncome,
+} from '../src/ui/drill.js';
 import { fmt } from '../src/ui/fmt.js';
 import { esc } from '../src/ui/dom.js';
 import { toQuery } from '../src/core/api.js';
@@ -33,11 +35,12 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
       }
       running += 1;
       maxRunning = Math.max(maxRunning, running);
-      log.push(`start ${args.leadIds[0]}`);
+      const first = args.leadIds?.[0] ?? (args.lastSourceTags || args.firstSourceTags)?.[0];
+      log.push(`start ${first}`);
       await new Promise((resolve) => setImmediate(resolve));
-      log.push(`end ${args.leadIds[0]}`);
+      log.push(`end ${first}`);
       running -= 1;
-      return recordsFor(args.leadIds);
+      return recordsFor(args.leadIds, args);
     },
   };
 }
@@ -199,3 +202,56 @@ test('renderers state truncation, empty lists and failed clicks', () => {
   assert.match(j.html, /note err">Click history could not be fetched: down/);
   assert.match(j.html, /No journey events/);
 });
+
+test('loadCredited asks for the last source tags in batches of 50, in series, with the range', async () => {
+  const tags = Array.from({ length: 60 }, (_, i) => `@t${i}`);
+  const dates = { fromDate: '2026-01-01T00:00:00-05:00', toDate: '2026-09-30T23:59:59-05:00' };
+  const data = fakeData({ recordsFor: (_, req) => ({ rows: [{ lead: { email: `${req.lastSourceTags[0]}@x.test` }, creationDate: '2026-07-01T10:00:00Z', price: { price: 5, currency: 'EUR' }, lastSource: { name: 'L' }, firstSource: { name: 'F' } }], truncated: false }) });
+  const out = await loadCredited(data, 'sales', [...tags, '@t0'], { model: 'LAST_CLICK', dates });
+  assert.deepEqual(data.calls.map((c) => c.args.lastSourceTags.length), [50, 10]);
+  assert.ok(data.calls.every((c) => c.name === '/sales' && c.args.fromDate === dates.fromDate && c.args.toDate === dates.toDate));
+  assert.ok(data.calls.every((c) => !('leadIds' in c.args) && !('firstSourceTags' in c.args)));
+  assert.equal(data.maxRunning, 1);
+  assert.equal(out.records.length, 2);
+  assert.equal(out.records[0].source, 'L', 'a last click drill names the last source');
+});
+
+test('loadCredited leaves a tag holding a comma out and counts it, and the drawer says so', async () => {
+  const data = fakeData({ recordsFor: () => ({ rows: [], truncated: false }) });
+  const out = await loadCredited(data, 'sales', ['@a', '@b,c'], { model: 'LAST_CLICK' });
+  assert.deepEqual(data.calls.map((c) => c.args.lastSourceTags), [['@a']]);
+  assert.doesNotThrow(() => toQuery(data.calls[0].args));
+  assert.equal(out.tagsSent, 1);
+  assert.equal(out.tagsLeft, 1);
+  const view = renderCredited(ctx, { kind: 'sales', ...out, attribution: 'LAST_CLICK' });
+  assert.match(view.subtitle, /^0\+ sales credited in the range/);
+  assert.match(view.subtitle, /first 1 of 2 sources/);
+  assert.match(view.html, /The other 1 were not queried/);
+});
+
+test('loadCredited uses the first source tags under first click, on calls too', async () => {
+  const data = fakeData({ recordsFor: () => ({ rows: [{ lead: { email: 'a@x.test' }, firstSource: { name: 'F' }, lastSource: { name: 'L' } }], truncated: true }) });
+  const out = await loadCredited(data, 'calls', ['@a'], { model: 'FIRST_CLICK' });
+  assert.equal(data.calls[0].name, '/calls');
+  assert.deepEqual(data.calls[0].args.firstSourceTags, ['@a']);
+  assert.equal(out.records[0].source, 'F');
+  assert.equal(out.truncated, true);
+});
+
+
+
+test('renderCredited counts and sums only the sales that are not refunded, and lists all', () => {
+  const records = [
+    { email: 'a@x.test', amount: 100, currency: 'EUR', state: null },
+    { email: 'b@x.test', amount: 50, currency: 'EUR', state: 'RECURRING' },
+    { email: 'c@x.test', amount: 22, currency: 'EUR', state: 'REFUNDED' },
+  ];
+  const out = renderCredited({ ...ctx, fmt: { ...fmt, currency: 'EUR' } }, { kind: 'sales', records, attribution: 'LAST_CLICK' });
+  assert.match(out.subtitle, /^2 sales credited in the range/);
+  assert.match(out.subtitle, /1 refunded, listed but not counted/);
+  assert.match(out.subtitle, /credited · last click/);
+  assert.doesNotMatch(out.subtitle, /touched/);
+  assert.equal((out.html.match(/class="cohort-row"/g) || []).length, 3);
+  assert.match(renderCredited(ctx, { kind: 'calls', records: [], attribution: 'FIRST_CLICK' }).html, /No calls credited to this row in the range/);
+});
+
