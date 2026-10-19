@@ -129,6 +129,28 @@ export function rowDrillTags(row) {
   return null;
 }
 
+/**
+ * The source tags a drill on column `key` sends, in the order the drill
+ * should keep them when get_leads' tag cap cuts the list.
+ *
+ * A rolled-up row sends only the tags of members with `key` above 0, the
+ * biggest first: a member with nothing in that column cannot explain the
+ * cell, and the ranking keeps the ones that explain most. When no tagged
+ * member has any (the cell's value sits on members without a tag), it sends
+ * every tag. Returns null when the row has no tag.
+ */
+export function drillTags(row, key) {
+  if (row?.tag) return [row.tag];
+  const byTag = new Map();
+  for (const m of row?._members || []) {
+    const v = Number(m[key]);
+    byTag.set(m.tag, (byTag.get(m.tag) || 0) + (Number.isFinite(v) ? v : 0));
+  }
+  const ranked = [...byTag].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).map(([tag]) => tag);
+  if (ranked.length) return ranked;
+  return rowDrillTags(row);
+}
+
 /* ---------------- hierarchy ---------------- */
 
 /** How a crumb filters an ad-set or ad row (ads carry their parent's fields). */
@@ -148,12 +170,16 @@ export function applyPath(rows, path) {
   return out;
 }
 
-/** Union of the members' tags (at most 40, the get_leads `tags` filter is OR). */
+/**
+ * Union of the members' tags (the get_leads `tags` filter is OR), plus the
+ * tagged members themselves in `_members` so a drill can rank them by the
+ * clicked column (drillTags).
+ */
 function withTags(rows, members, keyOf) {
-  return rows.map((row) => ({
-    ...row,
-    tags: [...new Set(members.filter((a) => keyOf(a) === row.id && a.tag).map((a) => a.tag))].slice(0, 40),
-  }));
+  return rows.map((row) => {
+    const tagged = members.filter((a) => keyOf(a) === row.id && a.tag);
+    return { ...row, tags: [...new Set(tagged.map((a) => a.tag))], _members: tagged };
+  });
 }
 
 /**
