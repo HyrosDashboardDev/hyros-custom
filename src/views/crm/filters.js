@@ -46,11 +46,15 @@ export function emailParam(text) {
   return t.length >= MIN_SEARCH ? [t] : null;
 }
 
+const tagList = (text) => [...new Set(String(text ?? '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean))];
+
 /** Comma or newline separated tag names: trimmed, deduplicated, at most 50. */
 export function parseTags(text) {
-  const list = String(text ?? '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
-  return [...new Set(list)].slice(0, MAX_VALUES);
+  return tagList(text).slice(0, MAX_VALUES);
 }
+
+/** How many typed tags parseTags leaves out past the 50 cap, so the controls can say so. */
+export const droppedTags = (text) => Math.max(0, tagList(text).length - MAX_VALUES);
 
 /**
  * The filter parameters of `tab` (no dates, no paging). The same object goes
