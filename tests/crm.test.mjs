@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createData } from '../src/data/data.js';
+import { toQuery, READ_PATHS } from '../src/core/api.js';
 import { fmt } from '../src/ui/fmt.js';
 import { esc, kpis } from '../src/ui/dom.js';
 import {
@@ -16,8 +17,8 @@ const NOW = new Date('2026-09-15T17:30:00Z');
 const TZ = '-05:00';
 const RANGE = { key: '30d', label: 'Last 30 days', start: '2026-08-17', end: '2026-09-15' };
 
-/** A stand-in for mcp.js under the real data API (so cached/peek behave as in the page). */
-function fakeMcp({ agg = () => ({ groups: [], remainingCount: 0, totalCount: 0 }), list = () => ({ rows: [], pages: 1, truncated: false }), onCall } = {}) {
+/** A stand-in for api.js under the real data API (so cached/peek behave as in the page). Calls are logged by path. */
+function fakeApi({ agg = () => ({ result: { groups: [], remainingCount: 0, totalCount: 0 } }), list = () => ({ rows: [], pages: 1, truncated: false }), onCall } = {}) {
   const calls = [];
   const log = [];
   let running = 0;
@@ -37,9 +38,9 @@ function fakeMcp({ agg = () => ({ groups: [], remainingCount: 0, totalCount: 0 }
     calls,
     log,
     get maxRunning() { return maxRunning; },
-    callTool: (name, args, opts) => track(name, args, opts, agg),
-    callToolPagedInfo: (name, args, opts) => track(name, args, opts, list),
-    callToolPaged: async () => [],
+    get: (path, params, opts) => track(path, params, opts, agg),
+    getPagedInfo: (path, params, opts) => track(path, params, opts, list),
+    getPaged: async () => [],
   };
 }
 
@@ -76,26 +77,71 @@ test('tags are capped at 50', () => {
   assert.equal(parseTags(text).length, 50);
 });
 
-test('list request: account-zone bounds, toDate never past now', () => {
+test('list request: flat query, account-zone bounds, toDate never past now', () => {
   const today = { start: '2026-09-15', end: '2026-09-15' };
-  assert.deepEqual(listArgs('leads', today, TZ, NOW, { stage: 'Lead' }, 'bob'), {
-    request: { fromDate: '2026-09-15T00:00:00-05:00', toDate: '2026-09-15T12:30:00-05:00', emails: ['bob'], stage: ['Lead'] },
+  const args = listArgs('leads', today, TZ, NOW, { stage: 'Lead', tags: '@a, @b' }, 'bob');
+  assert.deepEqual(args, {
+    fromDate: '2026-09-15T00:00:00-05:00', toDate: '2026-09-15T12:30:00-05:00', emails: ['bob'], stage: ['Lead'], tags: ['@a', '@b'],
   });
-  assert.equal(listArgs('sales', RANGE, TZ, NOW, {}, '').request.fromDate, '2026-08-17T00:00:00-05:00');
+  // What GET /leads receives: `stage` singular, arrays comma-joined, '+' and ':' escaped by URLSearchParams.
+  assert.equal(toQuery(args),
+    'fromDate=2026-09-15T00%3A00%3A00-05%3A00&toDate=2026-09-15T12%3A30%3A00-05%3A00&emails=bob&stage=Lead&tags=%40a%2C%40b');
+  assert.equal(listArgs('sales', RANGE, TZ, NOW, {}, '').fromDate, '2026-08-17T00:00:00-05:00');
+  assert.match(toQuery(listArgs('sales', RANGE, '+05:30', NOW, {}, '')), /fromDate=2026-08-17T00%3A00%3A00%2B05%3A30/);
+});
+
+// The parameters each endpoint accepts (KNOWN_PARAMETERS of its request DTO in
+// the HYROS backend); anything else, or a repeated one, is a 400.
+const LIST_KNOWN = ['ids', 'pageSize', 'pageId', 'fromDate', 'toDate'];
+const KNOWN = {
+  '/leads/aggregation': ['ids', 'fromDate', 'toDate', 'emails', 'tags', 'phones', 'stage', 'updatedFromDate', 'updatedToDate', 'tagFromDate', 'tagToDate', 'attribute', 'groupsLimit'],
+  '/sales/aggregation': ['ids', 'fromDate', 'toDate', 'emails', 'leadIds', 'productTags', 'isRecurringSale', 'saleRefundedState', 'updatedFromDate', 'updatedToDate', 'attribute', 'groupsLimit'],
+  '/calls/aggregation': ['ids', 'fromDate', 'toDate', 'emails', 'leadIds', 'productTags', 'qualified', 'qualificationStages', 'updatedFromDate', 'updatedToDate', 'attribute', 'groupsLimit'],
+  '/leads': [...LIST_KNOWN, 'emails', 'tags', 'phones', 'stage', 'updatedFromDate', 'updatedToDate', 'tagFromDate', 'tagToDate'],
+  '/sales': [...LIST_KNOWN, 'emails', 'leadIds', 'productTags', 'isRecurringSale', 'saleRefundedState', 'updatedFromDate', 'updatedToDate'],
+  '/calls': [...LIST_KNOWN, 'emails', 'leadIds', 'productTags', 'qualified', 'qualificationStages', 'updatedFromDate', 'updatedToDate'],
+  '/subscriptions': [...LIST_KNOWN, 'emails', 'leadIds', 'productTags', 'subscriptionStates', 'updatedFromDate', 'updatedToDate'],
+};
+const ATTRIBUTES = {
+  '/leads/aggregation': ['TAG', 'STAGE', 'FIRST_SOURCE_TAG', 'LAST_SOURCE_TAG'],
+  '/sales/aggregation': ['FIRST_SOURCE_TAG', 'LAST_SOURCE_TAG'],
+  '/calls/aggregation': ['FIRST_SOURCE_TAG', 'LAST_SOURCE_TAG', 'CALL_QUALIFICATION'],
+};
+const ALL_FILTERS = {
+  leads: { stage: 'Lead', tags: '@a,@b' },
+  sales: { recurring: 'RECURRING', refunded: 'REFUNDED' },
+  calls: { qualified: 'YES', stage: 'Booked' },
+  subscriptions: { status: 'ACTIVE' },
+};
+
+test('every filter set only sends parameters its endpoint knows; aggregations never page', () => {
+  for (const tab of ['leads', 'sales', 'calls', 'subscriptions']) {
+    for (const filters of [defaultFilters()[tab], ALL_FILTERS[tab], { qualified: 'ANY', stage: '' }]) {
+      const path = `/${tab}`;
+      for (const k of Object.keys(listArgs(tab, RANGE, TZ, NOW, filters, 'bob'))) assert.ok(KNOWN[path].includes(k), `${path} ${k}`);
+      for (const agg of aggregationCalls(tab, RANGE, TZ, NOW, filters, 'bob')) {
+        for (const k of Object.keys(agg.params)) assert.ok(KNOWN[agg.path].includes(k), `${agg.path} ${k}`);
+        assert.ok(ATTRIBUTES[agg.path].includes(agg.params.attribute), agg.params.attribute);
+        assert.ok(agg.params.groupsLimit >= 1 && agg.params.groupsLimit <= 1000);
+        assert.doesNotThrow(() => toQuery(agg.params));
+      }
+    }
+  }
 });
 
 test('aggregations per sub-tab carry the same filters as the list', () => {
   const leads = aggregationCalls('leads', RANGE, TZ, NOW, { stage: 'Lead', tags: '' }, 'bob');
-  assert.deepEqual(leads.map((a) => [a.tool, a.args.request.attribute]), [
-    ['hyros_get_leads_aggregation', 'STAGE'], ['hyros_get_leads_aggregation', 'FIRST_SOURCE_TAG']]);
-  assert.ok(leads.every((a) => a.args.request.groupsLimit === 1000 && a.args.request.stage[0] === 'Lead' && a.args.request.emails[0] === 'bob'));
+  assert.deepEqual(leads.map((a) => [a.path, a.params.attribute]), [
+    ['/leads/aggregation', 'STAGE'], ['/leads/aggregation', 'FIRST_SOURCE_TAG']]);
+  assert.ok(leads.every((a) => a.params.groupsLimit === 1000 && a.params.stage[0] === 'Lead' && a.params.emails[0] === 'bob'));
 
   const sales = aggregationCalls('sales', RANGE, TZ, NOW, { recurring: 'RECURRING', refunded: 'ALL' }, '');
-  assert.deepEqual(sales.map((a) => [a.tool, a.args.request.attribute, a.args.request.isRecurringSale]), [['hyros_get_sales_aggregation', 'FIRST_SOURCE_TAG', 'RECURRING']]);
+  assert.deepEqual(sales.map((a) => [a.path, a.params.attribute, a.params.isRecurringSale]), [['/sales/aggregation', 'FIRST_SOURCE_TAG', 'RECURRING']]);
 
   const calls = aggregationCalls('calls', RANGE, TZ, NOW, { qualified: 'ANY', stage: '' }, '');
-  assert.deepEqual(calls.map((a) => [a.name, a.args.request.attribute, a.args.request.qualified]), [
+  assert.deepEqual(calls.map((a) => [a.name, a.params.attribute, a.params.qualified]), [
     ['qualification', 'CALL_QUALIFICATION', undefined], ['qualified', 'CALL_QUALIFICATION', true]]);
+  assert.match(toQuery(calls[1].params), /qualified=true/);
   assert.equal(aggregationCalls('calls', RANGE, TZ, NOW, { qualified: 'NO' }, '').length, 1);
   assert.deepEqual(aggregationCalls('subscriptions', RANGE, TZ, NOW, {}, ''), []);
 });
@@ -133,9 +179,12 @@ test('merged leads are dropped; sources flattened; attribution is client side', 
   assert.equal(rows[0].joinedMs, Date.parse('2026-09-01T10:00:00-05:00'));
 });
 
-test('legacy dates on sales and subscriptions are parsed; unknown zones take the account offset', () => {
-  const [sale] = shapeRows('sales', [{ id: 'S1', lead: { email: 'a@x.test', firstName: 'A' }, creationDate: '2026-09-01T10:00:00-05:00',
-    refundDate: 'Wed Sep 02 10:00:00 XYZ 2026', price: { price: 12.5, currency: 'EUR' }, product: { name: 'P' }, recurring: true }], TZ);
+test('legacy dates on sales, calls and subscriptions are parsed; unknown zones take the account offset', () => {
+  const [sale] = shapeRows('sales', [{ id: 'S1', lead: { email: 'a@x.test', firstName: 'A' }, creationDate: 'Wed May 01 13:00:00 UTC 2024',
+    refundDate: 'Wed Sep 02 10:00:00 XYZ 2026', price: { price: 12.5, currency: 'EUR' }, usdPrice: { price: 13.4, currency: 'USD' }, product: { name: 'P' }, recurring: true }], TZ);
+  assert.equal(sale.date, '2024-05-01T13:00:00+00:00');
+  assert.equal(sale.dateMs, Date.UTC(2024, 4, 1, 13));
+  assert.equal(sale.usdAmount, 13.4);
   assert.equal(sale.refundDate, '2026-09-02T10:00:00-05:00');
   assert.equal(sale.refunded, true);
   assert.equal(sale.amount, 12.5);
@@ -145,9 +194,20 @@ test('legacy dates on sales and subscriptions are parsed; unknown zones take the
   assert.equal(sub.date, '2026-07-02T01:10:33+00:00');
   assert.equal(sub.provider, 'Stripe');
   assert.equal(sub.id, 'X');
-  const [call] = shapeRows('calls', [{ lead: { email: 'c@x.test' }, qualified: false, lastSource: { name: 'G', sourceLinkAd: { name: 'Ad 1' } } }], TZ);
+  const [call] = shapeRows('calls', [{ lead: { email: 'c@x.test' }, creationDate: 'Sun Sep 13 11:00:00 ART 2026', qualified: false, lastSource: { name: 'G', sourceLinkAd: { name: 'Ad 1' } } }], TZ);
+  assert.equal(call.date, '2026-09-13T11:00:00-03:00');
   assert.equal(call.state, 'UNQUALIFIED');
   assert.equal(call.ad, 'Ad 1');
+});
+
+test('sales in both date forms sort by the instant, whatever the zone abbreviation', () => {
+  const rows = shapeRows('sales', [
+    { id: 'a', creationDate: 'Wed Sep 02 10:00:00 EST 2026' },   // 15:00 UTC
+    { id: 'b', creationDate: 'Wed Sep 02 13:00:00 ART 2026' },   // 16:00 UTC
+    { id: 'c', creationDate: '2026-09-02T09:30:00-05:00' },      // 14:30 UTC
+    { id: 'd', creationDate: 'Wed Sep 02 15:30:00 UTC 2026' },   // 15:30 UTC
+  ], TZ);
+  assert.deepEqual([...rows].sort((x, y) => y.dateMs - x.dateMs).map((r) => r.id), ['b', 'd', 'a', 'c']);
 });
 
 test('aggregation answers: totalCount is the total, groups plus remaining the rows with a value', () => {
@@ -164,39 +224,46 @@ test('aggregation answers: totalCount is the total, groups plus remaining the ro
 
 /* ---------------- load ---------------- */
 
-const leadAgg = (name, args) => (args.request.attribute === 'STAGE'
+/** Aggregations answer the API envelope: `{ result: { groups, remainingCount, totalCount } }`. */
+const leadAgg = (path, args) => ({ result: args.attribute === 'STAGE'
   ? { groups: [{ key: 'Customer', count: 4 }], remainingCount: 0, totalCount: 40 }
-  : { groups: [{ key: '@fb', count: 20 }], remainingCount: 2, totalCount: 40 });
+  : { groups: [{ key: '@fb', count: 20 }], remainingCount: 2, totalCount: 40 } });
 
 test('a load runs the aggregations then the list, one call at a time, with the list caps', async () => {
-  const mcp = fakeMcp({ agg: leadAgg, list: () => ({ rows: [{ id: 'L1', email: 'a@x.test' }], pages: 1, truncated: false }) });
-  const data = createData({ mcp, now: () => NOW });
+  const api = fakeApi({ agg: leadAgg, list: () => ({ rows: [{ id: 'L1', email: 'a@x.test', creationDate: '2026-09-01T10:00:00-05:00' }], pages: 1, truncated: false }) });
+  const data = createData({ api, now: () => NOW });
   const model = await loadTab(data, { tab: 'leads', filters: defaultFilters().leads, ...opts() });
-  assert.deepEqual(mcp.calls.map((c) => c.name), ['hyros_get_leads_aggregation', 'hyros_get_leads_aggregation', 'hyros_get_leads']);
-  assert.equal(mcp.maxRunning, 1);
-  const list = mcp.calls[2];
+  assert.deepEqual(api.calls.map((c) => c.name), ['/leads/aggregation', '/leads/aggregation', '/leads']);
+  assert.equal(api.maxRunning, 1);
+  // The aggregations are strict: no paging parameter, ever.
+  for (const c of api.calls.slice(0, 2)) {
+    assert.deepEqual(Object.keys(c.args).sort(), ['attribute', 'fromDate', 'groupsLimit', 'toDate']);
+    assert.ok(c.opts.timeoutMs <= 15000);
+  }
+  assert.equal(model.list.rows[0].joined, '2026-09-01T10:00:00-05:00');
+  const list = api.calls[2];
   assert.equal(list.opts.maxPages, LIST_MAX_PAGES);
   assert.equal(list.opts.pageSize, PAGE_SIZE);
   assert.ok(list.opts.timeoutMs <= 15000 && list.opts.deadline);
-  assert.deepEqual(Object.keys(list.args.request), ['fromDate', 'toDate']);
+  assert.deepEqual(Object.keys(list.args), ['fromDate', 'toDate']);
   assert.equal(model.aggs.stage.total, 40);
   assert.equal(inSomeGroup(model.aggs.firstSource), 22);
   assert.deepEqual(headline(model), { count: 40, plus: false });
 });
 
-test('memo per sub-tab: the same load is free, another sub-tab calls only its own tools', async () => {
-  const mcp = fakeMcp({ agg: leadAgg });
-  const data = createData({ mcp, now: () => NOW });
+test('memo per sub-tab: the same load is free, another sub-tab calls only its own paths', async () => {
+  const api = fakeApi({ agg: leadAgg });
+  const data = createData({ api, now: () => NOW });
   const f = defaultFilters();
   await loadTab(data, { tab: 'leads', filters: f.leads, ...opts() });
-  const n = mcp.calls.length;
+  const n = api.calls.length;
   await loadTab(data, { tab: 'leads', filters: f.leads, ...opts() });
-  assert.equal(mcp.calls.length, n);
+  assert.equal(api.calls.length, n);
   await loadTab(data, { tab: 'subscriptions', filters: f.subscriptions, ...opts() });
-  assert.deepEqual(mcp.calls.slice(n).map((c) => c.name), ['hyros_get_subscriptions']);
+  assert.deepEqual(api.calls.slice(n).map((c) => c.name), ['/subscriptions']);
   // A different filter is a different key.
   await loadTab(data, { tab: 'leads', filters: { stage: 'Lead', tags: '' }, ...opts() });
-  assert.equal(mcp.calls.length, n + 1 + 3);
+  assert.equal(api.calls.length, n + 1 + 3);
   // The chip of a loaded sub-tab reads the memo, without a call.
   assert.deepEqual(knownCount(data, 'subscriptions', RANGE, f.subscriptions, ''), { count: 0, plus: false });
   assert.equal(knownCount(data, 'sales', RANGE, f.sales, ''), null);
@@ -206,11 +273,11 @@ test('memo per sub-tab: the same load is free, another sub-tab calls only its ow
 
 test('a failed aggregation does not take the table down, and is tried again next time', async () => {
   let fail = true;
-  const mcp = fakeMcp({
-    agg: (name, args) => { if (fail && args.request.attribute === 'FIRST_SOURCE_TAG') throw new Error('boom'); return leadAgg(name, args); },
+  const api = fakeApi({
+    agg: (name, args) => { if (fail && args.attribute === 'FIRST_SOURCE_TAG') throw new Error('boom'); return leadAgg(name, args); },
     list: () => ({ rows: [{ id: 'L1', email: 'a@x.test' }], pages: 1, truncated: false }),
   });
-  const data = createData({ mcp, now: () => NOW });
+  const data = createData({ api, now: () => NOW });
   const model = await loadTab(data, { tab: 'leads', filters: defaultFilters().leads, ...opts() });
   assert.equal(model.list.rows.length, 1);
   assert.deepEqual(model.aggErrors, [{ name: 'firstSource', message: 'boom' }]);
@@ -218,15 +285,15 @@ test('a failed aggregation does not take the table down, and is tried again next
   const html = tilesHtml(ctx, 'leads', model, { range: RANGE });
   assert.match(html, /With a first source<\/div>\s*<div class="kpi-value">-</);
   fail = false;
-  const n = mcp.calls.length;
+  const n = api.calls.length;
   const again = await loadTab(data, { tab: 'leads', filters: defaultFilters().leads, ...opts() });
-  assert.deepEqual(mcp.calls.slice(n).map((c) => c.args.request.attribute), ['FIRST_SOURCE_TAG']);
+  assert.deepEqual(api.calls.slice(n).map((c) => c.args.attribute), ['FIRST_SOURCE_TAG']);
   assert.equal(again.aggErrors.length, 0);
 });
 
 test('a failed list is listError and the tiles stay', async () => {
-  const mcp = fakeMcp({ agg: () => ({ groups: [], totalCount: 3 }), list: () => { throw new Error('list down'); } });
-  const data = createData({ mcp, now: () => NOW });
+  const api = fakeApi({ agg: () => ({ result: { groups: [], totalCount: 3 } }), list: () => { throw new Error('list down'); } });
+  const data = createData({ api, now: () => NOW });
   const model = await loadTab(data, { tab: 'sales', filters: defaultFilters().sales, ...opts() });
   assert.equal(model.listError, 'list down');
   assert.equal(model.aggs.firstSource.total, 3);
@@ -234,41 +301,41 @@ test('a failed list is listError and the tiles stay', async () => {
 
 test('a list cut by the time budget is shown once, then loaded again', async () => {
   let cut = true;
-  const mcp = fakeMcp({ list: () => ({ rows: [{ id: 'S' }], pages: 1, truncated: true, error: cut ? 'time budget' : undefined }) });
-  const data = createData({ mcp, now: () => NOW });
+  const api = fakeApi({ list: () => ({ rows: [{ id: 'S' }], pages: 1, truncated: true, error: cut ? 'time budget' : undefined }) });
+  const data = createData({ api, now: () => NOW });
   const first = await loadTab(data, { tab: 'subscriptions', filters: {}, ...opts() });
   assert.equal(first.list.error, 'time budget');
   cut = false;
   await loadTab(data, { tab: 'subscriptions', filters: {}, ...opts() });
-  const n = mcp.calls.length;
+  const n = api.calls.length;
   await loadTab(data, { tab: 'subscriptions', filters: {}, ...opts() });
   assert.equal(n, 2);
-  assert.equal(mcp.calls.length, 2, 'a page-cap truncation (no error) stays cached');
+  assert.equal(api.calls.length, 2, 'a page-cap truncation (no error) stays cached');
 });
 
 test('a newer render stops an older load before its next call', async () => {
   let current = true;
-  const mcp = fakeMcp({ agg: leadAgg, onCall: () => { current = false; } });
-  const data = createData({ mcp, now: () => NOW });
+  const api = fakeApi({ agg: leadAgg, onCall: () => { current = false; } });
+  const data = createData({ api, now: () => NOW });
   const model = await loadTab(data, { tab: 'leads', filters: { stage: 'X', tags: '' }, ...opts(), isLive: () => current });
-  assert.equal(mcp.calls.length, 1);
+  assert.equal(api.calls.length, 1);
   assert.equal(model.stopped, 'stale');
   assert.equal(model.list, null);
 });
 
 test('past the deadline no call starts', async () => {
-  const mcp = fakeMcp();
-  const data = createData({ mcp, now: () => NOW });
+  const api = fakeApi();
+  const data = createData({ api, now: () => NOW });
   const model = await loadTab(data, { tab: 'calls', filters: defaultFilters().calls, ...opts({ deadline: Date.now() - 1 }) });
-  assert.equal(mcp.calls.length, 0);
+  assert.equal(api.calls.length, 0);
   assert.equal(model.stopped, 'time budget');
   assert.equal(model.listError, 'skipped: time budget');
   assert.equal(model.aggErrors.length, 2);
 });
 
 test('the calls tile reads qualified from the second aggregation, or from the filter', async () => {
-  const mcp = fakeMcp({ agg: (name, args) => ({ groups: [{ key: 'Booked', count: 6 }], remainingCount: 0, totalCount: args.request.qualified ? 4 : 10 }) });
-  const data = createData({ mcp, now: () => NOW });
+  const api = fakeApi({ agg: (path, args) => ({ result: { groups: [{ key: 'Booked', count: 6 }], remainingCount: 0, totalCount: args.qualified === true ? 4 : 10 } }) });
+  const data = createData({ api, now: () => NOW });
   const model = await loadTab(data, { tab: 'calls', filters: defaultFilters().calls, ...opts() });
   const html = tilesHtml(ctx, 'calls', model, { range: RANGE, filters: defaultFilters() });
   assert.match(html, /Qualified<\/div>\s*<div class="kpi-value">4</);
@@ -311,4 +378,5 @@ test('the view object honors the contract', () => {
   assert.equal(view.id, 'crm');
   assert.equal(typeof view.render, 'function');
   assert.equal(view.style, true);
+  for (const path of view.tools) assert.ok(READ_PATHS.includes(path), path);
 });

@@ -10,6 +10,6 @@
  */
 import { CUSTOM_VIEWS, HIDDEN_VIEWS } from './custom.js';
 
-export const TEMPLATE_VIEWS = ['report', 'crm', 'scale', 'health', 'account'];
+export const TEMPLATE_VIEWS = ['report', 'crm', 'scale', 'account'];
 
 export const VIEWS = [...TEMPLATE_VIEWS.filter((id) => !HIDDEN_VIEWS.includes(id)), ...CUSTOM_VIEWS];

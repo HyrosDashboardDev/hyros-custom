@@ -78,7 +78,7 @@ export async function loadTab(data, {
     }
     try {
       model.aggs[agg.name] = await data.cached(keyOf(base, `agg:${agg.name}`),
-        async () => readAggregation(await data.call(agg.tool, agg.args, { timeoutMs: timeoutMs() })));
+        async () => readAggregation(await data.call(agg.path, agg.params, { timeoutMs: timeoutMs() })));
     } catch (err) {
       model.aggErrors.push({ name: agg.name, message: message(err) });
     }
@@ -92,7 +92,7 @@ export async function loadTab(data, {
   const key = keyOf(base, 'list');
   try {
     const list = await data.cached(key, async () => {
-      const page = await data.pagedInfo(TAB_BY_KEY[tab].tool, listArgs(tab, range, tz, now, filters, search),
+      const page = await data.pagedInfo(TAB_BY_KEY[tab].path, listArgs(tab, range, tz, now, filters, search),
         { maxPages: LIST_MAX_PAGES, pageSize: PAGE_SIZE, deadline, timeoutMs: timeoutMs() });
       return { rows: shapeRows(tab, page.rows, tz), truncated: Boolean(page.truncated), error: page.error || null };
     });

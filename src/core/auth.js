@@ -347,7 +347,7 @@ export function createOAuthProvider({
  *
  * With `expiresAt` the token is renewed in the background `renewLeadMs`
  * before it expires, without changing state(). Without it the token is kept
- * until the MCP answers 401.
+ * until the API answers 401.
  */
 export function createAuth({
   provider,

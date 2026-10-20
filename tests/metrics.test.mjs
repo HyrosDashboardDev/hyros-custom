@@ -73,7 +73,7 @@ test('Rollup: derived metrics are RE-derived, never averaged', () => {
 });
 
 test('LTV fields switched off while HYROS returns 0 for them (HMCP-359)', () => {
-  const ltv = CATALOG.filter((c) => /^LTV_/.test(c.f));
+  const ltv = CATALOG.filter((c) => /^ltv/.test(c.k));
   check('all 10 LTV fields carry an off reason naming HMCP-359', ltv.length === 10 && ltv.every((c) => /HMCP-359/.test(c.off || '')), true);
   check('no other metric is switched off', CATALOG.filter((c) => c.off).length, 10);
   check('no LTV field is a default column', DEFAULT_KEYS.some((k) => ltv.some((c) => c.k === k)), false);

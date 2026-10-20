@@ -72,8 +72,8 @@ const files = walk(SRC);
 const viewFiles = files.filter((f) => rel(f).startsWith('src/views/'));
 const coreFiles = files.filter((f) => rel(f).startsWith('src/core/'));
 
-test('views never import the MCP client, the auth module or the config, and never call fetch', () => {
-  const banned = ['src/core/mcp.js', 'src/core/auth.js', 'src/core/config.js'];
+test('views never import the API client, the auth module or the config, and never call fetch', () => {
+  const banned = ['src/core/api.js', 'src/core/auth.js', 'src/core/config.js'];
   for (const file of viewFiles) {
     for (const target of importsOf(file)) {
       assert.ok(!banned.includes(rel(target)), `${rel(file)} imports ${rel(target)}; use ctx.data instead`);

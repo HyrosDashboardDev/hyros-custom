@@ -1,6 +1,6 @@
 # Account: view spec
 
-**id** `account` · **version** 0.1.0 · **tools** `hyros_get_user_info`, `hyros_get_ad_accounts`, `hyros_get_sources`
+**id** `account` · **version** 0.1.0 · **tools** `/user-info`, `/ad-accounts`, `/sources`
 
 ## Purpose
 Who this dashboard is looking at: the account's email, timezone, currency
@@ -13,16 +13,15 @@ Three getters of `ctx.data`, called in parallel. Each is cached for the
 life of the page, so other views asking for the same data cost nothing;
 Refresh drops the cache (`ctx.data.invalidate()`) and fetches them again.
 
-| Getter | Tool | Request | Paging |
+| Getter | Path | Query | Paging |
 |---|---|---|---|
-| `account()` | `hyros_get_user_info` | `{}` | one call |
-| `adAccounts()` | `hyros_get_ad_accounts` | `{ request: {} }` | `pageSize: 250`, at most 4 pages |
-| `sources()` | `hyros_get_sources` | `{ request: { includeOrganic: true, includeDisregarded: false } }` | `pageSize: 250`, at most 40 pages |
+| `account()` | `GET /user-info` | none | one call; the getter reads `result` |
+| `adAccounts()` | `GET /ad-accounts` | none | `pageSize=250`, at most 4 pages |
+| `sources()` | `GET /sources` | `includeOrganic=true&includeDisregarded=false` | `pageSize=250`, at most 40 pages |
 
 One render costs 3 calls when the cache is cold (more when a list spans
-several pages) and none when it is warm. The three tools are different, so
-running them in parallel does not collide on the "already processing" rule
-(`docs/RECIPES.md` "CRM"); they still share the account's rate limit.
+several pages) and none when it is warm. The three run in parallel; they
+share the account's rate limit.
 
 ## Rows shape
 ```json
@@ -36,7 +35,7 @@ running them in parallel does not collide on the "already processing" rule
     "clients": [{ "accountId": "", "email": "", "company": "", "status": "" }]
   },
   "adAccounts": { "rows": [{ "id": "123", "name": "Main", "type": "FACEBOOK" }], "truncated": false },
-  "sources": { "rows": ["raw hyros_get_sources rows"], "truncated": false }
+  "sources": { "rows": ["raw GET /sources rows"], "truncated": false }
 }
 ```
 `account()` keeps `timezone` raw (`"-05:00"`, `"UTC"`, `"America/New_York"`);
@@ -55,7 +54,7 @@ The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
   error card with Retry (see Open limitations).
 
 ## Rules honoured
-- Data only through `ctx.data`; read tools only.
+- Data only through `ctx.data`; read paths only.
 - Every string from HYROS (email, timezone, ad account id, name, type)
   escaped with `ctx.esc`; numbers through `ctx.fmt.int`; the currency code
   through `ctx.fmt.currencyCode`, which falls back to `USD` for anything

@@ -1,8 +1,8 @@
 /**
- * Time limits for MCP calls and for a view's first paint.
+ * Time limits for API calls and for a view's first paint.
  */
 
-/** Per-call timeout hints (ms). `slow` is for tools known to take long (the tracking-script check). */
+/** Per-call timeout hints (ms). `slow` is for reads known to take long (the marginal CAC curve). */
 export const TIMEOUTS = Object.freeze({ default: 15000, slow: 45000 });
 
 /** A call is never started with less than this on the clock. */
