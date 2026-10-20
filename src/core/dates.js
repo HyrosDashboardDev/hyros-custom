@@ -1,5 +1,5 @@
 /**
- * Date helpers for the HYROS pipeline (server side, no dependencies).
+ * Date helpers for HYROS request and response dates (no dependencies).
  *
  * `userProfile.timezone` is typed as a free string by the API, so an account
  * may say "-05:00", "UTC", "GMT-5", "-5" or "America/New_York". Everything
@@ -152,11 +152,13 @@ function zoneOffset(zone, fallback) {
 }
 
 /**
- * ISO 8601 for a response date: ISO input passes through; the legacy
- * `EEE MMM dd HH:mm:ss zzz yyyy` form ('Thu Nov 17 10:51:54 ART 2022') is
- * rebuilt as local time plus the zone's offset (or `fallbackOffset`, e.g.
- * the account's '-05:00', when the abbreviation is unknown — no suffix when
- * there is none); anything else is null.
+ * ISO 8601 for a response date: ISO input passes through (leads come in the
+ * account timezone, '2026-09-01T10:00:00-05:00'); the legacy
+ * `EEE MMM dd HH:mm:ss zzz yyyy` form, Java's Date.toString that the API
+ * still uses for sale, call, subscription and click dates
+ * ('Wed May 01 13:00:00 UTC 2024'), is rebuilt as local time plus the zone's
+ * offset (or `fallbackOffset`, e.g. the account's '-05:00', when the
+ * abbreviation is unknown; no suffix when there is none); anything else is null.
  */
 export function parseHyrosDate(value, fallbackOffset = '') {
   if (value == null) return null;

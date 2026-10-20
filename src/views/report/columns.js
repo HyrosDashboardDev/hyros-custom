@@ -131,7 +131,7 @@ export function rowDrillTags(row) {
 
 /**
  * The source tags a drill on column `key` sends, in the order the drill
- * should keep them when get_leads' tag cap cuts the list.
+ * should keep them when the tag cap of GET /leads cuts the list.
  *
  * A rolled-up row sends only the tags of members with `key` above 0, the
  * biggest first: a member with nothing in that column cannot explain the
@@ -171,7 +171,7 @@ export function applyPath(rows, path) {
 }
 
 /**
- * Union of the members' tags (the get_leads `tags` filter is OR), plus the
+ * Union of the members' tags (the `tags` filter of GET /leads is OR), plus the
  * tagged members themselves in `_members` so a drill can rank them by the
  * clicked column (drillTags).
  */

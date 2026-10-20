@@ -6,12 +6,15 @@
  * deployment cannot read environment variables at runtime, so this build
  * copies the site into the output directory and bakes the url into
  * index.html as <meta name="hyros-mcp-url">, which src/core/config.js reads.
+ * HYROS_API_URL is optional: when set it is baked as <meta name="hyros-api-url">;
+ * without it the page uses the customer API of the environment of the MCP url.
  *
- * Usage: HYROS_MCP_URL=<url> node build.mjs   (OUT_DIR defaults to public/)
+ * Usage: HYROS_MCP_URL=<url> [HYROS_API_URL=<url>] node build.mjs   (OUT_DIR defaults to public/)
  */
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveApiUrl } from './src/core/config.js';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(ROOT, process.env.OUT_DIR || 'public');
@@ -26,8 +29,9 @@ const VIEWPORT_META = /^.*<meta name="viewport"[^>]*>.*$/m;
  * silently would point a QA or local dashboard at production data, which is
  * exactly what this build exists to prevent.
  */
-function readMcpUrl() {
-  const value = process.env.HYROS_MCP_URL;
+function readUrl(name, what, { optional = false } = {}) {
+  const value = process.env[name];
+  if (optional && !value) return null;
   try {
     if (value) {
       new URL(value);
@@ -36,7 +40,7 @@ function readMcpUrl() {
   } catch {
     // Not a url: reported below.
   }
-  console.error(`HYROS_MCP_URL must be the MCP server url of the HYROS environment, got: ${value === undefined ? '(not set)' : JSON.stringify(value)}`);
+  console.error(`${name} must be the ${what} of the HYROS environment, got: ${value === undefined ? '(not set)' : JSON.stringify(value)}`);
   process.exit(1);
 }
 
@@ -48,7 +52,13 @@ function escapeAttribute(value) {
     .replaceAll('>', '&gt;');
 }
 
-const mcpUrl = readMcpUrl();
+const mcpUrl = readUrl('HYROS_MCP_URL', 'MCP server url');
+const apiUrl = readUrl('HYROS_API_URL', 'customer API url', { optional: true });
+// The same rule the page applies: without the variable the MCP url must name a known environment.
+if (!resolveApiUrl(mcpUrl, { metaUrl: apiUrl })) {
+  console.error(`HYROS_API_URL must be set: ${mcpUrl} is not the MCP of a known HYROS environment`);
+  process.exit(1);
+}
 
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
@@ -64,8 +74,9 @@ if (!viewport) {
   process.exit(1);
 }
 const indent = viewport[0].match(/^\s*/)[0];
-const meta = `${indent}<meta name="hyros-mcp-url" content="${escapeAttribute(mcpUrl)}">`;
+let meta = `${indent}<meta name="hyros-mcp-url" content="${escapeAttribute(mcpUrl)}">`;
+if (apiUrl) meta += `\n${indent}<meta name="hyros-api-url" content="${escapeAttribute(apiUrl)}">`;
 const at = viewport.index + viewport[0].length;
 await writeFile(indexPath, `${html.slice(0, at)}\n${meta}${html.slice(at)}`);
 
-console.log(`Built ${OUT} with HYROS_MCP_URL=${mcpUrl}`);
+console.log(`Built ${OUT} with HYROS_MCP_URL=${mcpUrl}${apiUrl ? ` HYROS_API_URL=${apiUrl}` : ''}`);

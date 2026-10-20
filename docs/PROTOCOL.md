@@ -6,8 +6,9 @@ Two ways, picked when the page loads (`src/app.js`):
   below. HYROS (the host) hands the token over, so it never travels in a url.
 - **At its own url**: the HYROS sign-in, at the end of this document.
 
-Either way the credential is the same kind: read-only, accepted at `/mcp`
-only, held in memory. Inside HYROS the same contract also carries the theme
+Either way the credential is the same kind: read-only, accepted at the
+customer API (`/api/v1.0`, GET only, the read roles of the login) and at
+`/mcp`, held in memory. The dashboard uses the API. Inside HYROS the same contract also carries the theme
 of the HYROS user; at its own url the page starts in its default theme and
 the user can switch it.
 
@@ -45,7 +46,7 @@ the user can switch it.
   shows "HYROS did not hand over the dashboard credential" with Try again,
   which sends `token-request` with reason `retry`.
 - With `expiresAt` the dashboard asks again (`expiring`) 2 minutes before it
-  expires, in the background. Without it, the token is kept until the MCP
+  expires, in the background. Without it, the token is kept until the API
   answers 401; then the dashboard drops it, asks once (`unauthorized`) and
   retries the call. A second 401 is shown as "HYROS rejected the dashboard
   credential".
@@ -137,12 +138,28 @@ client (no secret). `src/core/auth.js`, `createOAuthProvider`.
 
 - Grants `mcp:read` to every dynamically registered client. A token granted
   it is issued as a custom dashboard credential: read-only and accepted at
-  `/mcp` only, on refresh too.
+  `/mcp` and, since HMCP-401, at the customer API `/api/v1.0` (GET only,
+  with the read roles the login holds), on refresh too.
 - CORS on the OAuth endpoints for any origin, without credentials.
 - `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
   `X-RateLimit-Reset` exposed to the browser. The dashboard waits what
   `Retry-After` says on a 429.
-- Revoking the session in HYROS cuts the dashboard off: `/mcp` answers 401
+- Revoking the session in HYROS cuts the dashboard off: the API answers 401
   and the refresh answers `invalid_grant`.
 - No consent screen yet: HYROS signs a user with a live session in without
   asking. Tracked as its own card.
+
+# The customer API (HMCP-401, HMCP-415)
+
+Where the data comes from, with either credential. `src/core/api.js`.
+
+| | |
+|---|---|
+| Base url | `https://api.hyros.com/v1/api/v1.0` (QA `https://api-staging.hyros.com/v1/api/v1.0`), picked from the MCP url or `<meta name="hyros-api-url">` |
+| Auth | `Authorization: Bearer <token>`, never an `API-Key` header (it would win over the bearer) |
+| Methods | GET only. Anything else from this credential answers 403 `This credential can only read.` |
+| Roles | the read roles of the login that signed in (`ApiKeyRole.getCustomDashboardReadRoles`); a path outside them answers 403 naming the missing role |
+| 401 | plain text `Unauthorized`: expired, revoked or not accepted at this path. The dashboard asks for a new token once, then shows the sign-in |
+| 429 | the dashboard's own bucket per account and endpoint, apart from the account's API keys, with `Retry-After` and `X-RateLimit-*` |
+| CORS | any origin, without credentials |
+| Sandbox | `/api/v1.0/sandbox` refuses this credential |

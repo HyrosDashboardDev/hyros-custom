@@ -3,11 +3,13 @@
 A static page, one per account. Inside HYROS (an iframe) HYROS hands it a
 short-lived token over `postMessage`. Opened at its own url it signs in with
 the HYROS account through the MCP OAuth server (authorization code with PKCE,
-scope `mcp:read`). Either way the browser calls the HYROS MCP directly with
-`Authorization: Bearer <token>` and the credential is read-only. HYROS sets
-`HYROS_MCP_URL` on the Vercel project when it provisions the dashboard, and
-`npm run build` bakes it into the page as a meta tag; `?mcp=qa|prod` is only
-for local runs and manual deploys without the variable.
+scope `mcp:read`). Either way the browser calls the HYROS customer API
+(`/api/v1.0`) directly with `Authorization: Bearer <token>` and the
+credential is read-only. HYROS sets `HYROS_MCP_URL` on the Vercel project
+when it provisions the dashboard, and `npm run build` bakes it into the page
+as a meta tag; it picks the sign-in server and the API of that environment
+(`HYROS_API_URL` overrides the API). `?mcp=qa|prod` is only for local runs
+and manual deploys without the variable.
 Static files, no API key, no secret: the only credential is the token.
 Inside HYROS the page also follows the HYROS theme (dark or white), posted
 over the same contract; at its own url it starts white and has its own
@@ -39,7 +41,7 @@ worked on by HYROS developers. Then:
    the shared markup kit, `SPEC.md`). Read before adding or changing any tab.
 2. `UI-STYLE-GUIDE.md`: tokens, fonts, brand assets, components. Read before
    any visual change; never invent colors or fonts.
-3. `docs/RECIPES.md`: the data of each view (which tools, which arguments,
+3. `docs/RECIPES.md`: the data of each view (which paths, which parameters,
    how to shape the rows).
 4. `docs/PROTOCOL.md`: how the dashboard gets its credential and its theme
    (the `postMessage` contract with HYROS, and the HYROS sign-in).
@@ -47,16 +49,16 @@ worked on by HYROS developers. Then:
 ## Rules
 
 - **`src/core/` is the core. Do not edit it without asking.** Config, auth,
-  the theme, the MCP client, dates and time limits live there.
+  the theme, the API client, dates and time limits live there.
 - **Views talk to HYROS only through `ctx.data`.** A view never imports
-  `src/core/mcp.js`, `src/core/auth.js` or `src/core/config.js` and never calls
-  `fetch`. Need a tool the data API has no getter for? `ctx.data.call`,
+  `src/core/api.js`, `src/core/auth.js` or `src/core/config.js` and never calls
+  `fetch`. Need a path the data API has no getter for? `ctx.data.call`,
   `ctx.data.paged` or `ctx.data.pagedInfo`.
 - **Tokens are never stored or logged.** Not in `localStorage`, a cookie,
   the url, `console.*` or an error message. The sign-in keeps only its client
   id in `localStorage` (the theme switch keeps the theme there too) and, while the user is on the HYROS sign-in page, its
   state and PKCE verifier in `sessionStorage`.
-- **Read tools only.** `READ_TOOLS` in `src/core/mcp.js` is the list; anything
+- **Read paths only.** `READ_PATHS` in `src/core/api.js` is the list; anything
   else fails with `not_allowed` before a request is made.
 - **What the HYROS iframe sandbox blocks:** no `alert`, `confirm` or `prompt`
   (they do nothing), no downloads (no `allow-downloads`). `localStorage` only
@@ -86,7 +88,7 @@ template itself" above.
    `cp -r src/views/_template src/views/<id>` and set `id` (equal to the
    folder name), `title`, `version`, `description`, `style`, `tools` and
    `author` on the `view` object.
-2. Write `SPEC.md` first: the tools, the rows shape, the states.
+2. Write `SPEC.md` first: the paths, the rows shape, the states.
 3. Write `render(ctx)` (`ctx = { root, data, fmt, esc, kpis, now }`) with
    the shared kit, then add `'<id>'` to `CUSTOM_VIEWS` in
    `src/views/custom.js`. Never edit `src/views/registry.js`: it lists the
@@ -103,7 +105,7 @@ HYROS with `ctx.esc` before it reaches `innerHTML`.
 ## Commands
 
 ```bash
-npm run check   # node:test, no deps: auth, MCP client, data API, these rules
+npm run check   # node:test, no deps: auth, API client, data API, these rules
 npm run dev     # dashboard on http://localhost:4321, harness on http://localhost:4323
 ```
 
@@ -121,8 +123,8 @@ without the user asking.
 
 ## Where things are
 
-- `docs/RECIPES.md`: how to build the Report, CRM, Drill, Scale and Health
-  views on this dashboard: which tools to call and how to shape the rows.
+- `docs/RECIPES.md`: how to build the Report, CRM, Drill and Scale
+  views on this dashboard: which paths to call and how to shape the rows.
 - `docs/PROTOCOL.md`: the `postMessage` contract (token and theme) and the
   HYROS sign-in.
 

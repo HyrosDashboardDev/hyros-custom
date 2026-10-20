@@ -1,11 +1,11 @@
 /**
- * The shell: wires auth, the MCP client and the data API, decides between the
+ * The shell: wires auth, the API client and the data API, decides between the
  * sign-in card, the connecting/failed gate and the app, and runs the tabs
  * listed in views/registry.js.
  */
 import { createAuth, createHostProvider, createOAuthProvider } from './core/auth.js';
-import * as mcp from './core/mcp.js';
-import { resolveAuthServer, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
+import * as api from './core/api.js';
+import { resolveApiUrl, resolveAuthServer, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
 import { createThemeReceiver } from './core/theme.js';
 import { VIEW_LOAD_MS } from './core/budget.js';
 import { createData } from './data/data.js';
@@ -16,7 +16,7 @@ import { VIEWS } from './views/registry.js';
 const COPY = {
   NO_TOKEN: 'HYROS did not hand over the dashboard credential.',
   auth: 'HYROS rejected the dashboard credential. Reload this page from HYROS.',
-  forbidden: 'This account cannot use the MCP. Ask HYROS support to enable it.',
+  forbidden: 'This HYROS login cannot read this data. Ask the account owner for access.',
   rate_limited: 'HYROS is rate limiting this account. Wait a minute and press Refresh.',
   timeout: 'HYROS took too long to answer. Press Refresh again.',
 };
@@ -195,8 +195,14 @@ function boot() {
     oauth = createOAuthProvider({ authServer: resolveAuthServer(mcpUrl), redirectUri: resolveRedirectUri() });
   }
   auth = createAuth({ provider: oauth || host });
-  mcp.configure({ url: mcpUrl, getToken: auth.getToken, markInvalid: auth.markInvalid });
-  data = createData({ mcp });
+  const apiUrl = resolveApiUrl(mcpUrl);
+  if (!apiUrl) {
+    // build.mjs refuses this; only a page served without the build gets here.
+    showGate({ title: 'This dashboard is not set up', text: `There is no HYROS API for ${mcpUrl}. Build it with HYROS_API_URL.` });
+    return;
+  }
+  api.configure({ url: apiUrl, getToken: auth.getToken, markInvalid: auth.markInvalid });
+  data = createData({ api });
 
   $('#gateRetry').addEventListener('click', () => connect('retry'));
   $('#gateSignIn').addEventListener('click', signIn);

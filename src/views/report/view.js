@@ -508,7 +508,7 @@ export const view = {
   version: '0.1.0',
   description: 'What each traffic source, ad account, campaign, ad set and ad cost and earned, under the attribution model you pick.',
   style: true,
-  tools: ['hyros_get_user_info', 'hyros_get_ad_accounts', 'hyros_get_attribution_report', 'hyros_get_sources'],
+  tools: ['/user-info', '/ad-accounts', '/attribution', '/sources'],
   author: 'HYROS',
   render,
 };

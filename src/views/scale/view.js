@@ -12,7 +12,8 @@ import { normalizeCurve, curveSvg, curveVerdict, isThin, NOTE_WORD } from './cur
 export const TOP_ADSETS = 6;
 export const DEFAULT_ACCOUNTS = 2;
 export const STORE_KEY = 'hyros-custom.scale.accounts';
-export const CURVE_MODEL = 'LAST_CLICK';
+/** The `attributionModel` of every curve: last click, the cost of closing a customer. */
+export const CURVE_MODEL = 'last_click';
 const DEADLINE_MARGIN_MS = 15000;
 
 const LEVEL_WORD = { ACCOUNT: 'Ad account', CAMPAIGN: 'Campaign', SOURCE_LINK: 'Ad set', AD: 'Ad' };
@@ -26,9 +27,14 @@ const state = { end: null, selected: null, endError: null };
 
 /* ---------------- requests ---------------- */
 
-/** The exact request of one curve: 90 days ending on `end` (ACCOUNT level caps history at 90 days). */
+/**
+ * The GET /attribution/marginal-cac-curve query of one curve: 90 days ending on
+ * `end` (ACCOUNT level caps history at 90 days). The endpoint answers 400 to
+ * any other or repeated parameter, so nothing else is sent. `level` goes in the
+ * API's lowercase spelling; the target keeps its uppercase one for the cards.
+ */
 export function curveRequest(target, end) {
-  return { id: String(target.id), level: target.level, startDate: addDays(end, -89), endDate: end, attributionModel: CURVE_MODEL };
+  return { id: String(target.id), level: String(target.level).toLowerCase(), startDate: addDays(end, -89), endDate: end, attributionModel: CURVE_MODEL };
 }
 
 export const curveKey = (target, end) => `scale:${target.id}:${target.level}:${end}`;
@@ -136,8 +142,8 @@ export async function loadCurves(data, targets, { end, deadline, isCurrent = () 
       continue;
     }
     try {
-      const raw = await data.cached(curveKey(t, end), () => data.call('hyros_get_marginal_cac_curve',
-        { request: curveRequest(t, end) },
+      const raw = await data.cached(curveKey(t, end), () => data.call('/attribution/marginal-cac-curve',
+        curveRequest(t, end),
         { timeoutMs: clampTimeout(TIMEOUTS.slow, deadline) }));
       curves[i] = normalizeCurve(raw, t);
     } catch (err) {
@@ -155,10 +161,10 @@ export async function loadCurves(data, targets, { end, deadline, isCurrent = () 
 function unavailableCard(curves, esc) {
   const messages = [...new Set(curves.map((c) => String(c.error || '').trim()).filter(Boolean))];
   return `<div class="fpanel scale-card"><h3>Curves unavailable</h3>
-    <div class="note err"><b>HYROS did not answer the CAC curve tool</b> (${esc(messages[0] || 'no reply')}).
+    <div class="note err"><b>HYROS did not answer the marginal CAC curve</b> (${esc(messages[0] || 'no reply')}).
       Ask HYROS support whether the marginal CAC curve is enabled for this account.
       ${messages.length > 1 ? `<br><span class="sub">Other replies: ${esc(messages.slice(1).join(' · '))}</span>` : ''}</div>
-    <div class="sub">${esc(String(curves.length))} entities were requested (<code>hyros_get_marginal_cac_curve</code>); every call failed.</div>
+    <div class="sub">${esc(String(curves.length))} entities were requested (<code>GET /attribution/marginal-cac-curve</code>); every call failed.</div>
   </div>`;
 }
 
@@ -248,7 +254,7 @@ function html(ctx, { accounts, end, today, curves, report }) {
 
   return `
     <div class="note"><b>Scale.</b> How the cost of the <i>next</i> customer changes as daily spend rises,
-      computed by HYROS from this account's own spend history (<code>hyros_get_marginal_cac_curve</code>,
+      computed by HYROS from this account's own spend history (<code>GET /attribution/marginal-cac-curve</code>,
       last-click credit: the cost of closing a customer). The saturation point is where the next unit of
       spend costs more than the CAC ceiling. Window ${esc(addDays(end, -89))} to ${esc(end)}.</div>
     ${controls}
@@ -288,7 +294,7 @@ export const view = {
   version: '0.1.0',
   description: 'How far each ad account (and the top ad sets) can scale daily spend before the next customer costs more than the CAC ceiling.',
   style: true,
-  tools: ['hyros_get_user_info', 'hyros_get_ad_accounts', 'hyros_get_marginal_cac_curve'],
+  tools: ['/user-info', '/ad-accounts', '/attribution/marginal-cac-curve'],
   author: 'HYROS',
 
   async render(ctx) {

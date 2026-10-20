@@ -1,9 +1,9 @@
 # CRM: view spec
 
-**id** `crm` · **version** 0.1.0 · **tools** `hyros_get_user_info`, `hyros_get_stages`,
-`hyros_get_leads`, `hyros_get_leads_aggregation`, `hyros_get_sales`, `hyros_get_sales_aggregation`,
-`hyros_get_calls`, `hyros_get_calls_aggregation`, `hyros_get_subscriptions`, `hyros_get_lead_journey`,
-`hyros_get_lead_clicks`
+**id** `crm` · **version** 0.1.0 · **tools** (API paths) `/user-info`, `/stages`,
+`/leads`, `/leads/aggregation`, `/sales`, `/sales/aggregation`,
+`/calls`, `/calls/aggregation`, `/subscriptions`, `/leads/journey`,
+`/leads/clicks`
 
 ## Purpose
 The people behind the numbers: the leads, sales, calls and subscriptions of
@@ -29,24 +29,29 @@ aggregations, then the list.
 
 | Sub-tab | Aggregations (tiles) | List |
 |---|---|---|
-| Leads | `hyros_get_leads_aggregation { attribute: 'STAGE', groupsLimit: 1000, ...range, ...filters }` and `{ attribute: 'FIRST_SOURCE_TAG', groupsLimit: 1000, ...}` | `hyros_get_leads` |
-| Sales | `hyros_get_sales_aggregation { attribute: 'FIRST_SOURCE_TAG', groupsLimit: 1000, ... }` | `hyros_get_sales` |
-| Calls | `hyros_get_calls_aggregation { attribute: 'CALL_QUALIFICATION', groupsLimit: 1000, ... }` and, unless a qualified filter is set, the same with `qualified: true` | `hyros_get_calls` |
-| Subscriptions | none (no aggregation tool) | `hyros_get_subscriptions` |
+| Leads | `/leads/aggregation { attribute: 'STAGE', groupsLimit: 1000, ...range, ...filters }` and `{ attribute: 'FIRST_SOURCE_TAG', groupsLimit: 1000, ...}` | `/leads` |
+| Sales | `/sales/aggregation { attribute: 'FIRST_SOURCE_TAG', groupsLimit: 1000, ... }` | `/sales` |
+| Calls | `/calls/aggregation { attribute: 'CALL_QUALIFICATION', groupsLimit: 1000, ... }` and, unless a qualified filter is set, the same with `qualified: true` | `/calls` |
+| Subscriptions | none (no aggregation endpoint) | `/subscriptions` |
 
-Lists: `ctx.data.pagedInfo(tool, { request: { fromDate, toDate, ...filters } },
+Lists: `ctx.data.pagedInfo(path, { fromDate, toDate, ...filters },
 { maxPages: 8, pageSize: 250, deadline, timeoutMs })`: at most 2,000 rows,
-newest first. Aggregations: `ctx.data.call(tool, { request }, { timeoutMs })`.
-`timeoutMs = clampTimeout(TIMEOUTS.default, deadline)`.
+newest first. Aggregations: `ctx.data.call(path, params, { timeoutMs })`,
+answered as `{ result: { groups, totalCount, remainingCount } }`.
+`timeoutMs = clampTimeout(TIMEOUTS.default, deadline)`. Parameters are flat
+query parameters; an array goes out as one comma-separated value.
 
-Filters are tool parameters (names and enum values from the MCP request DTOs);
-the aggregation of a sub-tab gets the same filters as its list, so the tiles
-and the table describe the same set:
+Filters are query parameters (names and enum values as the endpoints read
+them). The aggregation of a sub-tab gets the same filters as its list, so the
+tiles and the table describe the same set. Every endpoint here answers 400 to
+a parameter it does not know (the aggregations also to `pageSize` and
+`pageId`), and every filter below is read by both the list and its
+aggregation:
 
 | Sub-tab | Control | Parameter |
 |---|---|---|
-| all | email search (prefix, at least 3 characters, 400 ms debounce, lower-cased) | `emails: [text]` |
-| Leads | stage select (options from `ctx.data.stages()`) | `stage: [name]` |
+| all | email search (prefix, at least 3 characters, 400 ms debounce, lower-cased) | `emails=text` |
+| Leads | stage select (options from `ctx.data.stages()`) | `stage=name` (singular) |
 | Leads | tags (comma separated, max 50) | `tags: [...]` (OR) |
 | Sales | recurring | `isRecurringSale: RECURRING \| NON_RECURRING` (ALL is not sent) |
 | Sales | refund | `saleRefundedState: REFUNDED \| NON_REFUNDED` (ALL is not sent) |
@@ -73,10 +78,12 @@ starts after it. A module-level render counter stops an older load before
 its next call when a newer one started (control change, sub-tab, Refresh)
 or when its root left the page (a switch to another tab).
 
-**MCP limits:** at most 50 emails, tags or stages per call (one email
-prefix, one stage, up to 50 tags); `pageSize` 250; 15 s per call; one rate
-limit per account, so everything runs in series. The token is applied by
-the MCP client; the view never sees it.
+**API limits:** at most 50 emails, tags or stages per call (one email
+prefix, one stage, up to 50 tags); `pageSize` 250; `groupsLimit` 1000; 15 s
+per call; one rate limit per account, so everything runs in series. A value
+holding a comma cannot be sent (the client fails it with `bad_request`
+before the request; the sub-tab shows that error). The token is applied by
+the API client; the view never sees it.
 
 ## Rows shape
 ```json
@@ -101,10 +108,12 @@ date, dateMs, name, state, qualified, firstSource, ad, lastSource }`.
 Subscription row: `{ id, email, leadName, date, dateMs, endDate, name,
 price, currency, periodicity, status, provider }`.
 
-Dates are ISO (`parseHyrosDate(v, offsetSuffix(tz))`: lead and sale/call
-`creationDate` already ISO, `refundDate`, subscription dates and
-source `clickDate` may be legacy `EEE MMM dd HH:mm:ss zzz yyyy`). `*Ms` are
-the same dates as epoch milliseconds, the sort keys.
+Dates are ISO (`parseHyrosDate(v, offsetSuffix(tz))`). Lead dates and source
+`clickDate` come as ISO in the account timezone (`2026-09-01T10:00:00-05:00`); sale and call
+`creationDate`, `refundDate` and the subscription dates come in the legacy
+Java form `EEE MMM dd HH:mm:ss zzz yyyy` (`Wed May 01 13:00:00 UTC 2024`),
+rebuilt as local time plus the zone's offset. `*Ms` are the same dates as
+epoch milliseconds, the sort keys, so rows in both forms sort together.
 
 Tiles:
 - Leads: Leads = STAGE `totalCount`; With a first source = sum of the
@@ -136,7 +145,7 @@ Tiles:
 - Invalid custom range: `.note.err` with the reason, no call made.
 
 ## Rules honoured
-- Data only through `ctx.data`; read tools only; calls in series.
+- Data only through `ctx.data`; read paths only; calls in series.
 - Every string from HYROS escaped with `ctx.esc`; numbers and money through
   `ctx.fmt` (`moneyIn` for a sale or subscription in its own currency).
 - Counts are taken from `totalCount`, never by summing groups (a lead with
@@ -154,7 +163,7 @@ without a DOM.
 ## Open limitations
 - No per-lead income column: the window's sales would have to be loaded
   with the leads (two lists per render).
-- Search is an email prefix only (the tools have no name search).
+- Search is an email prefix only (the API has no name search).
 - "With / without a source" on leads is client side, so it covers only the
   loaded rows; the tile "With a first source" is the account figure.
 - `pagedInfo` walks its pages without the render counter: a stale load

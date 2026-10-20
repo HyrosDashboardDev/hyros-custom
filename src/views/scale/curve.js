@@ -3,7 +3,8 @@
  * curveVerdict and NOTE_WORD come from hyros-ai (features/scale) unchanged
  * except for the class names (prefixed `scale-`) and the dash-free wording.
  *
- * Documented reply (hyros_get_marginal_cac_curve, MarginalCacCurveResponseDTO):
+ * Documented reply (GET /attribution/marginal-cac-curve, MarginalCacCurveResponseDTO),
+ * inside the `{ request_id, result }` envelope:
  *   { id, level, name, startDate, endDate, attributionModel, daysSampled,
  *     cacCeiling, ceilingBasis: CALLER_PROVIDED | LTV_BREAKEVEN, ltvWindow,
  *     curve: [{ spendPerDay, days, newCustomers, avgCac, marginalCac }],
@@ -23,10 +24,10 @@ const num = (v) => (v === null || v === undefined || v === '' || Number.isNaN(Nu
 const pickNum = (obj, keys) => { for (const k of keys) { const v = num(obj?.[k]); if (v !== null) return v; } return null; };
 const isMap = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 
-/** The REST envelope is `{ request_id, result }`; the MCP tool may hand back either. */
+/** The curve inside the `{ request_id, result }` envelope; a bare curve is read as it is. */
 const unwrap = (raw) => (isMap(raw) && isMap(raw.result) && !Array.isArray(raw.curve) ? raw.result : raw);
 
-/** Normalize one hyros_get_marginal_cac_curve response (documented keys first, legacy keys as fallbacks). */
+/** Normalize one GET /attribution/marginal-cac-curve response (documented keys first, legacy keys as fallbacks). */
 export function normalizeCurve(rawReply, meta) {
   const raw = unwrap(rawReply);
   const points = (Array.isArray(raw?.curve) ? raw.curve : [])

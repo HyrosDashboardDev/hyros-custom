@@ -306,12 +306,12 @@ export const view = {
   description: 'Who joined, bought, booked or subscribed in a date range, where they came from, and each lead\'s journey.',
   style: true,
   tools: [
-    'hyros_get_user_info', 'hyros_get_stages',
-    'hyros_get_leads', 'hyros_get_leads_aggregation',
-    'hyros_get_sales', 'hyros_get_sales_aggregation',
-    'hyros_get_calls', 'hyros_get_calls_aggregation',
-    'hyros_get_subscriptions',
-    'hyros_get_lead_journey', 'hyros_get_lead_clicks',
+    '/user-info', '/stages',
+    '/leads', '/leads/aggregation',
+    '/sales', '/sales/aggregation',
+    '/calls', '/calls/aggregation',
+    '/subscriptions',
+    '/leads/journey', '/leads/clicks',
   ],
   author: 'HYROS',
 
