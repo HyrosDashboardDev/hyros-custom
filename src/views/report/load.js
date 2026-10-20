@@ -305,5 +305,7 @@ export async function loadReport(data, {
   const join = await joinSources(data, ids, memo, { deadline, isCurrent, serial, clock });
   if (join.stale) return { stale: true };
   const unjoined = ids.filter((id) => id && !memo.has(String(id))).length;
-  return { ...load, kind, key: base, join: { ...join, unjoined } };
+  // Asked in a complete answer and not returned: HYROS has no source for them.
+  const sourceless = ids.filter((id) => id && memo.get(String(id)) === null).length;
+  return { ...load, kind, key: base, join: { ...join, unjoined, sourceless } };
 }

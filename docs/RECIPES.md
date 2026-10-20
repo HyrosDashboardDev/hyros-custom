@@ -384,20 +384,26 @@ The click-through behind a report number. Sources carry a `tag`; a rolled-up
 row carries the union of its members' tags (Report step 6).
 
 - Cohort: `hyros_get_leads` with `{ request: { tags, pageSize: 250 } }`.
-  The `tags` filter is OR. Say in the panel that the cohort is the leads
+  The `tags` filter is OR and takes at most 50 tags: a rolled-up row sends
+  the tags of its members with the clicked column above 0, the biggest
+  first, and when some are left out the panel says "first N of M sources"
+  instead of showing a bare 0. Say in the panel that the cohort is the leads
   that touched those sources, which is not the attribution-credited count
-  in the cell (models reassign credit).
+  in the cell (models reassign credit). The cohort has no date filter: a
+  source tag only records the lead's first touch of that source.
 - Sales and calls of the cohort: there is no tag filter on those tools, so
   take the cohort's lead ids and call `hyros_get_sales` / `hyros_get_calls`
-  with `{ request: { leadIds } }` in batches of 50 (the filter's cap), in
-  sequence, at most 4 pages of 250 per batch. Any truncation reads
-  "newest shown".
+  with `{ request: { leadIds, fromDate, toDate } }` (the report's range) in
+  batches of 50 (the filter's cap), in sequence, at most 4 pages of 250 per
+  batch. Any truncation reads "newest shown".
 - One lead: `hyros_get_lead_journey` with
   `{ request: { emails: [email], includeEvents: true } }` gives
   `{ lead, sales, calls, journey: [{ type, date, name, keyword, extra, subNames }] }`;
-  `hyros_get_lead_clicks` with `{ request: { emails: [email], fromDate, pageSize: 100 } }`
-  (`fromDate` a year back; `email` is deprecated) gives
-  `result: [{ date, page | trackedUrl, previousUrl, sourceLinkName, adspendType }]`.
+  `hyros_get_lead_clicks` with `{ request: { emails: [email], fromDate } }`
+  (`fromDate` a year back; `email` is deprecated) through `pagedInfo`
+  (`pageSize: 250`, `maxPages: 2`) gives
+  `result: [{ date, page | trackedUrl, previousUrl, sourceLinkName, adspendType }]`;
+  when more pages exist the count reads "N+ tracked clicks, list cut short".
   The clicks call is best effort: a failure must not blank the journey.
 - Open the drill as a panel inside the view. No modals.
 

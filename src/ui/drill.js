@@ -18,16 +18,18 @@
  */
 import { esc } from './dom.js';
 import { TIMEOUTS, clampTimeout } from '../core/budget.js';
-import { parseHyrosDate, offsetSuffix, ymdInTz, addDays, dayStart } from '../core/dates.js';
+import { parseHyrosDate, offsetSuffix, ymdInTz, addDays, dayStart, dayEnd } from '../core/dates.js';
 
-/** Rolled-up rows carry at most 40 tags (src/data/report-levels.js); `tags` is OR. */
-export const MAX_TAGS = 40;
+/** The get_leads `tags` filter (OR) takes at most 50 tags; a drill sends the first 50 it is given. */
+export const MAX_TAGS = 50;
 /** The leadIds filter takes at most 50 ids. */
 export const BATCH = 50;
 /** Sales or calls per batch: 4 pages of 250 before the drawer says "newest shown". */
 export const BATCH_MAX_PAGES = 4;
 /** Click history window: bounded (the docs recommend a fromDate) but wide enough for a long journey. */
 export const CLICKS_LOOKBACK_DAYS = 365;
+/** Click history: 2 pages of 250 before the drawer says the list was cut short. */
+export const CLICKS_MAX_PAGES = 2;
 
 const LOADING = '<div class="empty"><img class="sven-load" src="./assets/brand/sven-lavender.svg" alt="">Loading…</div>';
 
@@ -159,10 +161,13 @@ const chunk = (arr, n) => {
 
 /**
  * The cohort: one page of the newest 250 leads that touched any of `tags`.
- * Merged leads (`originLead`) are dropped. Returns { leads, ids, truncated }.
+ * Only the first MAX_TAGS tags are sent, so callers put the most relevant
+ * first; `tagsLeft` counts the ones left out. Merged leads (`originLead`)
+ * are dropped. Returns { leads, ids, truncated, tagsSent, tagsLeft }.
  */
 export async function loadCohort(data, tags, { tz = null, deadline = null } = {}) {
-  const list = [...new Set((tags || []).filter(Boolean))].slice(0, MAX_TAGS);
+  const all = [...new Set((tags || []).filter(Boolean))];
+  const list = all.slice(0, MAX_TAGS);
   const body = await data.call('hyros_get_leads', { request: { tags: list, pageSize: 250 } },
     { timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
   const iso = isoFor(tz);
@@ -171,16 +176,19 @@ export async function loadCohort(data, tags, { tz = null, deadline = null } = {}
     leads: raw.map((l) => compactLead(l, iso)),
     ids: raw.map((l) => l.id).filter(Boolean),
     truncated: Boolean(body?.nextPageId),
+    tagsSent: list.length,
+    tagsLeft: all.length - list.length,
   };
 }
 
 /**
  * The sales or calls of a cohort: `leadIds` in batches of 50, IN SERIES, at
- * most 4 pages each. Stops before the next batch when `deadline` passes or
+ * most 4 pages each. `dates` ({ fromDate, toDate }) keeps only the records
+ * made in that range. Stops before the next batch when `deadline` passes or
  * `isCurrent()` says a newer drill replaced this one; both read as truncated.
  * Returns { records, truncated, error? }.
  */
-export async function loadRecords(data, kind, leadIds, { tz = null, deadline = null, isCurrent = () => true } = {}) {
+export async function loadRecords(data, kind, leadIds, { tz = null, deadline = null, isCurrent = () => true, dates = null } = {}) {
   const tool = kind === 'sales' ? 'hyros_get_sales' : 'hyros_get_calls';
   const iso = isoFor(tz);
   const raw = [];
@@ -189,7 +197,7 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
   for (const batch of chunk(leadIds || [], BATCH)) {
     if (!isCurrent()) { truncated = true; break; }
     if (deadline && Date.now() >= deadline) { truncated = true; error = 'time budget'; break; }
-    const page = await data.pagedInfo(tool, { request: { leadIds: batch } },
+    const page = await data.pagedInfo(tool, { request: { leadIds: batch, ...(dates || {}) } },
       { maxPages: BATCH_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
     raw.push(...page.rows);
     if (page.truncated) truncated = true;
@@ -217,9 +225,10 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
 
 /**
  * One lead: its journey and, best effort, its click history of the last
- * year. A failed clicks call becomes `clicksError`; a failed journey throws.
- * Returns { journey: { lead, sales, calls, journey }, clicks, clicksError } or
- * null when HYROS has no lead with that email.
+ * year (at most CLICKS_MAX_PAGES pages; `clicksTruncated` when more exist).
+ * A failed clicks call becomes `clicksError`; a failed journey throws.
+ * Returns { journey: { lead, sales, calls, journey }, clicks, clicksTruncated,
+ * clicksError } or null when HYROS has no lead with that email.
  */
 export async function loadJourney(data, email, { tz = null, deadline = null } = {}) {
   const fromDate = dayStart(addDays(ymdInTz(data.now(), tz), -CLICKS_LOOKBACK_DAYS), tz);
@@ -227,7 +236,8 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
   // Two different tools, so they do not collide on "already processing".
   const [journeyRes, clicksRes] = await Promise.allSettled([
     data.call('hyros_get_lead_journey', { request: { emails: [email], includeEvents: true } }, { timeoutMs }),
-    data.call('hyros_get_lead_clicks', { request: { emails: [email], fromDate, pageSize: 100 } }, { timeoutMs }),
+    data.pagedInfo('hyros_get_lead_clicks', { request: { emails: [email], fromDate } },
+      { maxPages: CLICKS_MAX_PAGES, pageSize: 250, deadline, timeoutMs }),
   ]);
   if (journeyRes.status === 'rejected') throw journeyRes.reason;
 
@@ -261,7 +271,7 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
       })),
     },
     clicks: clicksRes.status === 'fulfilled'
-      ? listOf(clicksRes.value).map((c) => ({
+      ? (clicksRes.value?.rows || []).map((c) => ({
           date: iso(c.date),
           page: c.page || c.trackedUrl || null,
           previousUrl: c.previousUrl || null,
@@ -269,6 +279,7 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
           platform: c.adspendType === 'NONE' ? null : c.adspendType || null,
         }))
       : [],
+    clicksTruncated: clicksRes.status === 'fulfilled' && Boolean(clicksRes.value?.truncated),
     clicksError,
   };
 }
@@ -279,6 +290,15 @@ const TOUCH_PILL = '<span class="pill" title="Cohort from hyros_get_leads by sou
 
 const notePill = (note, esc) => (note ? ` <span class="pill">${esc(note)}</span>` : '');
 
+/** The pill of a drill that sent only part of its tags: the list is incomplete, never a true 0. */
+const tagsPill = (fmt, sent, left) => (left > 0
+  ? ` <span class="pill warn" title="A drill queries at most ${MAX_TAGS} sources, the ones with the most in the clicked column first. The other ${left} were not queried.">first ${fmt.int(sent)} of ${fmt.int(sent + left)} sources</span>`
+  : '');
+
+/** The empty state of a drill that left tags out. */
+const notQueried = (fmt, what, sent, left) =>
+  `<div class="empty">No ${what} from the first ${fmt.int(sent)} of ${fmt.int(sent + left)} sources. The other ${fmt.int(left)} were not queried.</div>`;
+
 /** The income of a lead: its sales in the account currency (other currencies are not summed). */
 export function leadIncome(sales, accountCurrency) {
   return (sales || [])
@@ -286,13 +306,15 @@ export function leadIncome(sales, accountCurrency) {
     .reduce((sum, s) => sum + (s.amount || 0), 0);
 }
 
-/** `{ subtitle, html }` for a cohort. `model = { leads, truncated, note? }`. */
-export function renderCohort(ctx, { leads = [], truncated = false, note = '' }) {
+/** `{ subtitle, html }` for a cohort. `model = { leads, truncated, note?, tagsSent?, tagsLeft? }`. */
+export function renderCohort(ctx, { leads = [], truncated = false, note = '', tagsSent = 0, tagsLeft = 0 }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
-  const subtitle = `${fmt.int(leads.length)}${truncated ? '+' : ''} leads touched this source`
-    + (truncated ? ', newest 250 shown' : '') + ` ${TOUCH_PILL}${notePill(note, e)}`;
-  if (!leads.length) return { subtitle, html: '<div class="empty">No leads returned for this source.</div>' };
+  const subtitle = `${fmt.int(leads.length)}${truncated || tagsLeft > 0 ? '+' : ''} leads touched this source`
+    + (truncated ? ', newest 250 shown' : '') + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
+  if (!leads.length) {
+    return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, 'leads', tagsSent, tagsLeft) : '<div class="empty">No leads returned for this source.</div>' };
+  }
 
   const html = `<div class="cohort">${leads.map((l) => `
     <button type="button" class="cohort-row" data-email="${e(l.email)}">
@@ -310,8 +332,12 @@ export function renderCohort(ctx, { leads = [], truncated = false, note = '' }) 
   return { subtitle, html };
 }
 
-/** `{ subtitle, html }` for the sales or calls of a cohort. `model = { kind, records, cohortSize, truncated, note? }`. */
-export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncated = false, note = '' }) {
+/**
+ * `{ subtitle, html }` for the sales or calls of a cohort.
+ * `model = { kind, records, cohortSize, truncated, note?, tagsSent?, tagsLeft?, inRange? }`;
+ * `inRange` says the records were limited to the report's date range.
+ */
+export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncated = false, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const isSales = kind === 'sales';
@@ -319,12 +345,14 @@ export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncat
   const total = isSales ? records.filter(inAccount).reduce((s, r) => s + (r.amount || 0), 0) : null;
   const foreign = isSales ? records.filter((r) => !inAccount(r)).length : 0;
 
-  const subtitle = `${fmt.int(records.length)}${truncated ? '+' : ''} ${e(kind)} from ${fmt.int(cohortSize)} touched leads`
+  const subtitle = `${fmt.int(records.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${e(kind)}${inRange ? ' in the range' : ''} from ${fmt.int(cohortSize)} touched leads`
     + (truncated ? ', newest shown' : '')
     + (isSales && total ? ` · <b class="good">${e(fmt.money(total))}</b>` : '')
     + (foreign ? ` · ${fmt.int(foreign)} sale${foreign === 1 ? '' : 's'} in other currencies not summed` : '')
-    + ` ${TOUCH_PILL}${notePill(note, e)}`;
-  if (!records.length) return { subtitle, html: `<div class="empty">No ${e(kind)} recorded for this cohort.</div>` };
+    + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
+  if (!records.length) {
+    return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, e(kind), tagsSent, tagsLeft) : `<div class="empty">No ${e(kind)} recorded for this cohort${inRange ? ' in the range' : ''}.</div>` };
+  }
 
   const html = `<div class="cohort">${records.map((r) => `
     <button type="button" class="cohort-row" data-email="${e(r.email)}">
@@ -345,7 +373,7 @@ const JOURNEY_ICONS = {
 };
 
 /** `{ subtitle, html }` for one lead. `model` is what loadJourney answered. */
-export function renderJourney(ctx, { journey: j, clicks = [], clicksError = null }) {
+export function renderJourney(ctx, { journey: j, clicks = [], clicksTruncated = false, clicksError = null }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const l = j.lead || {};
@@ -372,7 +400,7 @@ export function renderJourney(ctx, { journey: j, clicks = [], clicksError = null
     ? `<div class="drawer-section">Click history</div><div class="note err">Click history could not be fetched: ${e(clicksError)}</div>`
     : '';
   const clickRows = clicks.length ? `
-    <div class="drawer-section">Click history · ${fmt.int(clicks.length)} tracked clicks</div>
+    <div class="drawer-section">Click history · ${fmt.int(clicks.length)}${clicksTruncated ? '+' : ''} tracked clicks${clicksTruncated ? ', list cut short' : ''}</div>
     <div class="clicks">${clicks.map((c) => `
       <div class="click-row">
         <div class="click-page">${e((c.page || '').replace(/^https?:\/\//, ''))}
@@ -422,11 +450,14 @@ export async function openLeadJourney(ctx, email, { drawer = null, back = null }
 
 /**
  * Open the drill behind a report number: the cohort for `metric` 'leads',
- * or its sales or calls. `tags` are the row's source tags; `note` is shown
- * as a pill (e.g. "ad set cohort: <name>" for an ad row). Clicking a lead
- * opens its journey; Back returns to the list without calling HYROS again.
+ * or its sales or calls. `tags` are the row's source tags, most relevant
+ * first; `note` is shown as a pill (e.g. "ad set cohort: <name>" for an ad
+ * row). `range` ({ start, end } as YYYY-MM-DD) limits the sales or calls to
+ * the report's range; the cohort itself has no date filter (a source tag
+ * only records the lead's first touch). Clicking a lead opens its journey;
+ * Back returns to the list without calling HYROS again.
  */
-export async function openCohortDrill(ctx, { title, tags, metric = 'leads', label = '', note = '' }) {
+export async function openCohortDrill(ctx, { title, tags, metric = 'leads', label = '', note = '', range = null }) {
   const e = ctx.esc || esc;
   const d = openDrawer(ctx.root, { title, subtitle: label });
   if (!tags?.length) {
@@ -455,11 +486,13 @@ export async function openCohortDrill(ctx, { title, tags, metric = 'leads', labe
     if (metric === 'leads') {
       view = renderCohort(ctx, { ...cohort, note });
     } else {
-      const out = await loadRecords(ctx.data, metric, cohort.ids, { tz, isCurrent: live });
+      const dates = range ? { fromDate: dayStart(range.start, tz), toDate: dayEnd(range.end, tz, ctx.data.now()) } : null;
+      const out = await loadRecords(ctx.data, metric, cohort.ids, { tz, isCurrent: live, dates });
       if (!live()) return d;
       view = renderRecords(ctx, {
         kind: metric, records: out.records, cohortSize: cohort.ids.length,
         truncated: cohort.truncated || out.truncated, note,
+        tagsSent: cohort.tagsSent, tagsLeft: cohort.tagsLeft, inRange: Boolean(dates),
       });
     }
     show();
