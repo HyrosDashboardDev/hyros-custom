@@ -23,11 +23,14 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
       // `call` returns the body as sent: the envelope, with nextPageId when there is more.
       if (name === '/leads') return { result: leads, ...(nextPageId ? { nextPageId } : {}) };
       if (name === '/leads/journey') { if (journey instanceof Error) throw journey; return journey; }
-      if (name === '/leads/clicks') { if (clicks instanceof Error) throw clicks; return clicks; }
       throw new Error(`unexpected ${name}`);
     },
     pagedInfo: async (name, args, opts) => {
       calls.push({ name, args, opts });
+      if (name === '/leads/clicks') {
+        if (clicks instanceof Error) throw clicks;
+        return { rows: clicks?.result || [], truncated: Boolean(clicks?.nextPageId) };
+      }
       running += 1;
       maxRunning = Math.max(maxRunning, running);
       log.push(`start ${args.leadIds[0]}`);
@@ -41,17 +44,19 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
 
 const lead = (i, extra = {}) => ({ id: `L${i}`, email: `u${i}@example.test`, creationDate: '2026-09-01T10:00:00-05:00', ...extra });
 
-test('loadCohort asks GET /leads for one page of 250 by tag, caps tags at 40 and drops merged leads', async () => {
+test('loadCohort asks GET /leads for one page of 250 by tag, sends the first 50 tags, counts the rest and drops merged leads', async () => {
   const data = fakeData({ leads: [lead(1), lead(2, { originLead: { id: 'L1' } }), lead(3)], nextPageId: 'p2' });
-  const tags = Array.from({ length: 45 }, (_, i) => `@t${i}`);
+  const tags = Array.from({ length: 55 }, (_, i) => `@t${i}`);
   const out = await loadCohort(data, [...tags, '@t0', null, '@a,b'], { tz: '-05:00' });
   assert.equal(data.calls.length, 1);
   assert.equal(data.calls[0].name, '/leads');
   assert.deepEqual(Object.keys(data.calls[0].args).sort(), ['pageSize', 'tags']);
   assert.equal(data.calls[0].args.pageSize, 250);
-  assert.equal(data.calls[0].args.tags.length, 40);
+  assert.deepEqual(data.calls[0].args.tags, tags.slice(0, 50));
   assert.ok(data.calls[0].args.tags.every((t) => !t.includes(',')), 'a tag with a comma cannot be sent');
   assert.doesNotThrow(() => toQuery(data.calls[0].args));
+  assert.equal(out.tagsSent, 50);
+  assert.equal(out.tagsLeft, 6, 'the 5 past the cap and the one holding a comma');
   assert.deepEqual(out.ids, ['L1', 'L3']);
   assert.equal(out.leads[0].joined, '2026-09-01T10:00:00-05:00');
   assert.equal(out.truncated, true);
@@ -109,14 +114,16 @@ test('loadJourney asks for the journey and a year of clicks from the account day
       calls: [{ creationDate: 'Thu May 02 09:00:00 ART 2024', tag: '@demo', qualified: true }],
       journey: [{ type: 'sale', date: '2024-05-01T08:00:00-05:00', name: 'P' }],
     }] },
-    clicks: { result: [{ date: 'Tue Apr 30 22:15:00 UTC 2024', page: 'https://shop.test/a', adspendType: 'NONE' }], nextPageId: 'c2' },
+    clicks: { result: [{ date: 'Tue Apr 30 22:15:00 UTC 2024', page: 'https://shop.test/a', adspendType: 'NONE' }] },
   });
   const out = await loadJourney(data, 'u1@example.test', { tz: '-05:00' });
   const j = data.calls.find((c) => c.name === '/leads/journey');
   const c = data.calls.find((x) => x.name === '/leads/clicks');
   assert.deepEqual(j.args, { emails: ['u1@example.test'], includeEvents: true });
   // /leads/clicks takes exactly one selector: emails, never email or leadIds beside it.
-  assert.deepEqual(c.args, { emails: ['u1@example.test'], fromDate: '2025-09-15T00:00:00-05:00', pageSize: 100 });
+  assert.deepEqual(c.args, { emails: ['u1@example.test'], fromDate: '2025-09-15T00:00:00-05:00' });
+  assert.equal(c.opts.maxPages, 2);
+  assert.equal(c.opts.pageSize, 250);
   assert.equal(toQuery(j.args), 'emails=u1%40example.test&includeEvents=true');
   assert.equal(out.journey.sales[0].date, '2024-05-01T13:00:00+00:00');
   assert.equal(out.journey.sales[0].amount, 90);
@@ -124,7 +131,24 @@ test('loadJourney asks for the journey and a year of clicks from the account day
   assert.equal(out.journey.journey[0].date, '2024-05-01T08:00:00-05:00');
   assert.equal(out.clicks[0].date, '2024-04-30T22:15:00+00:00');
   assert.equal(out.clicks[0].platform, null);
+  assert.equal(out.clicksTruncated, false);
   assert.equal(out.clicksError, null);
+});
+
+test('loadJourney flags a click history with more pages, and the drawer says so', async () => {
+  const data = fakeData({ journey: [{ lead: lead(1) }], clicks: { result: [{ date: '2026-09-01T10:00:00Z', page: 'https://shop.test/a' }], nextPageId: 'p3' } });
+  const out = await loadJourney(data, 'u1@example.test');
+  assert.equal(out.clicksTruncated, true);
+  assert.match(renderJourney(ctx, out).html, /Click history · 1\+ tracked clicks, list cut short/);
+});
+
+test('loadRecords sends the date range with every batch', async () => {
+  const data = fakeData();
+  const dates = { fromDate: '2026-01-01T00:00:00-05:00', toDate: '2026-09-30T23:59:59-05:00' };
+  await loadRecords(data, 'sales', Array.from({ length: 60 }, (_, i) => `L${i}`), { dates });
+  assert.equal(data.calls.length, 2);
+  assert.ok(data.calls.every((c) => c.args.fromDate === dates.fromDate && c.args.toDate === dates.toDate));
+  assert.match(renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 3, inRange: true }).subtitle, /^0 sales in the range from 3 touched leads/);
 });
 
 test('loadJourney: failed clicks do not fail the journey; a failed journey throws; no lead is null', async () => {
@@ -163,6 +187,14 @@ test('renderers state truncation, empty lists and failed clicks', () => {
   assert.match(renderCohort(ctx, { leads: [{ email: 'a@x.test' }], truncated: true }).subtitle, /1\+ leads.*newest 250 shown/);
   assert.match(renderCohort(ctx, { leads: [] }).html, /class="empty"/);
   assert.match(renderRecords(ctx, { kind: 'calls', records: [], cohortSize: 3 }).html, /No calls recorded/);
+
+  const cut = renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 0, tagsSent: 50, tagsLeft: 23 });
+  assert.match(cut.subtitle, /^0\+ sales/);
+  assert.match(cut.subtitle, /first 50 of 73 sources/);
+  assert.match(cut.html, /No sales from the first 50 of 73 sources\. The other 23 were not queried/);
+  assert.doesNotMatch(cut.html, /No sales recorded/);
+  assert.match(renderCohort(ctx, { leads: [], tagsSent: 50, tagsLeft: 1 }).html, /No leads from the first 50 of 51 sources/);
+  assert.doesNotMatch(renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 3, tagsSent: 3 }).subtitle, /sources<\/span>/);
   const j = renderJourney(ctx, { journey: { lead: {}, sales: [], journey: [] }, clicks: [], clicksError: 'down' });
   assert.match(j.html, /note err">Click history could not be fetched: down/);
   assert.match(j.html, /No journey events/);

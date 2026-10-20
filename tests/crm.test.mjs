@@ -5,7 +5,7 @@ import { toQuery, READ_PATHS } from '../src/core/api.js';
 import { fmt } from '../src/ui/fmt.js';
 import { esc, kpis } from '../src/ui/dom.js';
 import {
-  filterParams, emailParam, parseTags, listArgs, aggregationCalls, resolveRange, customRangeError, baseKey, defaultFilters,
+  filterParams, emailParam, parseTags, droppedTags, listArgs, aggregationCalls, resolveRange, customRangeError, baseKey, defaultFilters,
 } from '../src/views/crm/filters.js';
 import { shapeRows, readAggregation, inSomeGroup, groupCount } from '../src/views/crm/rows.js';
 import { loadTab, knownCount, headline, LIST_MAX_PAGES, PAGE_SIZE } from '../src/views/crm/load.js';
@@ -72,9 +72,11 @@ test('emails is sent only for a search of at least 3 characters, trimmed and low
   assert.deepEqual(filterParams('sales', {}, 'abc@'), { emails: ['abc@'] });
 });
 
-test('tags are capped at 50', () => {
+test('tags are capped at 50 and the ones left out are counted', () => {
   const text = Array.from({ length: 60 }, (_, i) => `t${i}`).join(',');
   assert.equal(parseTags(text).length, 50);
+  assert.equal(droppedTags(`${text},t0`), 10);
+  assert.equal(droppedTags('a, b'), 0);
 });
 
 test('list request: flat query, account-zone bounds, toDate never past now', () => {

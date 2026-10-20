@@ -430,21 +430,27 @@ The click-through behind a number. Sources carry a `tag`; a rolled-up
 row carries the union of its members' tags (Report step 6).
 
 - Cohort: `ctx.data.call('/leads', { tags, pageSize: 250 })`. The `tags`
-  filter is OR; a tag holding a comma cannot be sent (the array goes as one
-  comma-separated value), so leave it out. More leads exist when the body
-  carries a `nextPageId`. Say in the panel that the cohort is the leads
-  that touched those sources, which is not the attribution-credited count
-  in the cell (models reassign credit).
+  filter is OR and takes at most 50 tags: a rolled-up row sends the tags of
+  its members with the clicked column above 0, the biggest first, and when
+  some are left out the panel says "first N of M sources" instead of showing
+  a bare 0. A tag holding a comma cannot be sent (the array goes as one
+  comma-separated value), so it counts as left out. More leads exist when
+  the body carries a `nextPageId`. Say in the panel that the cohort is the
+  leads that touched those sources, which is not the attribution-credited
+  count in the cell (models reassign credit). The cohort has no date
+  filter: a source tag only records the lead's first touch of that source.
 - Sales and calls of the cohort: there is no tag filter on `/sales` or
   `/calls`, so take the cohort's lead ids and page `/sales` / `/calls` with
-  `{ leadIds }` in batches of 50 (the filter's cap), in sequence, at most 4
-  pages of 250 per batch. Any truncation reads "newest shown".
+  `{ leadIds, fromDate, toDate }` (the report's range) in batches of 50 (the
+  filter's cap), in sequence, at most 4 pages of 250 per batch. Any
+  truncation reads "newest shown".
 - One lead: `ctx.data.call('/leads/journey', { emails: [email], includeEvents: true })`
   gives `result: [{ lead, sales, calls, carts, subscriptions, linkedLeads, journey: [{ type, date, name, keyword, extra, subNames }] }]`
   (no paging; `ids` instead of `emails` must be the leads' SHA-256 ids).
-  `ctx.data.call('/leads/clicks', { emails: [email], fromDate, pageSize: 100 })`
-  (`fromDate` a year back) gives
-  `result: [{ date, page | trackedUrl, previousUrl, sourceLinkName, adspendType }]`.
+  `ctx.data.pagedInfo('/leads/clicks', { emails: [email], fromDate }, { pageSize: 250, maxPages: 2 })`
+  (`fromDate` a year back) gives rows
+  `{ date, page | trackedUrl, previousUrl, sourceLinkName, adspendType }`;
+  when more pages exist the count reads "N+ tracked clicks, list cut short".
   `/leads/clicks` takes exactly one of `leadId`, `email` (deprecated),
   `leadIds` or `emails`; two of them is a 400. Journey event dates are ISO;
   sale, call and click dates are the legacy form (CRM "Dates"). The clicks

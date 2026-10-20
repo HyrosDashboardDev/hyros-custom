@@ -11,7 +11,7 @@ import {
   loadAccounts, loadReport, joinSources, createSerial, rangeLabel, MAX_PAGES, PAGE_SIZE,
 } from '../src/views/report/load.js';
 import {
-  levelRows, enrichAds, filterRows, rowDrillTags, readCols, writeCols, usableCols, colPanelHtml, COLS_KEY, toneClass,
+  levelRows, enrichAds, filterRows, rowDrillTags, drillTags, readCols, writeCols, usableCols, colPanelHtml, COLS_KEY, toneClass,
 } from '../src/views/report/columns.js';
 import { notesHtml, tableHtml } from '../src/views/report/view.js';
 
@@ -271,6 +271,15 @@ test('the whole ad-set load is stored for Scale only when complete, and then a r
   assert.equal(again.rows.length, 2);
 });
 
+test('ad sets HYROS returns no source for are counted and named in a note', async () => {
+  const env = setup({ report: (id) => [row(`${id}1`), row(`${id}2`)], sources: (ids) => ids.slice(0, 1).map((id) => src(id)) });
+  const out = await loadReport(env.data, { ...base, selected: [FB], supported: [FB], memo: new Map(), deadline: far() });
+  assert.equal(out.join.sourceless, 1);
+  assert.equal(out.join.unjoined, 0);
+  const notes = notesHtml(ctx, { ...out, unsupported: [], noAdLevel: [] });
+  assert.match(notes, /HYROS has no source for 1 ad sets\.<\/b> They group under Uncategorised/);
+});
+
 test('a failed account keeps the whole load out of the cache', async () => {
   const env = setup({ report: (id) => (id === '202' ? new Error('nope') : [wire(`${id}1`)]) });
   await loadReport(env.data, { ...base, selected: [FB, GG], supported: [FB, GG], memo: new Map(), deadline: far() });
@@ -336,6 +345,25 @@ test('rolled-up rows and totals are re-derived from sums, never averaged', () =>
   const only = levelRows({ level: 'campaign', adsets: adset, accounts: new Set(['202']) });
   assert.equal(only[0].roas, 1);
   assert.deepEqual(only[0].tags, ['@b']);
+});
+
+test('a rolled-up drill sends the tags of the ad sets behind the clicked column, biggest first', () => {
+  // 49 ad sets in one account; only the last 5 have sales.
+  const ids = Array.from({ length: 49 }, (_, i) => String(i + 1));
+  const memo = new Map(ids.map((id) => [id, { tag: `@t${id}`, category: 'C', trafficSource: 'fb', adAccountId: '101' }]));
+  const sales = { 45: 1, 46: 3, 47: 2, 48: 1, 49: 3 };
+  const adsetRows = ids.map((id) => row(id, { sales: sales[id] || 0, leads: 1, calls: 0 }));
+  const { adset } = buildLevels({ adsetRows, adRows: [], sourceById: memo, adAccountName: new Map() });
+  const [account] = levelRows({ level: 'account', adsets: adset });
+
+  assert.equal(account.sales, 10);
+  assert.equal(account.tags.length, 49);
+  assert.deepEqual(drillTags(account, 'sales'), ['@t46', '@t49', '@t47', '@t45', '@t48']);
+  assert.equal(drillTags(account, 'leads').length, 49);
+  // No tagged ad set has calls: every tag, as before.
+  assert.equal(drillTags(account, 'calls').length, 49);
+  assert.deepEqual(drillTags(adset[0], 'sales'), ['@t1']);
+  assert.equal(drillTags({ id: 'x' }, 'sales'), null);
 });
 
 test('ads drill with their parent ad set tag and follow the crumbs through their parent', () => {

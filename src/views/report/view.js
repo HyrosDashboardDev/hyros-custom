@@ -12,7 +12,7 @@ import { sortRows, nextSort, sortHeader } from '../../ui/table.js';
 import { openCohortDrill } from '../../ui/drill.js';
 import {
   LEVELS, LEVEL_LABEL, CHILD_LEVEL, HY, KPIS, DRILL_METRIC, SELECTABLE, loadKindOf,
-  readCols, writeCols, activeCols, colPanelHtml, formatCell, toneClass, rowDrillTags,
+  readCols, writeCols, activeCols, colPanelHtml, formatCell, toneClass, rowDrillTags, drillTags,
   levelRows, enrichAds, filterRows,
 } from './columns.js';
 import {
@@ -239,6 +239,9 @@ export function notesHtml(ctx, m) {
   } else if (m.join.unjoined) {
     out.push(`<div class="note"><b>Source details skipped for ${fmt.int(m.join.unjoined)} ${unit}: time budget.</b> They group under Uncategorised and unknown, and their drills are off. <button type="button" class="linkish" data-load-rest>Load the rest</button></div>`);
   }
+  if (m.join.sourceless) {
+    out.push(`<div class="note"><b>HYROS has no source for ${fmt.int(m.join.sourceless)} ${unit}.</b> They group under Uncategorised and unknown, and their drills are off.</div>`);
+  }
   return out.join('');
 }
 
@@ -383,7 +386,7 @@ function wireBody(ctx, rows, cols) {
     e.stopPropagation();
     const row = rows[Number(btn.dataset.i)];
     const col = cols.find((c) => c.k === btn.dataset.key);
-    const tags = rowDrillTags(row);
+    const tags = drillTags(row, btn.dataset.key);
     if (!row || !tags) return;
     openCohortDrill(ctx, {
       title: row.name || row.id,
@@ -391,6 +394,7 @@ function wireBody(ctx, rows, cols) {
       metric: btn.dataset.metric,
       label: col?.l || '',
       note: state.level === 'ad' && row._parentSet ? `ad set cohort: ${row._parentSet}` : '',
+      range: current?.range ? { start: current.range.start, end: current.range.end } : null,
     });
   }));
 }
