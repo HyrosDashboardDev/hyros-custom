@@ -152,9 +152,14 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   ads whose parent ad set passes the crumb filters.
 - Drill: a Leads or New Leads cell over 0 opens `openCohortDrill` with
   `metric: 'leads'`; Sales or Unique Sales with `'sales'`; Calls or Qualified
-  Calls with `'calls'`. Tags are the row's `tag` or its `tags` (rolled-up rows,
-  at most 40). An Ad row drills with its parent ad set's tag and the note
-  `ad set cohort: <ad set name>`.
+  Calls with `'calls'`. Tags come from `drillTags(row, <column key>)`: the
+  row's `tag`, or for a rolled-up row the tags of its ad sets with that
+  column above 0, the biggest first (every tag when none has any). The drill
+  sends the first 50 (the get_leads cap) and, when it leaves some out, says
+  "first N of M sources" and never shows a bare 0. An Ad row drills with its
+  parent ad set's tag and the note `ad set cohort: <ad set name>`. Sales and
+  Calls drills pass the report's range, so they list only the records made
+  in it ("N sales in the range"); the Leads cohort has no date filter.
 
 ## Rules honoured
 - Metrics re-derived after summing (never averaged); money and numbers via

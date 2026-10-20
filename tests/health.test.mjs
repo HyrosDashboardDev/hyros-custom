@@ -72,6 +72,9 @@ test('readers: tolerant shapes, null when unreadable', () => {
   assert.equal(readParamRows({ valid: false, campaignId: 1 }).length, 1);
   assert.equal(readParamRows({ message: 'x' }), null);
   assert.equal(readParamRows('x'), null);
+  // Every row and every domain is kept: the tiles count them all.
+  assert.equal(readParamRows(Array.from({ length: 60 }, () => ({ valid: true }))).length, 60);
+  assert.equal(readDomains(Array.from({ length: 25 }, (_, i) => `d${i}.com`)).length, 25);
 });
 
 test('isFlagged follows the DTO boolean, never the row text', () => {
@@ -232,4 +235,20 @@ test('html escapes every HYROS string and explains a tile with no result', async
   assert.match(out, /&lt;img src=x&gt;/);
   assert.match(out, /failed: &lt;boom&gt;/);
   assert.match(out, /Ads missing tracking params<\/div>\s*<div class="kpi-value bad">2</, "one flagged row per channel");
+});
+
+test('html counts flagged ads past the first 50 and lists them first', async () => {
+  // 60 ads per channel, the flagged one last.
+  const rows = [...Array.from({ length: 59 }, (_, i) => ({ campaignName: `ok-${i}`, valid: true })), { campaignName: 'late-bad', valid: false }];
+  const data = fakeData({
+    hyros_get_domains: () => Array.from({ length: 25 }, (_, i) => `d${i}.com`),
+    hyros_check_tracking_parameters_for_integrations: () => rows,
+    hyros_assert_script_presence_on_domain: allFound,
+  });
+  const h = await runChecks(data, { hasGoogle: true, today: '2026-09-15', deadline: far() });
+  const out = html({ fmt, esc, kpis }, h, { adAccounts: [{ id: '1', name: 'g', type: 'GOOGLE' }], account: {} });
+  assert.match(out, /Ads missing tracking params<\/div>\s*<div class="kpi-value bad">2</);
+  assert.match(out, /Verified domains<\/div>\s*<div class="kpi-value">25</);
+  assert.ok(out.indexOf('late-bad') < out.indexOf('ok-0'), 'flagged rows are listed first');
+  assert.match(out, /70 more ads not listed \(120 checked, missing ones first\)/);
 });
