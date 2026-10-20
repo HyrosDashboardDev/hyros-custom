@@ -13,7 +13,7 @@
  *   kpis   [{ label, value, sub?, cls? }] -> tiles HTML, values rendered as escaped text;
  *          cls 'hy' marks the one highlight tile, 'good' or 'bad' tones the figure
  *
- * Rules: no fetch and no imports from src/core/mcp.js, auth.js or config.js;
+ * Rules: no fetch and no imports from src/core/api.js, auth.js or config.js;
  * render is idempotent and builds everything into ctx.root.innerHTML; one
  * failing call is a warning inside the view, never a thrown render.
  */
@@ -57,7 +57,7 @@ export const view = {
   version: '0.1.0',
   description: 'One sentence: the question this tab answers.',
   style: true,
-  tools: ['hyros_get_sources'],
+  tools: ['/sources'],
   author: 'Your name',
 
   async render(ctx) {
@@ -86,7 +86,7 @@ export const view = {
       ${tiles}
       <div class="fpanel my-view-panel">
         <h3>Sources by traffic source</h3>
-        <div class="fhint">Top ${TOP}, counted from hyros_get_sources.</div>
+        <div class="fhint">Top ${TOP}, counted from GET /sources.</div>
         ${body}
       </div>`;
   },

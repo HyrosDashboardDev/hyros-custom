@@ -21,13 +21,13 @@ function fakeData({ answer = () => ({ curve: [] }), peeked } = {}) {
     now: () => new Date('2026-09-15T12:00:00Z'),
     account: async () => ({ timezone: '-05:00' }),
     adAccounts: async () => ({ rows: [{ id: '1', name: 'A', type: 'FACEBOOK' }, { id: '2', name: 'B', type: 'GOOGLE' }, { id: '3', name: 'C', type: 'TIKTOK' }], truncated: false }),
-    call: async (name, args, opts) => {
-      calls.push({ name, args, opts });
+    call: async (path, params, opts) => {
+      calls.push({ path, params, opts });
       running += 1;
       maxRunning = Math.max(maxRunning, running);
       await new Promise((resolve) => setImmediate(resolve));
       running -= 1;
-      return answer(args.request);
+      return answer(params);
     },
     cached: (key, loader) => {
       if (!memo.has(key)) {
@@ -41,15 +41,18 @@ function fakeData({ answer = () => ({ curve: [] }), peeked } = {}) {
   };
 }
 
-const curve = (n, extra = {}) => ({
+/** A curve as the endpoint answers it: inside the `{ request_id, result }` envelope. */
+const curve = (n, extra = {}) => ({ request_id: 'r-1', result: bare(n, extra) });
+const bare = (n, extra = {}) => ({
   curve: Array.from({ length: n }, (_, i) => ({ spendPerDay: 100 * (i + 1), days: 10, newCustomers: 5 + i, avgCac: 20 + i, marginalCac: i ? 25 + i : null })),
   notes: [],
   ...extra,
 });
 
-test('curveRequest is the exact DTO shape: 90 days, LAST_CLICK, no ceiling or LTV window', () => {
+test('curveRequest is the exact flat query: 90 days, last_click, lowercase level, no ceiling or LTV window', () => {
   const req = curveRequest({ id: 123, level: 'ACCOUNT' }, '2026-09-15');
-  assert.deepEqual(req, { id: '123', level: 'ACCOUNT', startDate: '2026-06-18', endDate: '2026-09-15', attributionModel: 'LAST_CLICK' });
+  assert.deepEqual(req, { id: '123', level: 'account', startDate: '2026-06-18', endDate: '2026-09-15', attributionModel: 'last_click' });
+  assert.equal(curveRequest({ id: 's', level: 'SOURCE_LINK' }, '2026-09-15').level, 'source_link');
   assert.equal(curveKey({ id: 'x', level: 'SOURCE_LINK' }, '2026-09-15'), 'scale:x:SOURCE_LINK:2026-09-15');
 });
 
@@ -64,12 +67,12 @@ test('loadCurves runs in series, one call per target, with the slow timeout clam
   const seen = [];
   const out = await loadCurves(data, targets, { end: '2026-09-15', deadline, onCurve: (c) => seen.push(c.filter((x) => !x.pending).length) });
   assert.equal(data.maxRunning, 1);
-  assert.deepEqual(data.calls.map((c) => [c.name, c.args.request.id, c.args.request.level]), [
-    ['hyros_get_marginal_cac_curve', '1', 'ACCOUNT'], ['hyros_get_marginal_cac_curve', '2', 'ACCOUNT'], ['hyros_get_marginal_cac_curve', 's1', 'SOURCE_LINK'],
+  assert.deepEqual(data.calls.map((c) => [c.path, c.params.id, c.params.level]), [
+    ['/attribution/marginal-cac-curve', '1', 'account'], ['/attribution/marginal-cac-curve', '2', 'account'], ['/attribution/marginal-cac-curve', 's1', 'source_link'],
   ]);
   for (const c of data.calls) {
     assert.ok(c.opts.timeoutMs <= 20000 && c.opts.timeoutMs > 15000, `timeout ${c.opts.timeoutMs} is slow and clamped`);
-    assert.equal(c.args.request.attributionModel, 'LAST_CLICK');
+    assert.equal(c.params.attributionModel, 'last_click');
   }
   assert.deepEqual(seen, [1, 2, 3]);
   assert.equal(out.curves.length, 3);
@@ -128,7 +131,7 @@ test('normalizeCurve reads the documented reply and a { result } envelope', () =
 
 test('a thin curve warns even without notes; a healthy one does not', () => {
   assert.equal(isThin(normalizeCurve(curve(3), {})), true, '3 spend levels');
-  const zero = curve(6); zero.curve[0].newCustomers = 0;
+  const zero = curve(6); zero.result.curve[0].newCustomers = 0;
   assert.equal(isThin(normalizeCurve(zero, {})), true, 'a level with no customers');
   assert.equal(isThin(normalizeCurve(curve(6, { notes: ['INSUFFICIENT_DATA'] }), {})), true);
   assert.equal(isThin(normalizeCurve(curve(6), {})), false);
@@ -203,7 +206,7 @@ test('render: account curves first, escaped names, ad sets wait for the Report',
   await view.render(ctx);
   // Let the background loop finish the second curve.
   for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(data.calls.map((c) => c.args.request.level), ['ACCOUNT', 'ACCOUNT']);
+  assert.deepEqual(data.calls.map((c) => c.params.level), ['account', 'account']);
   assert.match(root.innerHTML, /&lt;b&gt;A&lt;\/b&gt;/);
   assert.doesNotMatch(root.innerHTML, /<b>A<\/b>/);
   assert.match(root.innerHTML, /Open Report, last 30 days, Last click, to rank ad sets/);

@@ -18,11 +18,13 @@ export const JOIN_BATCH = 50;
 export const DEADLINE_MARGIN_MS = 15000;
 export const MAX_WINDOW = 365;
 
+/** `key` names the model in state and cache keys (Scale reads `report:LAST_CLICK:...`); `api` is the `attributionModel` value, matched exactly. */
 export const MODELS = [
-  { key: 'LAST_CLICK', label: 'Last click' },
-  { key: 'FIRST_CLICK', label: 'First click' },
-  { key: 'SCIENTIFIC', label: 'Scientific' },
+  { key: 'LAST_CLICK', api: 'last_click', label: 'Last click' },
+  { key: 'FIRST_CLICK', api: 'first_click', label: 'First click' },
+  { key: 'SCIENTIFIC', api: 'scientific', label: 'Scientific' },
 ];
+const MODEL_API = new Map(MODELS.map((m) => [m.key, m.api]));
 
 export const renderDeadline = (start) => start + VIEW_LOAD_MS - DEADLINE_MARGIN_MS;
 
@@ -98,20 +100,24 @@ export function partitionAccounts(rows = []) {
 
 /* ---------------- calls ---------------- */
 
-/** The attribution report request for one ad account and level. */
+/**
+ * The GET /attribution query for one ad account and level. Enum values are the
+ * API's lowercase names, matched exactly: `sourceConfiguration` in any other
+ * spelling silently falls back to ignore_organic.
+ */
 export function reportRequest({ model, window, start, end, tz, now, level, adAccountId }) {
   const w = sentWindow(model, window);
   return {
-    attributionModel: model,
+    attributionModel: MODEL_API.get(model) ?? model,
     startDate: dayStart(start, tz),
     // Today ends now: the report rejects a bound in the future.
     endDate: dayEnd(end, tz, now),
     level,
     ids: [String(adAccountId)],
     isAdAccountId: true,
-    timeGroupingOption: 'SOURCE_LINK',
+    timeGroupingOption: 'source_link',
     newestFirst: true,
-    sourceConfiguration: 'ALL_SOURCES',
+    sourceConfiguration: 'all_sources',
     reportSourceVisibility: true,
     fields: REPORT_FIELDS,
     ...(w ? { windowAttributionDaysRange: w } : {}),
@@ -148,7 +154,7 @@ export function createSerial() {
 export async function fetchAccount(data, { account, kind, model, window, range, tz, now, deadline }) {
   const level = LEVELS_BY_TYPE[account.type]?.[kind];
   const request = reportRequest({ model, window, start: range.start, end: range.end, tz, now, level, adAccountId: account.id });
-  const page = await data.pagedInfo('hyros_get_attribution_report', { request }, {
+  const page = await data.pagedInfo('/attribution', request, {
     maxPages: MAX_PAGES, pageSize: PAGE_SIZE, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline),
   });
   const rows = (page.rows || []).map((raw) => ({ ...normalizeRow(raw), _account: String(account.id) }));
@@ -218,7 +224,7 @@ export async function storeWhole(data, { base, kind, supported }) {
 
 /* ---------------- source join ---------------- */
 
-/** The memo entry of a hyros_get_sources row. */
+/** The memo entry of a GET /sources row. */
 export function sourceEntry(s) {
   return {
     name: s?.name || null,
@@ -246,8 +252,9 @@ export async function joinSources(data, ids, memo, {
     if (deadline && clock() >= deadline) { out.skipped += missing.length - i; break; }
     out.asked += 1;
     try {
-      const page = await serial.run(() => data.pagedInfo('hyros_get_sources', {
-        request: { adSourceIds: batch, includeOrganic: true, includeDisregarded: true },
+      // Both flags default to true on the API; sent anyway so the join never depends on that default.
+      const page = await serial.run(() => data.pagedInfo('/sources', {
+        adSourceIds: batch, includeOrganic: true, includeDisregarded: true,
       }, { maxPages: 2, pageSize: PAGE_SIZE, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) }));
       for (const s of page.rows || []) {
         const key = String(s?.adSource?.adSourceId ?? '');

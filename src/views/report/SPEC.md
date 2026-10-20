@@ -1,6 +1,6 @@
 # Performance Report: view spec
 
-**id** `report` · **version** 0.1.0 · **tools** `hyros_get_user_info`, `hyros_get_ad_accounts`, `hyros_get_attribution_report`, `hyros_get_sources`
+**id** `report` · **version** 0.1.0 · **tools** `/user-info`, `/ad-accounts`, `/attribution`, `/sources`
 
 ## Purpose
 The HYROS Performance Report inside the dashboard: cost, attributed revenue,
@@ -25,28 +25,43 @@ All calls run in sequence (one rate limit per HYROS account). One render:
    for the Ad tab.
 
    ```js
-   ctx.data.pagedInfo('hyros_get_attribution_report', { request: {
-     attributionModel,                       // LAST_CLICK | FIRST_CLICK | SCIENTIFIC
+   ctx.data.pagedInfo('/attribution', {
+     attributionModel,                       // last_click | first_click | scientific
      startDate: dayStart(start, tz), endDate: dayEnd(end, tz, now),
-     level,                                  // LEVELS_BY_TYPE[type].adset or .ad
-     ids: [adAccountId], isAdAccountId: true, timeGroupingOption: 'SOURCE_LINK',
-     newestFirst: true, sourceConfiguration: 'ALL_SOURCES', reportSourceVisibility: true,
-     fields: REPORT_FIELDS,
+     level,                                  // LEVELS_BY_TYPE[type].adset or .ad, e.g. facebook_adset
+     ids: [adAccountId], isAdAccountId: true, timeGroupingOption: 'source_link',
+     newestFirst: true, sourceConfiguration: 'all_sources', reportSourceVisibility: true,
+     fields: REPORT_FIELDS,                  // name, parent_name, then every catalog `f` not switched off
      // windowAttributionDaysRange: window   only when window > 0 and the model is LAST_CLICK
-   } }, { maxPages: 8, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) })
+   }, { maxPages: 8, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) })
    ```
 
-   Every row goes through `normalizeRow` and gets `_account = adAccountId` from the
-   call (not from the source join).
+   GET `/api/v1.0/attribution` with the params flat in the query (arrays as one
+   comma-separated value). `level`, `attributionModel`, `fields` and
+   `sourceConfiguration` are the API's lowercase names, matched exactly; any
+   other spelling of `sourceConfiguration` silently falls back to
+   `ignore_organic`. The view keeps the model as `LAST_CLICK`, `FIRST_CLICK`,
+   `SCIENTIFIC` in its state and cache keys and sends `MODELS[].api`.
+
+   Rows come back snake_case (`total_revenue`, `parent_id`, `reported_result`,
+   `new_m_r_r`, `ltv_30_days`; `contributionProfit` as declared) with `revenue`
+   as a string (`"997.00"`). `normalizeRow` reads each catalog metric from
+   `wireKey(k)`, coerces it to a number (null stays "not computed" and is
+   dropped) and returns the camelCase catalog keys, so the rest of the view
+   never sees the wire spelling. Every row then gets `_account = adAccountId`
+   from the call (not from the source join).
 4. Source join, by id, only for the ids the render needs: the ad-set row ids
    (ad-set load) or the `parentId` of the ad rows (Ad tab), minus the ids already
    in the module memo. Batches of 50 (the `adSourceIds` cap), in sequence:
 
    ```js
-   ctx.data.pagedInfo('hyros_get_sources', { request: {
+   ctx.data.pagedInfo('/sources', {
      adSourceIds: [...up to 50], includeOrganic: true, includeDisregarded: true,
-   } }, { maxPages: 2, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) })
+   }, { maxPages: 2, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) })
    ```
+
+   Both flags default to true on the API; they are sent anyway so the join
+   never depends on that default.
 
    The memo is a module-level `Map` keyed by `String(source.adSource.adSourceId)`
    with `{ name, tag, category: category.name, trafficSource: trafficSource.name,
@@ -155,7 +170,7 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   Calls with `'calls'`. Tags come from `drillTags(row, <column key>)`: the
   row's `tag`, or for a rolled-up row the tags of its ad sets with that
   column above 0, the biggest first (every tag when none has any). The drill
-  sends the first 50 (the get_leads cap) and, when it leaves some out, says
+  sends the first 50 (the cap of GET /leads) and, when it leaves some out, says
   "first N of M sources" and never shows a bare 0. An Ad row drills with its
   parent ad set's tag and the note `ad set cohort: <ad set name>`. Sales and
   Calls drills pass the report's range, so they list only the records made
@@ -166,7 +181,7 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   `ctx.fmt`.
 - Every string from HYROS escaped with `ctx.esc` (names, account names, error
   messages, tags never reach the markup: drills look rows up by index).
-- Data only through `ctx.data`; read tools only; calls in sequence, also across
+- Data only through `ctx.data`; read paths only; calls in sequence, also across
   renders (a new render waits for the older render's call in flight, so the same
   report is never in flight twice).
 - A module-level render counter: every loop checks it before each call and
@@ -180,12 +195,13 @@ unchanged if its `ctx.data` has `account()`, `adAccounts()`, `pagedInfo`,
 `cached`, `peek` and `now()` with the shapes above, and it ships
 `src/data/metrics.js`, `src/data/report-levels.js`, `src/ui/table.js`,
 `src/ui/drill.js`, `src/core/dates.js` and `src/core/budget.js`. HYROS-specific:
-the level per ad-account type, the `SOURCE_LINK` grouping that ad-account ids
-require, and the source join by `adSource.adSourceId`.
+the level per ad-account type, the `source_link` grouping that ad-account ids
+require, the snake_case row keys read by `normalizeRow`, and the source join by
+`adSource.adSourceId`.
 
 ## Open limitations
 - Campaign and Traffic are HYROS source categories and traffic sources, rolled
-  up in the browser; the MCP has no such report level.
+  up in the browser; GET /attribution has no such level over ad-account ids.
 - At most 2,000 rows (8 pages of 250, newest first) per ad account and level.
 - Non-aggregatable metrics (CAC, percentages HYROS computes per row, forecasts)
   print "-" on rolled-up rows and in totals.

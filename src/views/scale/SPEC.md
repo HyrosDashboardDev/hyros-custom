@@ -1,6 +1,6 @@
 # Scale: view spec
 
-**id** `scale` · **version** 0.1.0 · **tools** `hyros_get_user_info`, `hyros_get_ad_accounts`, `hyros_get_marginal_cac_curve`
+**id** `scale` · **version** 0.1.0 · **tools** `/user-info`, `/ad-accounts`, `/attribution/marginal-cac-curve`
 
 ## Purpose
 For the ad accounts the user picks (and, when the Report already ranked
@@ -13,21 +13,27 @@ before the next dollar stops paying for itself?".
 Getters (cached for the life of the page): `ctx.data.account()` (timezone)
 and `ctx.data.adAccounts()` (the chips).
 
-One `hyros_get_marginal_cac_curve` call per target, **in series**, account
-targets first, ad sets after them:
+One GET `/api/v1.0/attribution/marginal-cac-curve` call per target, **in
+series**, account targets first, ad sets after them:
 
 ```js
-ctx.data.call('hyros_get_marginal_cac_curve', { request: {
-  id,                                   // ad account id (ACCOUNT) or ad set id (SOURCE_LINK)
-  level: 'ACCOUNT' | 'SOURCE_LINK',
+ctx.data.call('/attribution/marginal-cac-curve', {
+  id,                                   // ad account id (account) or ad set id (source_link)
+  level: 'account' | 'source_link',     // the target's ACCOUNT | SOURCE_LINK, lowercased
   startDate: addDays(end, -89),         // YYYY-MM-DD, no offset: the account zone is assumed
   endDate: end,                         // YYYY-MM-DD, default today in the account zone
-  attributionModel: 'LAST_CLICK',
-} }, { timeoutMs: clampTimeout(TIMEOUTS.slow, deadline) })
+  attributionModel: 'last_click',
+}, { timeoutMs: clampTimeout(TIMEOUTS.slow, deadline) })
 ```
 
-- No `cacCeiling` and no `ltvWindow` (the DTO rejects `ltvWindow` at
-  ACCOUNT level). Ad sets get HYROS's LTV break-even ceiling; account
+The reply is `{ request_id, result: <curve> }`; `normalizeCurve` unwraps it.
+
+- The endpoint is strict: any parameter other than `id`, `level`,
+  `startDate`, `endDate`, `ltvWindow`, `cacCeiling`, `attributionModel`, or a
+  repeated one, is a 400. `level` and `attributionModel` are read
+  case-insensitively; the view sends the documented lowercase names.
+- No `cacCeiling` and no `ltvWindow` (the API rejects `ltvWindow` at
+  account level). Ad sets get HYROS's LTV break-even ceiling; account
   curves have no ceiling, so their only saturation is spend that buys no
   extra customers (`NO_INCREMENTAL_CUSTOMERS`).
 - ACCOUNT level accepts at most 90 days: `end - 89 days` to `end`.
@@ -52,8 +58,9 @@ ctx.data.call('hyros_get_marginal_cac_curve', { request: {
 - One render with the default selection costs 2 curve calls (up to 45 s
   each), plus 6 when the Report ranked ad sets. `render` resolves after the
   first curve lands; the others fill in as they arrive.
-- **MCP limits**: one rate limit per HYROS account, so calls run in series;
-  the token is applied by the MCP client and never seen by the view.
+- **API limits**: one rate limit per HYROS account, so calls run in series;
+  the token is applied by the API client (`src/core/api.js`) and never seen
+  by the view.
 
 ## Rows shape
 One normalized curve per target (`normalizeCurve`, copied from hyros-ai):
@@ -79,8 +86,8 @@ Money as plain numbers in the account currency.
   at the top of the range).
 - Loading: a card per target still waiting says "Loading curve".
 - One curve failed: that card shows the message (`.note.err`), the rest
-  render. Every curve failed: one "HYROS did not answer the CAC curve tool"
-  card.
+  render. Every curve failed: one "HYROS did not answer the marginal CAC
+  curve" card.
 - `notes` are shown in plain words; fewer than 2 points: "Not enough data
   yet" (or the note's words).
 - Thin curve (3 spend levels or fewer, a level with no customers, or
@@ -91,7 +98,7 @@ Money as plain numbers in the account currency.
 - Ad sets panel without Report data: a `.note` with the instruction above.
 
 ## Rules honoured
-- Data only through `ctx.data`; read tools only; calls in series.
+- Data only through `ctx.data`; read paths only; calls in series.
 - Every HYROS string escaped with `ctx.esc`; money via `ctx.fmt`.
 - No color in SVG markup: strokes come from `style.css` with tokens
   (`--ink`, `--brand`, `--bad`, `--good`, `--rule`, `--border-2`).
@@ -102,8 +109,8 @@ Another dashboard reuses `view.js`, `curve.js` and `style.css` if its
 `ctx.data` has `account()`, `adAccounts()`, `call`, `cached`, `peek` and
 `now`. The ad set ranking depends on the Report view caching its 30-day ad
 set load under the key above with `{ adsetRows }`; without it the view still
-works at account level. HYROS-specific: the 90-day cap at ACCOUNT level and
-the uppercase `level` and `attributionModel` values.
+works at account level. HYROS-specific: the 90-day cap at account level, the
+strict parameter list and the lowercase `level` and `attributionModel` values.
 
 ## Open limitations
 - Ad sets are ranked only when the Report loaded "last 30 days, Last click,

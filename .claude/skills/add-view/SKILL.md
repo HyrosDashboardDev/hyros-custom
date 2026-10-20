@@ -21,15 +21,15 @@ example; `src/views/_template/` is the skeleton.
    `cp -r src/views/_template src/views/<id>` and set `id` (equal to the
    folder name), `title`, `version`, `description`, `style`, `tools` and
    `author` on the `view` object in `view.js`.
-2. Write `SPEC.md` first: purpose, data (which MCP tools through
-   `ctx.data`, request shapes, paging, limits), rows shape as JSON, view
+2. Write `SPEC.md` first: purpose, data (which API paths through
+   `ctx.data`, parameters, paging, limits), rows shape as JSON, view
    states, rules, porting notes, open limitations. Check `docs/RECIPES.md`
-   for the tools, their argument shapes and the limits, and confirm the
-   question is answerable with read tools (`READ_TOOLS` in
-   `src/core/mcp.js`) before promising it. When `docs/RECIPES.md` and
+   for the paths, their parameters and the limits, and confirm the
+   question is answerable with read paths (`READ_PATHS` in
+   `src/core/api.js`) before promising it. When `docs/RECIPES.md` and
    https://api-docs.hyros.com disagree, the official docs win.
 3. `render(ctx)`: load through `ctx.data` (getters first, `call`, `paged`
-   or `pagedInfo` for other tools), keep calls within the MCP limits in
+   or `pagedInfo` for other paths), keep calls within the API limits in
    `VIEWS.md`, re-derive ratios after summing (`docs/RECIPES.md` "Derived
    metrics"), format with `ctx.fmt`, escape every data string with
    `ctx.esc`, build HTML into `ctx.root.innerHTML` with the shared kit
@@ -49,7 +49,7 @@ example; `src/views/_template/` is the skeleton.
    access and deploys" in `CLAUDE.md`), ask them to look at the tab on
    their dashboard: data, Refresh, and the warning and empty states.
 
-**Changing a template tab** (`report`, `crm`, `scale`, `health`,
+**Changing a template tab** (`report`, `crm`, `scale`,
 `account`): editing it in place works, but its changes conflict with every
 template update that touches the same lines, and the user decides each
 conflict. To keep a variant apart from template updates, copy the folder to
