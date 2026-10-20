@@ -54,6 +54,13 @@ test('Legacy dates (sales/calls/subscriptions may use EEE MMM dd HH:mm:ss zzz yy
   check('unknown zone uses the account offset', parseHyrosDate('Thu Nov 17 10:51:54 XYZ 2022', '-05:00'), '2022-11-17T10:51:54-05:00');
   check('unknown zone, no fallback: local time, no offset', parseHyrosDate('Thu Nov 17 10:51:54 XYZ 2022'), '2022-11-17T10:51:54');
   check('single-digit day is zero-padded', parseHyrosDate('Thu Jul 2 01:10:33 UTC 2026'), '2026-07-02T01:10:33+00:00');
+  check('Java Date.toString of /sales', parseHyrosDate('Wed May 01 13:00:00 UTC 2024'), '2024-05-01T13:00:00+00:00');
+  check('ISO with millis and offset passes through', parseHyrosDate('2026-09-01T10:00:00.123-05:00'), '2026-09-01T10:00:00.123-05:00');
+  check('legacy and account-zone ISO name the same instant',
+    Date.parse(parseHyrosDate('Wed Sep 02 15:00:00 UTC 2026')), Date.parse(parseHyrosDate('2026-09-02T10:00:00-05:00')));
+  check('ART, EST and UTC order by the instant',
+    [parseHyrosDate('Wed Sep 02 13:00:00 ART 2026'), parseHyrosDate('Wed Sep 02 10:00:00 EST 2026'), parseHyrosDate('Wed Sep 02 14:00:00 UTC 2026')]
+      .map(Date.parse).join(), [Date.UTC(2026, 8, 2, 16), Date.UTC(2026, 8, 2, 15), Date.UTC(2026, 8, 2, 14)].join());
   check('garbage is null', parseHyrosDate('yesterday-ish'), null);
   check('null is null', parseHyrosDate(null), null);
   check('empty is null', parseHyrosDate(''), null);

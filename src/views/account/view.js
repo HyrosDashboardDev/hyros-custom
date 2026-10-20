@@ -10,7 +10,7 @@ export const view = {
   version: '0.1.0',
   description: 'The account the dashboard is looking at: owner, timezone, currency, attribution window, sources and ad accounts.',
   style: false,
-  tools: ['hyros_get_user_info', 'hyros_get_ad_accounts', 'hyros_get_sources'],
+  tools: ['/user-info', '/ad-accounts', '/sources'],
   author: 'HYROS',
 
   async render(ctx) {

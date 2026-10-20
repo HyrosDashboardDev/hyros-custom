@@ -1,18 +1,19 @@
 /**
- * The CRM's controls turned into tool parameters, and its date range. Pure:
- * no DOM, no calls. Parameter names and enum values are the ones of the MCP
- * request DTOs (GetLeadsRequest, GetSalesRequest, GetCallsRequest,
- * GetSubscriptionsRequest and their *AggregationRequest siblings); a filter a
- * DTO does not have is never sent.
+ * The CRM's controls turned into query parameters of the HYROS API, and its
+ * date range. Pure: no DOM, no calls. Parameter names and enum values are the
+ * ones GET /leads, /sales, /calls, /subscriptions and their /aggregation
+ * siblings read. Those endpoints answer 400 to a parameter they do not know,
+ * so a filter an endpoint does not have is never sent, and the aggregations
+ * never get pageSize or pageId.
  */
 import { buildRanges } from '../../data/report-levels.js';
 import { ymdInTz, dayStart, dayEnd } from '../../core/dates.js';
 
 export const TABS = [
-  { key: 'leads', label: 'Leads', tool: 'hyros_get_leads' },
-  { key: 'sales', label: 'Sales', tool: 'hyros_get_sales' },
-  { key: 'calls', label: 'Calls', tool: 'hyros_get_calls' },
-  { key: 'subscriptions', label: 'Subscriptions', tool: 'hyros_get_subscriptions' },
+  { key: 'leads', label: 'Leads', path: '/leads' },
+  { key: 'sales', label: 'Sales', path: '/sales' },
+  { key: 'calls', label: 'Calls', path: '/calls' },
+  { key: 'subscriptions', label: 'Subscriptions', path: '/subscriptions' },
 ];
 export const TAB_BY_KEY = Object.fromEntries(TABS.map((t) => [t.key, t]));
 
@@ -53,8 +54,8 @@ export function parseTags(text) {
 
 /**
  * The filter parameters of `tab` (no dates, no paging). The same object goes
- * on the list and on the tab's aggregations: every one of these parameters
- * exists on both DTOs.
+ * on the list and on the tab's aggregation: every one of these parameters is
+ * read by both endpoints. Arrays go out as one comma-separated value.
  */
 export function filterParams(tab, filters = {}, search = '') {
   const f = filters || {};
@@ -83,34 +84,34 @@ export function dateParams({ start, end }, tz, now) {
   return { fromDate: dayStart(start, tz), toDate: dayEnd(end, tz, now) };
 }
 
-/** The list request of `tab`: `{ request: { fromDate, toDate, ...filters } }` (pagedInfo adds pageSize). */
+/** The list query of `tab`: `{ fromDate, toDate, ...filters }` (pagedInfo adds pageSize and pageId). */
 export function listArgs(tab, range, tz, now, filters, search) {
-  return { request: { ...dateParams(range, tz, now), ...filterParams(tab, filters, search) } };
+  return { ...dateParams(range, tz, now), ...filterParams(tab, filters, search) };
 }
 
-/** How many groups an aggregation returns: the cap, so the sums miss as little as possible. */
+/** How many groups an aggregation returns: the cap (default 250), so the sums miss as little as possible. */
 export const GROUPS_LIMIT = 1000;
 
 /**
  * The aggregation calls of `tab`, in the order they run:
- * `[{ name, tool, args }]`. Subscriptions have no aggregation tool.
+ * `[{ name, path, params }]`. Subscriptions have no aggregation endpoint.
  * Calls: CALL_QUALIFICATION groups are stage names that do not say which
  * stage is "qualified", so a second call with `qualified: true` reads that
  * total; it is skipped when the qualified filter already decides it.
  */
 export function aggregationCalls(tab, range, tz, now, filters, search) {
   const base = { ...dateParams(range, tz, now), ...filterParams(tab, filters, search), groupsLimit: GROUPS_LIMIT };
-  const make = (name, tool, extra) => ({ name, tool, args: { request: { ...base, ...extra } } });
+  const make = (name, path, extra) => ({ name, path, params: { ...base, ...extra } });
   if (tab === 'leads') {
     return [
-      make('stage', 'hyros_get_leads_aggregation', { attribute: 'STAGE' }),
-      make('firstSource', 'hyros_get_leads_aggregation', { attribute: 'FIRST_SOURCE_TAG' }),
+      make('stage', '/leads/aggregation', { attribute: 'STAGE' }),
+      make('firstSource', '/leads/aggregation', { attribute: 'FIRST_SOURCE_TAG' }),
     ];
   }
-  if (tab === 'sales') return [make('firstSource', 'hyros_get_sales_aggregation', { attribute: 'FIRST_SOURCE_TAG' })];
+  if (tab === 'sales') return [make('firstSource', '/sales/aggregation', { attribute: 'FIRST_SOURCE_TAG' })];
   if (tab === 'calls') {
-    const out = [make('qualification', 'hyros_get_calls_aggregation', { attribute: 'CALL_QUALIFICATION' })];
-    if (base.qualified === undefined) out.push(make('qualified', 'hyros_get_calls_aggregation', { attribute: 'CALL_QUALIFICATION', qualified: true }));
+    const out = [make('qualification', '/calls/aggregation', { attribute: 'CALL_QUALIFICATION' })];
+    if (base.qualified === undefined) out.push(make('qualified', '/calls/aggregation', { attribute: 'CALL_QUALIFICATION', qualified: true }));
     return out;
   }
   return [];

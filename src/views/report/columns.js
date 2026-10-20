@@ -148,7 +148,7 @@ export function applyPath(rows, path) {
   return out;
 }
 
-/** Union of the members' tags (at most 40, the get_leads `tags` filter is OR). */
+/** Union of the members' tags (at most 40, the `tags` filter of GET /leads is OR). */
 function withTags(rows, members, keyOf) {
   return rows.map((row) => ({
     ...row,

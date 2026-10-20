@@ -1,7 +1,7 @@
 # HYROS Custom Dashboard
 
 A per-account dashboard. It reads the account's data straight from the HYROS
-MCP in the browser, with a read-only credential that lives in memory for the
+customer API (`/api/v1.0`) in the browser, with a read-only credential that lives in memory for the
 life of the page. It gets that credential one of two ways:
 
 - **Inside HYROS** (an iframe): HYROS hands it a short-lived token over
@@ -9,7 +9,8 @@ life of the page. It gets that credential one of two ways:
 - **At its own url**: the user signs in with their HYROS account through the
   MCP OAuth server, the same sign-in MCP clients such as Claude Code use.
   The dashboard asks for the `mcp:read` scope, so HYROS issues the same
-  read-only credential it hands the iframe. No API key.
+  read-only credential it hands the iframe. No API key: the API takes that
+  credential as a bearer, with read roles only.
 
 ## How it works
 
@@ -22,9 +23,9 @@ HYROS page ──iframe──> dashboard (static files)
      ├────────────────────> │
      │  theme-applied       │
      │ <────────────────────┤
-                            │  POST https://mcp.hyros.com/mcp
+                            │  GET https://api.hyros.com/v1/api/v1.0/...
                             │  Authorization: Bearer <token>
-                            └────────────────────> HYROS MCP
+                            └────────────────────> HYROS API
 
 dashboard at its own url
      │  "Sign in with HYROS": register once (client id in localStorage),
@@ -32,11 +33,11 @@ dashboard at its own url
      ├──────────────────────────────> HYROS sign-in (MCP OAuth server)
      │ <──── redirect back with ?code
      │  POST /oauth2/token: code -> access + refresh token (in memory)
-     │  POST /mcp with the access token, refresh before it expires
+     │  GET /api/v1.0/... with the access token, refresh before it expires
 ```
 
 - `src/core/`: config, auth (postMessage and the HYROS sign-in), the theme,
-  the MCP client, dates, time limits.
+  the API client, dates, time limits.
 - `src/data/data.js`: the data API views get as `ctx.data`.
 - `src/views/`: one folder per tab. `src/views/registry.js` lists the
   template's tabs and `src/views/custom.js` the account's own.
@@ -51,15 +52,13 @@ dashboard at its own url
   account, campaign, ad set or ad, for a range and an attribution model,
   with a drill from a number to the leads, sales or calls behind it.
 - **CRM**: the leads, sales, calls and subscriptions of a range, with
-  server-side filters, counts from the aggregation tools and one lead's
+  server-side filters, counts from the aggregation endpoints and one lead's
   journey.
 - **Scale**: the marginal CAC curve of the chosen ad accounts (and of the
   top ad sets once the Report has loaded the last 30 days).
-- **Health**: verified domains, Google tracking parameters and whether the
-  HYROS script is on each site.
 - **Account**: the account the dashboard is looking at.
 
-Each tab's data and states are in its `SPEC.md`; the tools behind them in
+Each tab's data and states are in its `SPEC.md`; the API paths behind them in
 `docs/RECIPES.md`.
 
 Tokens stay in memory. Both ways of getting one, and how the theme arrives,
@@ -102,12 +101,12 @@ npm run dev
 ```
 
 - `http://localhost:4321`: the dashboard. Opened directly it goes to the
-  HYROS sign-in of the production MCP;
-  `http://localhost:4321/?mcp=qa` signs in against QA.
+  HYROS sign-in of production and reads the production API;
+  `http://localhost:4321/?mcp=qa` signs in against QA and reads the QA API.
 - `http://localhost:4323`: the harness, which plays HYROS. It frames the
   dashboard with the same sandbox HYROS uses, answers `ready` with the theme
   and the token you paste and `token-request` with the token, and logs every
-  message (never the token). Pick `prod` or `qa` to choose the MCP (`?mcp=qa`
+  message (never the token). Pick `prod` or `qa` to choose the environment (`?mcp=qa`
   on the dashboard url). Switch the theme selector to see the dashboard follow
   it. Tick "send expiresAt" to exercise background renewal.
 
@@ -125,7 +124,12 @@ Static files on Vercel. HYROS sets `HYROS_MCP_URL` on the Vercel project when
 it provisions the dashboard, and `npm run build` copies the site into
 `public/` with that url baked into the page as
 `<meta name="hyros-mcp-url">`, which wins over `?mcp=`. The build fails
-without the variable. `?mcp=qa|prod` only matters for the local harness and
+without the variable. The data comes from the customer API of the same
+environment (`api.hyros.com` for `mcp.hyros.com`, `api-staging.hyros.com`
+for `mcp-qa.hyros.com`); an optional `HYROS_API_URL` is baked as
+`<meta name="hyros-api-url">` and overrides it, and is required when
+`HYROS_MCP_URL` is no known environment (a local server).
+`?mcp=qa|prod` only matters for the local harness and
 for manual deploys built without it.
 
 `vercel.json` only sets headers:
@@ -141,7 +145,7 @@ nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`.
   the call at once, and the error card says how long to wait.
 - No downloads and no native dialogs (`alert`, `confirm`, `prompt`): the HYROS
   iframe sandbox blocks them.
-- Read tools only (`READ_TOOLS` in `src/core/mcp.js`), and the credential is
+- Read paths only (`READ_PATHS` in `src/core/api.js`), and the credential is
   read-only on the server either way.
 - At its own url, every new page load signs in again: the tokens are not
   stored. With a live HYROS session that is just a redirect.

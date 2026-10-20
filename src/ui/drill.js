@@ -8,9 +8,9 @@
  *          -> one lead's journey and click history
  *
  * Sales and calls have no tag filter, so those drills run two steps:
- * hyros_get_leads({ tags }) for the cohort ids, then hyros_get_sales /
- * hyros_get_calls({ leadIds }) in batches of 50 (the filter's cap), in
- * sequence (one rate limit per account).
+ * GET /leads?tags=... for the cohort ids, then GET /sales or /calls with
+ * leadIds in batches of 50 (the filter's cap), in sequence (one rate limit
+ * per account).
  *
  * The cohort is the leads that TOUCHED the source, which is not the
  * attribution-credited count in the cell (models reassign credit; a later
@@ -20,7 +20,7 @@ import { esc } from './dom.js';
 import { TIMEOUTS, clampTimeout } from '../core/budget.js';
 import { parseHyrosDate, offsetSuffix, ymdInTz, addDays, dayStart } from '../core/dates.js';
 
-/** Rolled-up rows carry at most 40 tags (src/data/report-levels.js); `tags` is OR. */
+/** Rolled-up rows carry at most 40 tags (src/data/report-levels.js); `tags` is OR and takes 50. */
 export const MAX_TAGS = 40;
 /** The leadIds filter takes at most 50 ids. */
 export const BATCH = 50;
@@ -160,10 +160,12 @@ const chunk = (arr, n) => {
 /**
  * The cohort: one page of the newest 250 leads that touched any of `tags`.
  * Merged leads (`originLead`) are dropped. Returns { leads, ids, truncated }.
+ * A tag holding a comma is left out: the API reads `tags` as one
+ * comma-separated value, so it cannot be sent.
  */
 export async function loadCohort(data, tags, { tz = null, deadline = null } = {}) {
-  const list = [...new Set((tags || []).filter(Boolean))].slice(0, MAX_TAGS);
-  const body = await data.call('hyros_get_leads', { request: { tags: list, pageSize: 250 } },
+  const list = [...new Set((tags || []).filter((t) => t && !String(t).includes(',')))].slice(0, MAX_TAGS);
+  const body = await data.call('/leads', { tags: list, pageSize: 250 },
     { timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
   const iso = isoFor(tz);
   const raw = listOf(body).filter((l) => !l.originLead);
@@ -181,7 +183,7 @@ export async function loadCohort(data, tags, { tz = null, deadline = null } = {}
  * Returns { records, truncated, error? }.
  */
 export async function loadRecords(data, kind, leadIds, { tz = null, deadline = null, isCurrent = () => true } = {}) {
-  const tool = kind === 'sales' ? 'hyros_get_sales' : 'hyros_get_calls';
+  const path = kind === 'sales' ? '/sales' : '/calls';
   const iso = isoFor(tz);
   const raw = [];
   let truncated = false;
@@ -189,7 +191,7 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
   for (const batch of chunk(leadIds || [], BATCH)) {
     if (!isCurrent()) { truncated = true; break; }
     if (deadline && Date.now() >= deadline) { truncated = true; error = 'time budget'; break; }
-    const page = await data.pagedInfo(tool, { request: { leadIds: batch } },
+    const page = await data.pagedInfo(path, { leadIds: batch },
       { maxPages: BATCH_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
     raw.push(...page.rows);
     if (page.truncated) truncated = true;
@@ -224,15 +226,15 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
 export async function loadJourney(data, email, { tz = null, deadline = null } = {}) {
   const fromDate = dayStart(addDays(ymdInTz(data.now(), tz), -CLICKS_LOOKBACK_DAYS), tz);
   const timeoutMs = clampTimeout(TIMEOUTS.default, deadline);
-  // Two different tools, so they do not collide on "already processing".
+  // Two independent reads, side by side. /leads/clicks takes exactly one lead
+  // selector: `emails` alone (a second one, or the deprecated `email`, is a 400).
   const [journeyRes, clicksRes] = await Promise.allSettled([
-    data.call('hyros_get_lead_journey', { request: { emails: [email], includeEvents: true } }, { timeoutMs }),
-    data.call('hyros_get_lead_clicks', { request: { emails: [email], fromDate, pageSize: 100 } }, { timeoutMs }),
+    data.call('/leads/journey', { emails: [email], includeEvents: true }, { timeoutMs }),
+    data.call('/leads/clicks', { emails: [email], fromDate, pageSize: 100 }, { timeoutMs }),
   ]);
   if (journeyRes.status === 'rejected') throw journeyRes.reason;
 
-  const list = Array.isArray(journeyRes.value) ? journeyRes.value
-    : (journeyRes.value?.result || journeyRes.value?.journeys || []);
+  const list = listOf(journeyRes.value);
   const j = Array.isArray(list) ? list[0] : null;
   if (!j) return null;
 
@@ -275,7 +277,7 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
 
 /* ---------------- markup ---------------- */
 
-const TOUCH_PILL = '<span class="pill" title="Cohort from hyros_get_leads by source tag: leads that CLICKED this source. Attribution models can credit some conversions to a different source, so this can differ from the table cell.">touched ≠ credited</span>';
+const TOUCH_PILL = '<span class="pill" title="Cohort from the leads with this source tag: leads that CLICKED this source. Attribution models can credit some conversions to a different source, so this can differ from the table cell.">touched ≠ credited</span>';
 
 const notePill = (note, esc) => (note ? ` <span class="pill">${esc(note)}</span>` : '');
 

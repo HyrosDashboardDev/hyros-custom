@@ -5,21 +5,21 @@
  * The level model mirrors HYROS's own (SourceNamingUtils.ts). For Meta:
  *   AD_ACCOUNT      -> "Account"
  *   SOURCE_CATEGORY -> "Campaign"     <- NOT a Meta campaign object
- *   SOURCE_LINK     -> "Ad Set"       <- the MCP's FACEBOOK_ADSET level
- *   SOURCE_LINK_AD  -> "Ad"           <- the MCP's FACEBOOK_AD level
+ *   SOURCE_LINK     -> "Ad Set"       <- GET /attribution level facebook_adset
+ *   SOURCE_LINK_AD  -> "Ad"           <- GET /attribution level facebook_ad
  *
- * The MCP exposes no campaign/traffic-source grouping, so those two levels are
- * rolled up from the ad-set base table joined to `hyros_get_sources`, which
- * carries `category` and `trafficSource` per source.
+ * GET /attribution has no campaign/traffic-source grouping over ad-account
+ * ids, so those two levels are rolled up from the ad-set base table joined to
+ * GET /sources, which carries `category` and `trafficSource` per source.
  */
 
 import { ymdInTz, addDays } from '../core/dates.js';
 import { CATALOG, derive, rollup } from './metrics.js';
 
 // Request the whole catalog except switched-off metrics: the `fields` param
-// drives computation (requested fields populate, unrequested come back null),
+// drives computation (requested fields populate, unrequested are left out),
 // which makes column-adding instant client-side instead of per-refresh.
-export const REPORT_FIELDS = ['NAME', 'PARENT_NAME', ...CATALOG.filter((c) => !c.off).map((c) => c.f)];
+export const REPORT_FIELDS = ['name', 'parent_name', ...CATALOG.filter((c) => !c.off).map((c) => c.f)];
 
 /* ---------------- date helpers (account timezone) ---------------- */
 
@@ -37,10 +37,32 @@ export function buildRanges(now, tz) {
 /* ---------------- normalisation ---------------- */
 
 /**
- * Keep every catalog metric the API populated (null = not computed, dropped),
- * guarantee the core additive base exists so derived math is stable, then
- * re-derive. Null-stripping keeps the stored snapshot far smaller than the
- * wire payload even with the full catalog requested.
+ * The key GET /attribution publishes a catalog metric under. The API writes
+ * its row property names through camelToSnakeCaseWithNumber (totalRevenue ->
+ * total_revenue, newMRR -> new_m_r_r, ltv30Days -> ltv_30_days), except
+ * contributionProfit, published as declared. `reported` is the
+ * reportedResult property.
+ */
+const WIRE_KEY = { reported: 'reported_result', contributionProfit: 'contributionProfit' };
+export const wireKey = (k) => WIRE_KEY[k] ?? k.replace(/([A-Z]|[0-9]+)/g, '_$1').toLowerCase();
+const CATALOG_WIRE = CATALOG.map((entry) => [entry.k, wireKey(entry.k)]);
+
+/** A metric as a number: `revenue` comes as a string ("997.00"); null, missing or unreadable stay null. */
+function metric(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/**
+ * Read one GET /attribution row into the camelCase catalog keys. Keep every
+ * catalog metric the API populated (null = not computed, dropped), guarantee
+ * the core additive base exists so derived math is stable, then re-derive.
+ * Null-stripping keeps the stored snapshot far smaller than the wire payload
+ * even with the full catalog requested.
  */
 const CORE_ZERO = ['cost', 'revenue', 'totalRevenue', 'sales', 'leads',
   'calls', 'clicks', 'impressions', 'reported'];
@@ -49,38 +71,40 @@ export function normalizeRow(raw) {
   const row = {
     id: String(raw.id ?? ''),
     name: raw.name || null,
-    parentName: raw.parentName || null,
-    // Ad-level rows carry the parent source id since the Sept 2026 MCP
-    // upgrade: the handle that makes ad-under-ad-set linkage exact.
-    parentId: raw.parentId != null ? String(raw.parentId) : null,
+    parentName: raw.parent_name || null,
+    // Ad-level rows carry the parent source id: the handle that makes
+    // ad-under-ad-set linkage exact.
+    parentId: raw.parent_id != null ? String(raw.parent_id) : null,
   };
-  for (const entry of CATALOG) {
-    const v = entry.k === 'reported' ? raw.reportedResult : raw[entry.k];
-    if (v !== null && v !== undefined) row[entry.k] = v;
+  for (const [k, wire] of CATALOG_WIRE) {
+    const v = metric(raw[wire]);
+    if (v !== null) row[k] = v;
   }
   for (const k of CORE_ZERO) row[k] = row[k] ?? 0;
   return derive(row);
 }
 
 /**
- * Report levels per ad-account type, named as the MCP's `level` enum names
- * them (api-docs.hyros.com, GET /attribution). `adset` is the SOURCE_LINK
- * level every platform has; `ad` exists only where the platform exposes one.
- * Classic Google and LinkedIn are tracked at campaign level, Google V2 stops
- * at ad group, Snapchat calls its ad set an "ad squad". Types missing here
- * (REDDIT, APPLOVIN, WHOP_ADS, ...) have no attribution level and are skipped.
+ * Report levels per ad-account type, as the `level` param of GET /attribution
+ * names them (lowercase, matched exactly: api-docs.hyros.com). `adset` is the
+ * SOURCE_LINK level every platform has; `ad` exists only where the platform
+ * exposes one. Classic Google and LinkedIn are tracked at campaign level,
+ * Google V2 stops at ad group, Snapchat calls its ad set an "ad squad"
+ * (snapchat_adsquad; snapchat_adset is rejected). The API accepts more levels
+ * than each integration supports (classic Google rejects google_adgroup), so
+ * the single-level rows stay. Types missing here (REDDIT, APPLOVIN, WHOP_ADS,
+ * ...) have no attribution level and are skipped.
  */
 export const LEVELS_BY_TYPE = {
-  FACEBOOK:  { adset: 'FACEBOOK_ADSET',    ad: 'FACEBOOK_AD' },
-  GOOGLE:    { adset: 'GOOGLE_CAMPAIGN',   ad: 'GOOGLE_AD' },
-  GOOGLE_V2: { adset: 'GOOGLE_V2_ADGROUP', ad: null },
-  TIKTOK:    { adset: 'TIKTOK_ADGROUP',    ad: 'TIKTOK_AD' },
-  // The live MCP (mcp.hyros.com) names this level SNAPCHAT_ADSET; the REST docs say snapchat_adsquad. Its accepted list (from the error text, 2026-09-21): GOOGLE_CAMPAIGN, GOOGLE_ADGROUP, GOOGLE_AD, GOOGLE_KEYWORD, FACEBOOK_ADSET, FACEBOOK_CAMPAIGN, TIKTOK_ADGROUP, SNAPCHAT_ADSET, PINTEREST_ADGROUP, TWITTER_ADGROUP, BING_ADGROUP, FACEBOOK_AD, TIKTOK_AD, SNAPCHAT_AD, PINTEREST_AD, TWITTER_AD, BING_AD, LINKEDIN_CAMPAIGN, LINKEDIN_AD, GOOGLE_V2_KEYWORD, GOOGLE_V2_ADGROUP, GOOGLE_V2_AD, GOOGLE_V2_CAMPAIGN. Accepted is not the same as supported per integration (classic GOOGLE rejects GOOGLE_ADGROUP), so the single-level rows stay.
-  SNAPCHAT:  { adset: 'SNAPCHAT_ADSET',     ad: 'SNAPCHAT_AD' },
-  PINTEREST: { adset: 'PINTEREST_ADGROUP', ad: 'PINTEREST_AD' },
-  TWITTER:   { adset: 'TWITTER_ADGROUP',   ad: null },
-  BING:      { adset: 'BING_ADGROUP',      ad: 'BING_AD' },
-  LINKEDIN:  { adset: 'LINKEDIN_CAMPAIGN', ad: null },
+  FACEBOOK:  { adset: 'facebook_adset',    ad: 'facebook_ad' },
+  GOOGLE:    { adset: 'google_campaign',   ad: 'google_ad' },
+  GOOGLE_V2: { adset: 'google_v2_adgroup', ad: null },
+  TIKTOK:    { adset: 'tiktok_adgroup',    ad: 'tiktok_ad' },
+  SNAPCHAT:  { adset: 'snapchat_adsquad',  ad: 'snapchat_ad' },
+  PINTEREST: { adset: 'pinterest_adgroup', ad: 'pinterest_ad' },
+  TWITTER:   { adset: 'twitter_adgroup',   ad: null },
+  BING:      { adset: 'bing_adgroup',      ad: 'bing_ad' },
+  LINKEDIN:  { adset: 'linkedin_campaign', ad: null },
 };
 
 export const REPORT_MODELS = ['LAST_CLICK', 'FIRST_CLICK', 'SCIENTIFIC'];
@@ -94,7 +118,7 @@ export const REPORT_MODELS = ['LAST_CLICK', 'FIRST_CLICK', 'SCIENTIFIC'];
 export function buildLevels({ adsetRows, adRows, sourceById, adAccountName }) {
   // Ad-set rows sometimes come back with a null name; resolve from the source
   // table, and carry the source TAG: it's the handle the lead-drill uses
-  // (get_leads({tags:[...]}) is a server-side cohort query).
+  // (GET /leads?tags=... is a server-side cohort query).
   const adsets = adsetRows.map((r) => ({
     ...r,
     name: r.name || sourceById.get(r.id)?.name || r.id,
@@ -108,7 +132,7 @@ export function buildLevels({ adsetRows, adRows, sourceById, adAccountName }) {
   const ads = adRows.map((r) => ({ ...r, name: r.name || r.id }));
 
   // Rolled-up rows drill with the union of their members' tags (the tags
-  // filter on get_leads is OR semantics).
+  // filter of GET /leads is OR semantics).
   const withTags = (rows, keyOf) => rows.map((row) => ({
     ...row,
     tags: [...new Set(adsets.filter((a) => keyOf(a) === row.id && a.tag).map((a) => a.tag))].slice(0, 40),

@@ -18,8 +18,8 @@ to it. The contract is `VIEWS.md`.
 **Import a folder (another copy of this dashboard):**
 copy it to `src/views/<id>/` and add the id to `CUSTOM_VIEWS` in
 `src/views/custom.js`. Its id must start with `custom-`: rename the folder
-and the `id` on its `view` object when it does not. Read its `SPEC.md` first: if it calls a tool that
-is not in `READ_TOOLS` (`src/core/mcp.js`), or a `ctx.data` getter this
+and the `id` on its `view` object when it does not. Read its `SPEC.md` first: if it calls a path that
+is not in `READ_PATHS` (`src/core/api.js`), or a `ctx.data` getter this
 dashboard lacks, say so before registering it. Check its `style.css` uses
 only tokens from `styles.css` and that its classes are prefixed with its id.
 
