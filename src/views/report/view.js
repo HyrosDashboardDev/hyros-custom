@@ -505,7 +505,7 @@ function emptyModel() {
 export const view = {
   id: 'report',
   title: 'Performance Report',
-  version: '0.1.0',
+  version: '0.1.1',
   description: 'What each traffic source, ad account, campaign, ad set and ad cost and earned, under the attribution model you pick.',
   style: true,
   tools: ['/user-info', '/ad-accounts', '/attribution', '/sources'],
