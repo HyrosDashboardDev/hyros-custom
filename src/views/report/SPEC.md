@@ -180,9 +180,9 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   refunded sales listed but not counted ("N sales credited in the range");
   Leads, under every model, list the leads that joined in the range and
   touched the row's sources ("touched ≠ credited"). Under Scientific, which
-  credits a sale to its first or last source by how long it took after the
-  first click, Sales and Calls list the sales or calls in the range of the
-  leads that touched the row's sources ("touched ≠ credited").
+  credits a sale to its first source when it came within 30 days of the
+  first click and to its last source otherwise, Sales and Calls apply that
+  rule over both filters ("credited · scientific").
 
 ## Rules honoured
 - Metrics re-derived after summing (never averaged); money and numbers via
@@ -214,11 +214,10 @@ require, the snake_case row keys read by `normalizeRow`, and the source join by
 - Non-aggregatable metrics (CAC, percentages HYROS computes per row, forecasts)
   print "-" on rolled-up rows and in totals.
 - The credited drill reads the source stored on each sale or call: it
-  matches the cell under Last and First click with every source included,
-  but does not apply the report's attribution window. The Leads drill and
-  the Scientific drill are touched cohorts, not the credited count: a lead's
-  stored last source moves with its later clicks, and the drill does not
-  apply Scientific's first-or-last rule. An Ad row drills with its ad set's
+  matches the cell under Last click, First click and Scientific with every
+  source included, but does not apply the report's attribution window. The
+  Leads drill is a touched cohort, not the credited count: a lead's stored
+  last source moves with its later clicks. An Ad row drills with its ad set's
   tag.
 - No CSV export (the HYROS frame blocks downloads), no column drag to reorder,
   no lead-stage filter.

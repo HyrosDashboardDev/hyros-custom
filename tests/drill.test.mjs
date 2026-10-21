@@ -210,7 +210,7 @@ test('loadCredited asks for the last source tags in batches of 50, in series, wi
   const out = await loadCredited(data, 'sales', [...tags, '@t0'], { model: 'LAST_CLICK', dates });
   assert.deepEqual(data.calls.map((c) => c.args.lastSourceTags.length), [50, 10]);
   assert.ok(data.calls.every((c) => c.name === '/sales' && c.args.fromDate === dates.fromDate && c.args.toDate === dates.toDate));
-  assert.ok(data.calls.every((c) => c.opts.maxPages === 20), 'a credited list is the cell itself: it reads up to 20 pages per batch');
+  assert.ok(data.calls.every((c) => c.opts.maxPages === 40), 'a credited list is the cell itself: it reads up to 40 pages per batch');
   assert.ok(data.calls.every((c) => !('leadIds' in c.args) && !('firstSourceTags' in c.args)));
   assert.equal(data.maxRunning, 1);
   assert.equal(out.records.length, 2);
@@ -228,6 +228,33 @@ test('loadCredited leaves a tag holding a comma out and counts it, and the drawe
   assert.match(view.subtitle, /^0\+ sales credited in the range/);
   assert.match(view.subtitle, /first 1 of 2 sources/);
   assert.match(view.html, /The other 1 were not queried/);
+});
+
+test('loadCredited under scientific keeps first sources within 30 days of the first click and last sources after', async () => {
+  const sale = (id, days, extra = {}) => ({
+    id, lead: { email: `${id}@x.test` }, price: { price: 10, currency: 'EUR' },
+    creationDate: new Date(Date.parse('2026-07-01T00:00:00Z') + days * 86400000).toISOString(),
+    firstSource: { name: 'F', clickDate: '2026-07-01T00:00:00+00:00' }, lastSource: { name: 'L' }, ...extra,
+  });
+  const byField = {
+    firstSourceTags: [sale('s1', 10), sale('s2', 40), sale('s3', 30), sale('s5', 5, { firstSource: { name: 'F' } })],
+    lastSourceTags: [sale('s4', 45), sale('s6', 10), sale('s3', 30)],
+  };
+  const data = fakeData({ recordsFor: (_, req) => ({ rows: req.firstSourceTags ? byField.firstSourceTags : byField.lastSourceTags, truncated: false }) });
+  const out = await loadCredited(data, 'sales', ['@a'], { model: 'SCIENTIFIC', dates: { fromDate: 'F', toDate: 'T' } });
+  assert.deepEqual(data.calls.map((c) => Object.keys(c.args).filter((k) => k.endsWith('SourceTags'))), [['firstSourceTags'], ['lastSourceTags']]);
+  assert.ok(data.calls.every((c) => c.args.fromDate === 'F' && c.args.toDate === 'T'));
+  assert.deepEqual(out.records.map((r) => r.email), ['s1@x.test', 's3@x.test', 's4@x.test'],
+    'within 30 days by the first source, later by the last; no click date is no credit; one sale once');
+  assert.deepEqual(out.records.map((r) => r.source), ['F', 'F', 'L']);
+  assert.match(renderCredited(ctx, { kind: 'sales', ...out, attribution: 'SCIENTIFIC' }).subtitle, /^3 sales credited in the range.*credited · scientific/);
+});
+
+test('loadCredited under scientific still runs the last-source filter when the first one hit the page cap', async () => {
+  const data = fakeData({ recordsFor: (_, req) => ({ rows: [], truncated: Boolean(req.firstSourceTags) }) });
+  const out = await loadCredited(data, 'calls', ['@a'], { model: 'SCIENTIFIC' });
+  assert.deepEqual(data.calls.map((c) => (c.args.firstSourceTags ? 'first' : 'last')), ['first', 'last']);
+  assert.equal(out.truncated, true);
 });
 
 test('loadCredited uses the first source tags under first click, on calls too', async () => {
