@@ -10,7 +10,7 @@ import { toQuery } from '../src/core/api.js';
 const ctx = { fmt, esc };
 
 /** A stand-in for ctx.data keyed on API paths (flat params), recording every call and the order calls started and ended. */
-function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [], truncated: false }), journey, clicks } = {}) {
+function fakeData({ leads = [], nextPageId = null, leadsError = null, recordsFor = () => ({ rows: [], truncated: false }), journey, clicks } = {}) {
   const calls = [];
   const log = [];
   let running = 0;
@@ -22,13 +22,13 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
     now: () => new Date('2026-09-15T12:00:00Z'),
     call: async (name, args, opts) => {
       calls.push({ name, args, opts });
-      // `call` returns the body as sent: the envelope, with nextPageId when there is more.
-      if (name === '/leads') return { result: leads, ...(nextPageId ? { nextPageId } : {}) };
       if (name === '/leads/journey') { if (journey instanceof Error) throw journey; return journey; }
       throw new Error(`unexpected ${name}`);
     },
     pagedInfo: async (name, args, opts) => {
       calls.push({ name, args, opts });
+      // The cohort walk: `nextPageId` stands for pages left past maxPages.
+      if (name === '/leads') return { rows: leads, truncated: Boolean(nextPageId), ...(leadsError ? { error: leadsError } : {}) };
       if (name === '/leads/clicks') {
         if (clicks instanceof Error) throw clicks;
         return { rows: clicks?.result || [], truncated: Boolean(clicks?.nextPageId) };
@@ -47,14 +47,15 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
 
 const lead = (i, extra = {}) => ({ id: `L${i}`, email: `u${i}@example.test`, creationDate: '2026-09-01T10:00:00-05:00', ...extra });
 
-test('loadCohort asks GET /leads for one page of 250 by tag, sends the first 50 tags, counts the rest and drops merged leads', async () => {
+test('loadCohort walks GET /leads by tag up to 8 pages of 250, sends the first 50 tags, counts the rest and drops merged leads', async () => {
   const data = fakeData({ leads: [lead(1), lead(2, { originLead: { id: 'L1' } }), lead(3)], nextPageId: 'p2' });
   const tags = Array.from({ length: 55 }, (_, i) => `@t${i}`);
   const out = await loadCohort(data, [...tags, '@t0', null, '@a,b'], { tz: '-05:00' });
   assert.equal(data.calls.length, 1);
   assert.equal(data.calls[0].name, '/leads');
-  assert.deepEqual(Object.keys(data.calls[0].args).sort(), ['pageSize', 'tags']);
-  assert.equal(data.calls[0].args.pageSize, 250);
+  assert.deepEqual(Object.keys(data.calls[0].args), ['tags'], 'no date filter unless asked');
+  assert.equal(data.calls[0].opts.pageSize, 250);
+  assert.equal(data.calls[0].opts.maxPages, 8);
   assert.deepEqual(data.calls[0].args.tags, tags.slice(0, 50));
   assert.ok(data.calls[0].args.tags.every((t) => !t.includes(',')), 'a tag with a comma cannot be sent');
   assert.doesNotThrow(() => toQuery(data.calls[0].args));
@@ -187,7 +188,7 @@ test('renderers escape emails, names and sources', () => {
 });
 
 test('renderers state truncation, empty lists and failed clicks', () => {
-  assert.match(renderCohort(ctx, { leads: [{ email: 'a@x.test' }], truncated: true }).subtitle, /1\+ leads.*newest 250 shown/);
+  assert.match(renderCohort(ctx, { leads: [{ email: 'a@x.test' }], truncated: true }).subtitle, /1\+ leads.*newest 1 shown/);
   assert.match(renderCohort(ctx, { leads: [] }).html, /class="empty"/);
   assert.match(renderRecords(ctx, { kind: 'calls', records: [], cohortSize: 3 }).html, /No calls recorded/);
 
@@ -271,6 +272,39 @@ test('loadCohort sends the join date range when given', async () => {
   await loadCohort(data, ['@a'], { dates: { fromDate: 'F', toDate: 'T' } });
   assert.equal(data.calls[0].args.fromDate, 'F');
   assert.equal(data.calls[0].args.toDate, 'T');
+});
+
+test('loadCohort passes the deadline on and keeps the error of a walk cut short', async () => {
+  const deadline = Date.now() + 60000;
+  const data = fakeData({ leads: [lead(1)], nextPageId: 'p9', leadsError: 'time budget' });
+  const out = await loadCohort(data, ['@a'], { deadline });
+  assert.equal(data.calls[0].opts.deadline, deadline);
+  assert.equal(out.truncated, true);
+  assert.equal(out.error, 'time budget');
+});
+
+test('a touched drill cut short says older leads were not queried instead of a bare 0', () => {
+  const out = renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 2000, cohortCut: true, inRange: true });
+  assert.match(out.subtitle, /^0\+ sales in the range from 2,000 touched leads, the newest that touched it; older leads were not queried/);
+  assert.match(out.html, /No sales in the range from the 2,000 touched leads queried\. Older leads were not queried\./);
+  assert.doesNotMatch(out.html, /No sales recorded/);
+
+  const late = renderRecords(ctx, { kind: 'calls', records: [{ email: 'a@x.test' }], cohortSize: 40, truncated: true, error: 'time budget' });
+  assert.match(late.subtitle, /^1\+ calls from 40 touched leads, stopped at the time limit, the rest was not queried/);
+  assert.doesNotMatch(late.subtitle, /newest shown/);
+  assert.match(renderRecords(ctx, { kind: 'calls', records: [], cohortSize: 40, error: 'time budget' }).html, /stopped at its time limit/);
+
+  const whole = renderRecords(ctx, { kind: 'sales', records: [], cohortSize: 12, inRange: true });
+  assert.match(whole.subtitle, /^0 sales in the range from 12 touched leads/);
+  assert.match(whole.html, /No sales recorded for this cohort in the range/);
+});
+
+test('a leads drill cut short says older leads were not read', () => {
+  const out = renderCohort(ctx, { leads: [{ email: 'a@x.test' }], truncated: true, inRange: true });
+  assert.match(out.subtitle, /^1\+ leads joined in the range and touched this source, newest 1 shown, older ones not read/);
+  assert.match(out.subtitle, /touched ≠ credited/);
+  assert.match(renderCohort(ctx, { leads: [], truncated: true }).html, /Older leads were not read/);
+  assert.match(renderCohort(ctx, { leads: [], truncated: true, error: 'time budget' }).subtitle, /stopped at the time limit/);
 });
 
 
