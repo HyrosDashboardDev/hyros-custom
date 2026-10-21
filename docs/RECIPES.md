@@ -434,18 +434,23 @@ row carries the union of its members' tags (Report step 6).
   source included, `sourceConfiguration: 'ALL_SOURCES'`). Sales and calls:
   `ctx.data.pagedInfo('/sales' | '/calls', { lastSourceTags | firstSourceTags, fromDate, toDate })`
   (the report's range), the row's tags with the clicked column above 0 in
-  batches of 50 (the filter's cap), in sequence, at most 20 pages of 250 per
+  batches of 50 (the filter's cap), in sequence, at most 40 pages of 250 per
   batch. List refunded sales but leave them out of the count and the total,
   as the report's Sales and Revenue do. Say in the panel what was matched and
   that the attribution window is not applied.
+- Credited (Scientific): Scientific gives the whole sale to its first source
+  when it came within 30 days of the first click (`scientificDaysRange`,
+  which the Report never sends, so HYROS uses its default of 30), and to its
+  last source otherwise. Run both filters over the row's tags and keep a
+  record from `firstSourceTags` when its `creationDate` is at most 30 days
+  after its `firstSource.clickDate`, and one from `lastSourceTags` when it is
+  later; keep each record once, by `id`.
 - Leads, under every model: `ctx.data.call('/leads', { tags, fromDate, toDate, pageSize: 250 })`,
   the leads that joined in the range and touched the row's sources. The last
   source stored on a lead moves with its later clicks, so filtering on it
   does not give the cell; say in the panel that the list is the touched
   leads, not the credited count.
-- Touched (Scientific: the whole sale goes to its first source when it came
-  within the account's scientific range of the first click, to its last
-  source otherwise; the drill does not apply that rule): the cohort is
+- Touched (a model with no credited rule): the cohort is
   `ctx.data.call('/leads', { tags, pageSize: 250 })`, the leads that touched
   those sources, which is not the attribution-credited count in the cell; say
   so in the panel. More leads exist when the body carries a `nextPageId`. The

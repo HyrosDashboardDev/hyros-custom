@@ -15,11 +15,13 @@
  * clicks, so it is not the source the cell credited the lead to.
  *
  * SCIENTIFIC credits the whole sale to its first source when it came within
- * the account's scientific range of the first click, and to its last source
- * otherwise. The drill does not apply that rule: its drill is the leads that
- * TOUCHED the row's sources (GET /leads?tags=...), then their sales or calls
- * by lead id in batches of 50. That is not the credited count in the cell,
- * and the drawer says so.
+ * SCIENTIFIC_DAYS of the first click, and to its last source otherwise, so
+ * the drill asks for both and keeps each record by that rule.
+ *
+ * A model with no credited rule falls back to the leads that TOUCHED the
+ * row's sources (GET /leads?tags=...), then their sales or calls by lead id in
+ * batches of 50. That is not the credited count in the cell, and the drawer
+ * says so.
  */
 import { esc } from './dom.js';
 import { TIMEOUTS, clampTimeout } from '../core/budget.js';
@@ -32,10 +34,17 @@ export const BATCH = 50;
 /** Sales or calls per batch: 4 pages of 250 before the drawer says "newest shown". */
 export const BATCH_MAX_PAGES = 4;
 /**
- * Credited sales or calls per batch of tags: 20 pages of 250. The credited
- * list is the cell itself, so it reads further than a cohort batch.
+ * Credited sales or calls per batch of tags: 40 pages of 250. The credited
+ * list is the cell itself, so it reads further than a cohort batch, and under
+ * Scientific its first-source filter also returns the later sales it drops.
  */
-export const CREDITED_MAX_PAGES = 20;
+export const CREDITED_MAX_PAGES = 40;
+/**
+ * Scientific range in days: a sale made within it of its first click goes to
+ * its first source, any later one to its last. The Report never sends
+ * `scientificDaysRange`, so HYROS computes its cells with this default.
+ */
+export const SCIENTIFIC_DAYS = 30;
 /** Click history window: bounded (the docs recommend a fromDate) but wide enough for a long journey. */
 export const CLICKS_LOOKBACK_DAYS = 365;
 /** Click history: 2 pages of 250 before the drawer says the list was cut short. */
@@ -197,40 +206,76 @@ export async function loadCohort(data, tags, { tz = null, deadline = null, dates
 /**
  * The source filter a drill sends for an attribution model: the source each
  * model credits is the one stored on the sale or call as its first or
- * last source. SCIENTIFIC picks the first or the last one by how long the
- * sale took after the first click, which one filter cannot express, so it has
- * none and the drill falls back to the leads that touched the row's sources.
+ * last source. SCIENTIFIC uses both, see `creditedLegs`.
  */
 export const CREDITED_FIELD = { LAST_CLICK: 'lastSourceTags', FIRST_CLICK: 'firstSourceTags' };
 
+/** The models whose credited records the drill can list. */
+export const CREDITED_MODELS = Object.freeze(['LAST_CLICK', 'FIRST_CLICK', 'SCIENTIFIC']);
+
+/** Days from a record's first click to the record itself, or null when either date is missing. */
+function daysToRecord(x, iso) {
+  const made = Date.parse(iso(x.creationDate) || '');
+  const clicked = Date.parse(iso(x.firstSource?.clickDate) || '');
+  return Number.isFinite(made) && Number.isFinite(clicked) ? (made - clicked) / 86400000 : null;
+}
+
+/**
+ * The queries a credited drill runs for `model`, each with the source its
+ * rows name and the records it keeps. Under SCIENTIFIC a record whose first
+ * source is a row tag counts when it came within SCIENTIFIC_DAYS of the first
+ * click, and one whose last source is a row tag counts when it came later.
+ */
+function creditedLegs(model, iso) {
+  if (model !== 'SCIENTIFIC') return [{ field: CREDITED_FIELD[model], source: CREDITED_FIELD[model] === 'firstSourceTags' ? 'first' : 'last', keep: () => true }];
+  const within = (x) => {
+    const days = daysToRecord(x, iso);
+    return days === null ? null : days <= SCIENTIFIC_DAYS;
+  };
+  return [
+    { field: 'firstSourceTags', source: 'first', keep: (x) => within(x) === true },
+    { field: 'lastSourceTags', source: 'last', keep: (x) => within(x) === false },
+  ];
+}
+
 /**
  * The sales or calls credited to `tags` under `model`, made in `dates`: the
- * tags go in batches of MAX_TAGS on the path's first or last source filter, IN
- * SERIES, at most CREDITED_MAX_PAGES pages each. A record has one first and
- * one last source, so two batches never return the same one. A tag holding a comma cannot be
+ * tags go in batches of MAX_TAGS on the path's first or last source filter
+ * (both under SCIENTIFIC, see `creditedLegs`), IN SERIES, at most
+ * CREDITED_MAX_PAGES pages each. A record has one first and one last source,
+ * so two batches of one filter never return the same one; across the two
+ * SCIENTIFIC filters it is kept once, by id. A tag holding a comma cannot be
  * sent (the API reads the array as one comma-separated value), so it counts
  * in `tagsLeft`. Stops like loadRecords.
  * Returns { records, truncated, tagsSent, tagsLeft, error? }.
  */
 export async function loadCredited(data, kind, tags, { model, tz = null, deadline = null, isCurrent = () => true, dates = null } = {}) {
-  const field = CREDITED_FIELD[model];
   const path = kind === 'sales' ? '/sales' : '/calls';
+  const iso = isoFor(tz);
   const all = [...new Set((tags || []).filter(Boolean))];
   const list = all.filter((t) => !String(t).includes(','));
-  const raw = [];
+  const records = [];
+  const seen = new Set();
   let truncated = false;
+  let stopped = false;
   let error;
-  for (const batch of chunk(list, MAX_TAGS)) {
-    if (!isCurrent()) { truncated = true; break; }
-    if (deadline && Date.now() >= deadline) { truncated = true; error = 'time budget'; break; }
-    const page = await data.pagedInfo(path, { [field]: batch, ...(dates || {}) },
-      { maxPages: CREDITED_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
-    raw.push(...page.rows);
-    if (page.truncated) truncated = true;
+  for (const leg of creditedLegs(model, iso)) {
+    const raw = [];
+    for (const batch of chunk(list, MAX_TAGS)) {
+      if (!isCurrent()) { truncated = true; stopped = true; break; }
+      if (deadline && Date.now() >= deadline) { truncated = true; stopped = true; error = 'time budget'; break; }
+      const page = await data.pagedInfo(path, { [leg.field]: batch, ...(dates || {}) },
+        { maxPages: CREDITED_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
+      raw.push(...page.rows);
+      if (page.truncated) truncated = true;
+    }
+    const kept = raw.filter((x) => leg.keep(x) && !(x.id != null && seen.has(x.id)));
+    kept.forEach((x) => { if (x.id != null) seen.add(x.id); });
+    records.push(...toRecords(kind, kept, iso, leg.source));
+    if (stopped) break;
   }
-  const source = field === 'firstSourceTags' ? 'first' : 'last';
   return {
-    records: toRecords(kind, raw, isoFor(tz), source), truncated,
+    records, truncated,
     tagsSent: list.length, tagsLeft: all.length - list.length, ...(error ? { error } : {}),
   };
 }
@@ -356,8 +401,13 @@ const TOUCH_PILL = '<span class="pill" title="Cohort from the leads with this so
 
 /** What a credited drill matched on, and what it does not reproduce of the report. */
 const creditedPill = (attribution, kind) => {
+  const one = kind.replace(/s$/, '');
+  if (attribution === 'SCIENTIFIC') {
+    const title = `Matched like Scientific: the first source stored on each ${one} when it came within ${SCIENTIFIC_DAYS} days of the first click, the last source otherwise.`;
+    return `<span class="pill" title="${title}">credited · scientific</span>`;
+  }
   const which = attribution === 'FIRST_CLICK' ? 'first' : 'last';
-  const title = `Matched on the ${which} source stored on each ${kind.replace(/s$/, '')}, the one ${which} click credits. `
+  const title = `Matched on the ${which} source stored on each ${one}, the one ${which} click credits. `
     + 'The report\'s attribution window is not applied here.';
   return `<span class="pill" title="${title}">credited · ${which} click</span>`;
 };
@@ -563,10 +613,10 @@ export async function openLeadJourney(ctx, email, { drawer = null, back = null }
  * the sales or calls. `tags` are the row's source tags, most relevant first;
  * `note` is shown as a pill (e.g. "ad set cohort: <name>" for an ad row).
  * `range` ({ start, end } as YYYY-MM-DD) is the report's range and
- * `attribution` its model: under FIRST_CLICK and LAST_CLICK the sales and
- * calls are the ones that model credits to the tags; otherwise the drill
- * lists the sales or calls of the leads that touched them. Leads are the ones
- * that joined in the range and touched the tags, under every model.
+ * `attribution` its model: under the CREDITED_MODELS the sales and calls are
+ * the ones that model credits to the tags; any other model lists the sales or
+ * calls of the leads that touched them. Leads are the ones that joined in the
+ * range and touched the tags, under every model.
  * Clicking a lead opens its journey; Back returns to the list without calling
  * HYROS again.
  */
@@ -595,7 +645,7 @@ export async function openCohortDrill(ctx, { title, tags, metric = 'leads', labe
   try {
     const { timezone: tz } = await ctx.data.account();
     const dates = range ? { fromDate: dayStart(range.start, tz), toDate: dayEnd(range.end, tz, ctx.data.now()) } : null;
-    const credited = CREDITED_FIELD[attribution] ? attribution : null;
+    const credited = CREDITED_MODELS.includes(attribution) ? attribution : null;
     if (metric === 'leads') {
       const cohort = await loadCohort(ctx.data, tags, { tz, dates });
       if (!live()) return d;
