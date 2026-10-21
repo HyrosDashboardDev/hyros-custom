@@ -443,7 +443,9 @@ row carries the union of its members' tags (Report step 6).
   source stored on a lead moves with its later clicks, so filtering on it
   does not give the cell; say in the panel that the list is the touched
   leads, not the credited count.
-- Touched (Scientific, which no filter reproduces): the cohort is
+- Touched (Scientific: the whole sale goes to its first source when it came
+  within the account's scientific range of the first click, to its last
+  source otherwise; the drill does not apply that rule): the cohort is
   `ctx.data.call('/leads', { tags, pageSize: 250 })`, the leads that touched
   those sources, which is not the attribution-credited count in the cell; say
   so in the panel. More leads exist when the body carries a `nextPageId`. The
