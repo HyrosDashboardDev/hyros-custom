@@ -3,18 +3,25 @@
  * the Report and the CRM. Rewritten from hyros-ai (api/drill.js and the
  * drawer in public/app.js) on top of `ctx.data`.
  *
- *   number -> cohort (the leads that touched the row's sources)
- *          -> sales or calls of that cohort
+ *   number -> the sales or calls credited to the row, or its leads
  *          -> one lead's journey and click history
  *
- * Sales and calls have no tag filter, so those drills run two steps:
- * GET /leads?tags=... for the cohort ids, then GET /sales or /calls with
- * leadIds in batches of 50 (the filter's cap), in sequence (one rate limit
- * per account).
+ * Under first and last click, a sale or call is credited to the source stored
+ * on it as its first or last source, so the drill asks GET /sales or /calls
+ * for exactly those (`firstSourceTags` or `lastSourceTags`, the report's
+ * range), in batches of 50 tags, in sequence (one rate limit per account).
+ * Leads are, under every model, the ones that joined in the range and
+ * touched the row: the last source stored on a lead moves with its later
+ * clicks, so it is not the source the cell credited the lead to.
  *
- * The cohort is the leads that TOUCHED the source, which is not the
- * attribution-credited count in the cell (models reassign credit; a later
- * organic click can take it). The drawer says so.
+ * SCIENTIFIC credits the whole sale to its first source when it came within
+ * SCIENTIFIC_DAYS of the first click, and to its last source otherwise, so
+ * the drill asks for both and keeps each record by that rule.
+ *
+ * A model with no credited rule falls back to the leads that TOUCHED the
+ * row's sources (GET /leads?tags=...), then their sales or calls by lead id in
+ * batches of 50. That is not the credited count in the cell, and the drawer
+ * says so.
  */
 import { esc } from './dom.js';
 import { TIMEOUTS, clampTimeout } from '../core/budget.js';
@@ -26,6 +33,18 @@ export const MAX_TAGS = 50;
 export const BATCH = 50;
 /** Sales or calls per batch: 4 pages of 250 before the drawer says "newest shown". */
 export const BATCH_MAX_PAGES = 4;
+/**
+ * Credited sales or calls per batch of tags: 40 pages of 250. The credited
+ * list is the cell itself, so it reads further than a cohort batch, and under
+ * Scientific its first-source filter also returns the later sales it drops.
+ */
+export const CREDITED_MAX_PAGES = 40;
+/**
+ * Scientific range in days: a sale made within it of its first click goes to
+ * its first source, any later one to its last. The Report never sends
+ * `scientificDaysRange`, so HYROS computes its cells with this default.
+ */
+export const SCIENTIFIC_DAYS = 30;
 /** Click history window: bounded (the docs recommend a fromDate) but wide enough for a long journey. */
 export const CLICKS_LOOKBACK_DAYS = 365;
 /** Click history: 2 pages of 250 before the drawer says the list was cut short. */
@@ -164,13 +183,14 @@ const chunk = (arr, n) => {
  * Only the first MAX_TAGS tags are sent, so callers put the most relevant
  * first; `tagsLeft` counts the ones left out. A tag holding a comma is left
  * out too: the API reads `tags` as one comma-separated value, so it cannot be
- * sent. Merged leads (`originLead`) are dropped. Returns
+ * sent. `dates` ({ fromDate, toDate }) keeps only the leads that joined in
+ * that range. Merged leads (`originLead`) are dropped. Returns
  * { leads, ids, truncated, tagsSent, tagsLeft }.
  */
-export async function loadCohort(data, tags, { tz = null, deadline = null } = {}) {
+export async function loadCohort(data, tags, { tz = null, deadline = null, dates = null } = {}) {
   const all = [...new Set((tags || []).filter(Boolean))];
   const list = all.filter((t) => !String(t).includes(',')).slice(0, MAX_TAGS);
-  const body = await data.call('/leads', { tags: list, pageSize: 250 },
+  const body = await data.call('/leads', { tags: list, pageSize: 250, ...(dates || {}) },
     { timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
   const iso = isoFor(tz);
   const raw = listOf(body).filter((l) => !l.originLead);
@@ -180,6 +200,83 @@ export async function loadCohort(data, tags, { tz = null, deadline = null } = {}
     truncated: Boolean(body?.nextPageId),
     tagsSent: list.length,
     tagsLeft: all.length - list.length,
+  };
+}
+
+/**
+ * The source filter a drill sends for an attribution model: the source each
+ * model credits is the one stored on the sale or call as its first or
+ * last source. SCIENTIFIC uses both, see `creditedLegs`.
+ */
+export const CREDITED_FIELD = { LAST_CLICK: 'lastSourceTags', FIRST_CLICK: 'firstSourceTags' };
+
+/** The models whose credited records the drill can list. */
+export const CREDITED_MODELS = Object.freeze(['LAST_CLICK', 'FIRST_CLICK', 'SCIENTIFIC']);
+
+/** Days from a record's first click to the record itself, or null when either date is missing. */
+function daysToRecord(x, iso) {
+  const made = Date.parse(iso(x.creationDate) || '');
+  const clicked = Date.parse(iso(x.firstSource?.clickDate) || '');
+  return Number.isFinite(made) && Number.isFinite(clicked) ? (made - clicked) / 86400000 : null;
+}
+
+/**
+ * The queries a credited drill runs for `model`, each with the source its
+ * rows name and the records it keeps. Under SCIENTIFIC a record whose first
+ * source is a row tag counts when it came within SCIENTIFIC_DAYS of the first
+ * click, and one whose last source is a row tag counts when it came later.
+ */
+function creditedLegs(model, iso) {
+  if (model !== 'SCIENTIFIC') return [{ field: CREDITED_FIELD[model], source: CREDITED_FIELD[model] === 'firstSourceTags' ? 'first' : 'last', keep: () => true }];
+  const within = (x) => {
+    const days = daysToRecord(x, iso);
+    return days === null ? null : days <= SCIENTIFIC_DAYS;
+  };
+  return [
+    { field: 'firstSourceTags', source: 'first', keep: (x) => within(x) === true },
+    { field: 'lastSourceTags', source: 'last', keep: (x) => within(x) === false },
+  ];
+}
+
+/**
+ * The sales or calls credited to `tags` under `model`, made in `dates`: the
+ * tags go in batches of MAX_TAGS on the path's first or last source filter
+ * (both under SCIENTIFIC, see `creditedLegs`), IN SERIES, at most
+ * CREDITED_MAX_PAGES pages each. A record has one first and one last source,
+ * so two batches of one filter never return the same one; across the two
+ * SCIENTIFIC filters it is kept once, by id. A tag holding a comma cannot be
+ * sent (the API reads the array as one comma-separated value), so it counts
+ * in `tagsLeft`. Stops like loadRecords.
+ * Returns { records, truncated, tagsSent, tagsLeft, error? }.
+ */
+export async function loadCredited(data, kind, tags, { model, tz = null, deadline = null, isCurrent = () => true, dates = null } = {}) {
+  const path = kind === 'sales' ? '/sales' : '/calls';
+  const iso = isoFor(tz);
+  const all = [...new Set((tags || []).filter(Boolean))];
+  const list = all.filter((t) => !String(t).includes(','));
+  const records = [];
+  const seen = new Set();
+  let truncated = false;
+  let stopped = false;
+  let error;
+  for (const leg of creditedLegs(model, iso)) {
+    const raw = [];
+    for (const batch of chunk(list, MAX_TAGS)) {
+      if (!isCurrent()) { truncated = true; stopped = true; break; }
+      if (deadline && Date.now() >= deadline) { truncated = true; stopped = true; error = 'time budget'; break; }
+      const page = await data.pagedInfo(path, { [leg.field]: batch, ...(dates || {}) },
+        { maxPages: CREDITED_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
+      raw.push(...page.rows);
+      if (page.truncated) truncated = true;
+    }
+    const kept = raw.filter((x) => leg.keep(x) && !(x.id != null && seen.has(x.id)));
+    kept.forEach((x) => { if (x.id != null) seen.add(x.id); });
+    records.push(...toRecords(kind, kept, iso, leg.source));
+    if (stopped) break;
+  }
+  return {
+    records, truncated,
+    tagsSent: list.length, tagsLeft: all.length - list.length, ...(error ? { error } : {}),
   };
 }
 
@@ -204,15 +301,28 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
     raw.push(...page.rows);
     if (page.truncated) truncated = true;
   }
+  return { records: toRecords(kind, raw, iso), truncated, ...(error ? { error } : {}) };
+}
 
-  const records = kind === 'sales'
+/**
+ * Sales or calls as the drawer lists them. `source` picks which source a row
+ * names: 'first' or 'last' (the one a credited drill matched on); by default
+ * a sale names its last and a call its first, falling back to the other.
+ */
+function toRecords(kind, raw, iso, source = null) {
+  const sourceName = (x, fallbackFirst) => {
+    if (source === 'first') return x.firstSource?.name || null;
+    if (source === 'last') return x.lastSource?.name || null;
+    return fallbackFirst ? (x.firstSource?.name || x.lastSource?.name || null) : (x.lastSource?.name || x.firstSource?.name || null);
+  };
+  return kind === 'sales'
     ? raw.map((s) => ({
         date: iso(s.creationDate),
         email: s.lead?.email || '',
         name: s.product?.name || null,
         ...priceOf(s),
         state: s.refundDate ? 'REFUNDED' : (s.recurring ? 'RECURRING' : null),
-        source: s.lastSource?.name || s.firstSource?.name || null,
+        source: sourceName(s, false),
       }))
     : raw.map((c) => ({
         date: iso(c.creationDate),
@@ -220,9 +330,8 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
         name: c.name || c.tag || null,
         amount: null,
         state: c.state || (c.qualified ? 'QUALIFIED' : 'UNQUALIFIED'),
-        source: c.firstSource?.name || c.lastSource?.name || null,
+        source: sourceName(c, true),
       }));
-  return { records, truncated, ...(error ? { error } : {}) };
 }
 
 /**
@@ -290,6 +399,19 @@ export async function loadJourney(data, email, { tz = null, deadline = null } = 
 
 const TOUCH_PILL = '<span class="pill" title="Cohort from the leads with this source tag: leads that CLICKED this source. Attribution models can credit some conversions to a different source, so this can differ from the table cell.">touched ≠ credited</span>';
 
+/** What a credited drill matched on, and what it does not reproduce of the report. */
+const creditedPill = (attribution, kind) => {
+  const one = kind.replace(/s$/, '');
+  if (attribution === 'SCIENTIFIC') {
+    const title = `Matched like Scientific: the first source stored on each ${one} when it came within ${SCIENTIFIC_DAYS} days of the first click, the last source otherwise.`;
+    return `<span class="pill" title="${title}">credited · scientific</span>`;
+  }
+  const which = attribution === 'FIRST_CLICK' ? 'first' : 'last';
+  const title = `Matched on the ${which} source stored on each ${one}, the one ${which} click credits. `
+    + 'The report\'s attribution window is not applied here.';
+  return `<span class="pill" title="${title}">credited · ${which} click</span>`;
+};
+
 const notePill = (note, esc) => (note ? ` <span class="pill">${esc(note)}</span>` : '');
 
 /** The pill of a drill that sent only part of its tags: the list is incomplete, never a true 0. */
@@ -308,11 +430,15 @@ export function leadIncome(sales, accountCurrency) {
     .reduce((sum, s) => sum + (s.amount || 0), 0);
 }
 
-/** `{ subtitle, html }` for a cohort. `model = { leads, truncated, note?, tagsSent?, tagsLeft? }`. */
-export function renderCohort(ctx, { leads = [], truncated = false, note = '', tagsSent = 0, tagsLeft = 0 }) {
+/**
+ * `{ subtitle, html }` for a cohort. `model = { leads, truncated, note?, tagsSent?, tagsLeft?, inRange? }`:
+ * `inRange` says the leads joined in the report's range.
+ */
+export function renderCohort(ctx, { leads = [], truncated = false, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
-  const subtitle = `${fmt.int(leads.length)}${truncated || tagsLeft > 0 ? '+' : ''} leads touched this source`
+  const what = inRange ? 'leads joined in the range and touched this source' : 'leads touched this source';
+  const subtitle = `${fmt.int(leads.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${what}`
     + (truncated ? ', newest 250 shown' : '') + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
   if (!leads.length) {
     return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, 'leads', tagsSent, tagsLeft) : '<div class="empty">No leads returned for this source.</div>' };
@@ -356,7 +482,12 @@ export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncat
     return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, e(kind), tagsSent, tagsLeft) : `<div class="empty">No ${e(kind)} recorded for this cohort${inRange ? ' in the range' : ''}.</div>` };
   }
 
-  const html = `<div class="cohort">${records.map((r) => `
+  return { subtitle, html: recordRows(fmt, e, isSales, records) };
+}
+
+/** The list markup of sales or calls, one button per record (opens the lead's journey). */
+function recordRows(fmt, e, isSales, records) {
+  return `<div class="cohort">${records.map((r) => `
     <button type="button" class="cohort-row" data-email="${e(r.email)}">
       <div class="cohort-main">
         <span class="cohort-email">${e(r.email)}</span>
@@ -367,7 +498,34 @@ export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncat
         ${e(fmt.datetime(r.date))}${r.name ? ` · ${e(r.name)}` : ''}${r.source ? ` · src: ${e(r.source)}` : ''}
       </div>
     </button>`).join('')}</div>`;
-  return { subtitle, html };
+}
+
+/**
+ * `{ subtitle, html }` for the sales or calls credited to a row.
+ * `model = { kind, records, truncated, attribution, note?, tagsSent?, tagsLeft? }`, `attribution`
+ * being the report's model. Refunded sales are listed but not counted or
+ * summed: the report's Sales and Revenue leave them out too.
+ */
+export function renderCredited(ctx, { kind, records = [], truncated = false, attribution, note = '', tagsSent = 0, tagsLeft = 0 }) {
+  const { fmt } = ctx;
+  const e = ctx.esc || esc;
+  const isSales = kind === 'sales';
+  const counted = isSales ? records.filter((r) => r.state !== 'REFUNDED') : records;
+  const refunded = records.length - counted.length;
+  const inAccount = (r) => !r.currency || r.currency === fmt.currency;
+  const total = isSales ? counted.filter(inAccount).reduce((s, r) => s + (r.amount || 0), 0) : null;
+  const foreign = isSales ? counted.filter((r) => !inAccount(r)).length : 0;
+
+  const subtitle = `${fmt.int(counted.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${e(kind)} credited in the range`
+    + (truncated ? ', newest shown' : '')
+    + (isSales && total ? ` · <b class="good">${e(fmt.money(total))}</b>` : '')
+    + (refunded ? ` · ${fmt.int(refunded)} refunded, listed but not counted` : '')
+    + (foreign ? ` · ${fmt.int(foreign)} sale${foreign === 1 ? '' : 's'} in other currencies not summed` : '')
+    + ` ${creditedPill(attribution, kind)}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
+  if (!records.length) {
+    return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, e(kind), tagsSent, tagsLeft) : `<div class="empty">No ${e(kind)} credited to this row in the range.</div>` };
+  }
+  return { subtitle, html: recordRows(fmt, e, isSales, records) };
 }
 
 const JOURNEY_ICONS = {
@@ -451,15 +609,18 @@ export async function openLeadJourney(ctx, email, { drawer = null, back = null }
 }
 
 /**
- * Open the drill behind a report number: the cohort for `metric` 'leads',
- * or its sales or calls. `tags` are the row's source tags, most relevant
- * first; `note` is shown as a pill (e.g. "ad set cohort: <name>" for an ad
- * row). `range` ({ start, end } as YYYY-MM-DD) limits the sales or calls to
- * the report's range; the cohort itself has no date filter (a source tag
- * only records the lead's first touch). Clicking a lead opens its journey;
- * Back returns to the list without calling HYROS again.
+ * Open the drill behind a report number: the leads for `metric` 'leads', or
+ * the sales or calls. `tags` are the row's source tags, most relevant first;
+ * `note` is shown as a pill (e.g. "ad set cohort: <name>" for an ad row).
+ * `range` ({ start, end } as YYYY-MM-DD) is the report's range and
+ * `attribution` its model: under the CREDITED_MODELS the sales and calls are
+ * the ones that model credits to the tags; any other model lists the sales or
+ * calls of the leads that touched them. Leads are the ones that joined in the
+ * range and touched the tags, under every model.
+ * Clicking a lead opens its journey; Back returns to the list without calling
+ * HYROS again.
  */
-export async function openCohortDrill(ctx, { title, tags, metric = 'leads', label = '', note = '', range = null }) {
+export async function openCohortDrill(ctx, { title, tags, metric = 'leads', label = '', note = '', range = null, attribution = null }) {
   const e = ctx.esc || esc;
   const d = openDrawer(ctx.root, { title, subtitle: label });
   if (!tags?.length) {
@@ -483,12 +644,19 @@ export async function openCohortDrill(ctx, { title, tags, metric = 'leads', labe
 
   try {
     const { timezone: tz } = await ctx.data.account();
-    const cohort = await loadCohort(ctx.data, tags, { tz });
-    if (!live()) return d;
+    const dates = range ? { fromDate: dayStart(range.start, tz), toDate: dayEnd(range.end, tz, ctx.data.now()) } : null;
+    const credited = CREDITED_MODELS.includes(attribution) ? attribution : null;
     if (metric === 'leads') {
-      view = renderCohort(ctx, { ...cohort, note });
+      const cohort = await loadCohort(ctx.data, tags, { tz, dates });
+      if (!live()) return d;
+      view = renderCohort(ctx, { ...cohort, note, inRange: Boolean(dates) });
+    } else if (credited) {
+      const out = await loadCredited(ctx.data, metric, tags, { model: credited, tz, isCurrent: live, dates });
+      if (!live()) return d;
+      view = renderCredited(ctx, { kind: metric, ...out, attribution: credited, note });
     } else {
-      const dates = range ? { fromDate: dayStart(range.start, tz), toDate: dayEnd(range.end, tz, ctx.data.now()) } : null;
+      const cohort = await loadCohort(ctx.data, tags, { tz });
+      if (!live()) return d;
       const out = await loadRecords(ctx.data, metric, cohort.ids, { tz, isCurrent: live, dates });
       if (!live()) return d;
       view = renderRecords(ctx, {

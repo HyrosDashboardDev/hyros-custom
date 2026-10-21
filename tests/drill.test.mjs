@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadCohort, loadRecords, loadJourney, renderCohort, renderRecords, renderJourney, priceOf, leadIncome } from '../src/ui/drill.js';
+import {
+  loadCohort, loadRecords, loadCredited, loadJourney, renderCohort, renderRecords, renderCredited, renderJourney, priceOf, leadIncome,
+} from '../src/ui/drill.js';
 import { fmt } from '../src/ui/fmt.js';
 import { esc } from '../src/ui/dom.js';
 import { toQuery } from '../src/core/api.js';
@@ -33,11 +35,12 @@ function fakeData({ leads = [], nextPageId = null, recordsFor = () => ({ rows: [
       }
       running += 1;
       maxRunning = Math.max(maxRunning, running);
-      log.push(`start ${args.leadIds[0]}`);
+      const first = args.leadIds?.[0] ?? (args.lastSourceTags || args.firstSourceTags)?.[0];
+      log.push(`start ${first}`);
       await new Promise((resolve) => setImmediate(resolve));
-      log.push(`end ${args.leadIds[0]}`);
+      log.push(`end ${first}`);
       running -= 1;
-      return recordsFor(args.leadIds);
+      return recordsFor(args.leadIds, args);
     },
   };
 }
@@ -198,4 +201,96 @@ test('renderers state truncation, empty lists and failed clicks', () => {
   const j = renderJourney(ctx, { journey: { lead: {}, sales: [], journey: [] }, clicks: [], clicksError: 'down' });
   assert.match(j.html, /note err">Click history could not be fetched: down/);
   assert.match(j.html, /No journey events/);
+});
+
+test('loadCredited asks for the last source tags in batches of 50, in series, with the range', async () => {
+  const tags = Array.from({ length: 60 }, (_, i) => `@t${i}`);
+  const dates = { fromDate: '2026-01-01T00:00:00-05:00', toDate: '2026-09-30T23:59:59-05:00' };
+  const data = fakeData({ recordsFor: (_, req) => ({ rows: [{ lead: { email: `${req.lastSourceTags[0]}@x.test` }, creationDate: '2026-07-01T10:00:00Z', price: { price: 5, currency: 'EUR' }, lastSource: { name: 'L' }, firstSource: { name: 'F' } }], truncated: false }) });
+  const out = await loadCredited(data, 'sales', [...tags, '@t0'], { model: 'LAST_CLICK', dates });
+  assert.deepEqual(data.calls.map((c) => c.args.lastSourceTags.length), [50, 10]);
+  assert.ok(data.calls.every((c) => c.name === '/sales' && c.args.fromDate === dates.fromDate && c.args.toDate === dates.toDate));
+  assert.ok(data.calls.every((c) => c.opts.maxPages === 40), 'a credited list is the cell itself: it reads up to 40 pages per batch');
+  assert.ok(data.calls.every((c) => !('leadIds' in c.args) && !('firstSourceTags' in c.args)));
+  assert.equal(data.maxRunning, 1);
+  assert.equal(out.records.length, 2);
+  assert.equal(out.records[0].source, 'L', 'a last click drill names the last source');
+});
+
+test('loadCredited leaves a tag holding a comma out and counts it, and the drawer says so', async () => {
+  const data = fakeData({ recordsFor: () => ({ rows: [], truncated: false }) });
+  const out = await loadCredited(data, 'sales', ['@a', '@b,c'], { model: 'LAST_CLICK' });
+  assert.deepEqual(data.calls.map((c) => c.args.lastSourceTags), [['@a']]);
+  assert.doesNotThrow(() => toQuery(data.calls[0].args));
+  assert.equal(out.tagsSent, 1);
+  assert.equal(out.tagsLeft, 1);
+  const view = renderCredited(ctx, { kind: 'sales', ...out, attribution: 'LAST_CLICK' });
+  assert.match(view.subtitle, /^0\+ sales credited in the range/);
+  assert.match(view.subtitle, /first 1 of 2 sources/);
+  assert.match(view.html, /The other 1 were not queried/);
+});
+
+test('loadCredited under scientific keeps first sources within 30 days of the first click and last sources after', async () => {
+  const sale = (id, days, extra = {}) => ({
+    id, lead: { email: `${id}@x.test` }, price: { price: 10, currency: 'EUR' },
+    creationDate: new Date(Date.parse('2026-07-01T00:00:00Z') + days * 86400000).toISOString(),
+    firstSource: { name: 'F', clickDate: '2026-07-01T00:00:00+00:00' }, lastSource: { name: 'L' }, ...extra,
+  });
+  const byField = {
+    firstSourceTags: [sale('s1', 10), sale('s2', 40), sale('s3', 30), sale('s5', 5, { firstSource: { name: 'F' } })],
+    lastSourceTags: [sale('s4', 45), sale('s6', 10), sale('s3', 30)],
+  };
+  const data = fakeData({ recordsFor: (_, req) => ({ rows: req.firstSourceTags ? byField.firstSourceTags : byField.lastSourceTags, truncated: false }) });
+  const out = await loadCredited(data, 'sales', ['@a'], { model: 'SCIENTIFIC', dates: { fromDate: 'F', toDate: 'T' } });
+  assert.deepEqual(data.calls.map((c) => Object.keys(c.args).filter((k) => k.endsWith('SourceTags'))), [['firstSourceTags'], ['lastSourceTags']]);
+  assert.ok(data.calls.every((c) => c.args.fromDate === 'F' && c.args.toDate === 'T'));
+  assert.deepEqual(out.records.map((r) => r.email), ['s1@x.test', 's3@x.test', 's4@x.test'],
+    'within 30 days by the first source, later by the last; no click date is no credit; one sale once');
+  assert.deepEqual(out.records.map((r) => r.source), ['F', 'F', 'L']);
+  assert.match(renderCredited(ctx, { kind: 'sales', ...out, attribution: 'SCIENTIFIC' }).subtitle, /^3 sales credited in the range.*credited · scientific/);
+});
+
+test('loadCredited under scientific still runs the last-source filter when the first one hit the page cap', async () => {
+  const data = fakeData({ recordsFor: (_, req) => ({ rows: [], truncated: Boolean(req.firstSourceTags) }) });
+  const out = await loadCredited(data, 'calls', ['@a'], { model: 'SCIENTIFIC' });
+  assert.deepEqual(data.calls.map((c) => (c.args.firstSourceTags ? 'first' : 'last')), ['first', 'last']);
+  assert.equal(out.truncated, true);
+});
+
+test('loadCredited uses the first source tags under first click, on calls too', async () => {
+  const data = fakeData({ recordsFor: () => ({ rows: [{ lead: { email: 'a@x.test' }, firstSource: { name: 'F' }, lastSource: { name: 'L' } }], truncated: true }) });
+  const out = await loadCredited(data, 'calls', ['@a'], { model: 'FIRST_CLICK' });
+  assert.equal(data.calls[0].name, '/calls');
+  assert.deepEqual(data.calls[0].args.firstSourceTags, ['@a']);
+  assert.equal(out.records[0].source, 'F');
+  assert.equal(out.truncated, true);
+});
+
+test('loadCohort sends the join date range when given', async () => {
+  const data = fakeData({ leads: [lead(1)] });
+  await loadCohort(data, ['@a'], { dates: { fromDate: 'F', toDate: 'T' } });
+  assert.equal(data.calls[0].args.fromDate, 'F');
+  assert.equal(data.calls[0].args.toDate, 'T');
+});
+
+
+test('renderCredited counts and sums only the sales that are not refunded, and lists all', () => {
+  const records = [
+    { email: 'a@x.test', amount: 100, currency: 'EUR', state: null },
+    { email: 'b@x.test', amount: 50, currency: 'EUR', state: 'RECURRING' },
+    { email: 'c@x.test', amount: 22, currency: 'EUR', state: 'REFUNDED' },
+  ];
+  const out = renderCredited({ ...ctx, fmt: { ...fmt, currency: 'EUR' } }, { kind: 'sales', records, attribution: 'LAST_CLICK' });
+  assert.match(out.subtitle, /^2 sales credited in the range/);
+  assert.match(out.subtitle, /1 refunded, listed but not counted/);
+  assert.match(out.subtitle, /credited · last click/);
+  assert.doesNotMatch(out.subtitle, /touched/);
+  assert.equal((out.html.match(/class="cohort-row"/g) || []).length, 3);
+  assert.match(renderCredited(ctx, { kind: 'calls', records: [], attribution: 'FIRST_CLICK' }).html, /No calls credited to this row in the range/);
+});
+
+test('renderCohort names the leads by join date and says they are touched, not credited', () => {
+  const touched = renderCohort(ctx, { leads: [{ email: 'a@x.test' }], inRange: true });
+  assert.match(touched.subtitle, /^1 leads joined in the range and touched this source/);
+  assert.match(touched.subtitle, /touched ≠ credited/);
 });
