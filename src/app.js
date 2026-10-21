@@ -132,6 +132,7 @@ async function show(id) {
 
 async function enterApp(account) {
   fmt.currency = fmt.currencyCode(account.currency);
+  fmt.timezone = account.timezone;
   $('#acctLabel').textContent = account.email || '';
 
   const views = await Promise.all(VIEWS.map((id) => loadView(id).catch(() => null)));

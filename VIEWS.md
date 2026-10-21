@@ -85,7 +85,7 @@ Partial states are the view's job:
 |---|---|
 | `root` | the element the view renders into (a fresh `<div class="view">` per render) |
 | `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `cached`, `invalidate`, `now`. Which paths to call and how to shape the rows: `docs/RECIPES.md` |
-| `fmt` | `src/ui/fmt.js`: `money(v)`, `moneyIn(v, code)`, `money0(v)`, `int(v)`, `pct(v)`, `ratio(v)`, `date(iso)`, `datetime(iso)`, `currencyCode(code)`. Money is in the account currency; a missing value prints `-` |
+| `fmt` | `src/ui/fmt.js`: `money(v)`, `moneyIn(v, code)`, `money0(v)`, `int(v)`, `pct(v)`, `ratio(v)`, `date(iso)`, `datetime(iso)`, `currencyCode(code)`. Money is in the account currency, dates in the account timezone; a missing value prints `-` |
 | `esc(s)` | HTML-escape; use it on every string that came from HYROS |
 | `kpis(list)` | KPI tiles HTML, already wrapped in `<div class="kpis">`: `[{ label, value, sub?, cls? }]`. `label`, `value` and `sub` are rendered as **escaped text** (no HTML inside them; pass values already formatted with `fmt`). `cls: 'hy'` goes on the tile and makes it the one highlight tile of the screen; `cls: 'good'` or `'bad'` goes on the figure (`.kpi-value`), the money tone; any other `cls` is ignored |
 | `now` | the clock views should use (a function returning a `Date`) |
@@ -159,8 +159,10 @@ follows:
 - **Money and numbers go through `ctx.fmt`.** It knows the account currency
   and prints `-` for a missing value.
 - **Dates stay as HYROS returns them** until render; format them only when
-  building the HTML (`ctx.fmt.date`, `ctx.fmt.datetime`). Parse HYROS dates
-  with `src/core/dates.js` (`parseHyrosDate`, `offsetSuffix`).
+  building the HTML (`ctx.fmt.date`, `ctx.fmt.datetime`), which print them in
+  the account timezone, never the browser's. A YYYY-MM-DD range bound goes in
+  as it is. Parse HYROS dates with `src/core/dates.js` (`parseHyrosDate`,
+  `offsetSuffix`).
 - **Escape every string from data** with `ctx.esc` before it reaches
   `innerHTML`.
 - **Read paths only.** `READ_PATHS` in `src/core/api.js` is the list;
