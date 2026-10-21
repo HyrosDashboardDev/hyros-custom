@@ -2,6 +2,36 @@
  * Number, money and date formatting shared by every view, so two views never
  * print the same figure two ways. A missing value prints as '-'.
  */
+import { parseTimezone } from '../core/dates.js';
+
+/* A date or date-time with no offset ('2026-02-19', '2026-02-19T10:00:00'). */
+const NAIVE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/;
+
+/**
+ * Print `iso` in the account timezone, never the browser's: ranges are
+ * picked in the account zone, so a sale at 02:00Z on an account at -05:00
+ * belongs to the day before. A value with no offset is already account
+ * wall-clock time (a calendar day, or a date whose zone HYROS left out) and
+ * prints as written. An offset zone ('-05:00') shifts the instant and prints
+ * it as UTC; a zone that is not understood prints UTC, like src/core/dates.js.
+ */
+function inAccountZone(iso, options) {
+  if (!iso) return '-';
+  const raw = String(iso).trim();
+  let d;
+  let timeZone = 'UTC';
+  if (NAIVE_RE.test(raw)) {
+    d = new Date(`${raw.length === 10 ? `${raw}T00:00:00` : raw.replace(' ', 'T')}Z`);
+  } else {
+    d = new Date(raw);
+    const zone = parseTimezone(fmt.timezone);
+    if (zone?.kind === 'iana') timeZone = zone.name;
+    else d = new Date(d.getTime() + (zone?.minutes || 0) * 60_000);
+  }
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('en-US', { ...options, timeZone });
+}
+
 export const fmt = {
   /* Money keeps the cents the HYROS UI shows. */
   cents: true,
@@ -9,6 +39,9 @@ export const fmt = {
      reports every amount in the account currency, so a EUR account must read
      €357.04, not $357.04. app.js sets it once the account is loaded. */
   currency: 'USD',
+  /* The account's timezone as data.account().timezone returns it ('-05:00',
+     'UTC', 'America/New_York'). app.js sets it once the account is loaded. */
+  timezone: null,
   /* ISO 4217 codes are three letters. Anything else from the API (or a
      malformed value) falls back to USD so no untrusted string ever reaches
      the DOM through a money cell. */
@@ -56,16 +89,11 @@ export const fmt = {
     if (v === null || v === undefined || !Number.isFinite(v)) return '-';
     return v.toFixed(2);
   },
+  /* A HYROS date, or a range bound as YYYY-MM-DD, in the account timezone. */
   date(iso) {
-    if (!iso) return '-';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '-';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return inAccountZone(iso, { month: 'short', day: 'numeric', year: 'numeric' });
   },
   datetime(iso) {
-    if (!iso) return '-';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '-';
-    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return inAccountZone(iso, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   },
 };
