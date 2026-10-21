@@ -395,6 +395,7 @@ function wireBody(ctx, rows, cols) {
       label: col?.l || '',
       note: state.level === 'ad' && row._parentSet ? `ad set cohort: ${row._parentSet}` : '',
       range: current?.range ? { start: current.range.start, end: current.range.end } : null,
+      attribution: current?.model || null,
     });
   }));
 }
