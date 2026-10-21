@@ -210,6 +210,7 @@ test('loadCredited asks for the last source tags in batches of 50, in series, wi
   const out = await loadCredited(data, 'sales', [...tags, '@t0'], { model: 'LAST_CLICK', dates });
   assert.deepEqual(data.calls.map((c) => c.args.lastSourceTags.length), [50, 10]);
   assert.ok(data.calls.every((c) => c.name === '/sales' && c.args.fromDate === dates.fromDate && c.args.toDate === dates.toDate));
+  assert.ok(data.calls.every((c) => c.opts.maxPages === 20), 'a credited list is the cell itself: it reads up to 20 pages per batch');
   assert.ok(data.calls.every((c) => !('leadIds' in c.args) && !('firstSourceTags' in c.args)));
   assert.equal(data.maxRunning, 1);
   assert.equal(out.records.length, 2);

@@ -29,6 +29,11 @@ export const MAX_TAGS = 50;
 export const BATCH = 50;
 /** Sales or calls per batch: 4 pages of 250 before the drawer says "newest shown". */
 export const BATCH_MAX_PAGES = 4;
+/**
+ * Credited sales or calls per batch of tags: 20 pages of 250. The credited
+ * list is the cell itself, so it reads further than a cohort batch.
+ */
+export const CREDITED_MAX_PAGES = 20;
 /** Click history window: bounded (the docs recommend a fromDate) but wide enough for a long journey. */
 export const CLICKS_LOOKBACK_DAYS = 365;
 /** Click history: 2 pages of 250 before the drawer says the list was cut short. */
@@ -198,8 +203,8 @@ export const CREDITED_FIELD = { LAST_CLICK: 'lastSourceTags', FIRST_CLICK: 'firs
 /**
  * The sales or calls credited to `tags` under `model`, made in `dates`: the
  * tags go in batches of MAX_TAGS on the path's first or last source filter, IN
- * SERIES, at most 4 pages each. A record has one first and one last source,
- * so two batches never return the same one. A tag holding a comma cannot be
+ * SERIES, at most CREDITED_MAX_PAGES pages each. A record has one first and
+ * one last source, so two batches never return the same one. A tag holding a comma cannot be
  * sent (the API reads the array as one comma-separated value), so it counts
  * in `tagsLeft`. Stops like loadRecords.
  * Returns { records, truncated, tagsSent, tagsLeft, error? }.
@@ -216,7 +221,7 @@ export async function loadCredited(data, kind, tags, { model, tz = null, deadlin
     if (!isCurrent()) { truncated = true; break; }
     if (deadline && Date.now() >= deadline) { truncated = true; error = 'time budget'; break; }
     const page = await data.pagedInfo(path, { [field]: batch, ...(dates || {}) },
-      { maxPages: BATCH_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
+      { maxPages: CREDITED_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
     raw.push(...page.rows);
     if (page.truncated) truncated = true;
   }
