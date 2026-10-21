@@ -169,7 +169,7 @@ export function tilesHtml(ctx, tab, model, { range, filters } = {}) {
   }
 
   const html = ctx.kpis(items);
-  const line = range ? `<div class="kpi-range">${ctx.esc(range.label)}: ${ctx.esc(fmt.date(`${range.start}T12:00:00`))} to ${ctx.esc(fmt.date(`${range.end}T12:00:00`))}</div>` : '';
+  const line = range ? `<div class="kpi-range">${ctx.esc(range.label)}: ${ctx.esc(fmt.date(range.start))} to ${ctx.esc(fmt.date(range.end))}</div>` : '';
   return html.replace('<div class="kpis">', `<div class="kpis">${line}`);
 }
 

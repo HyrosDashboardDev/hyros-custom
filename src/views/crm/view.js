@@ -142,7 +142,7 @@ function bodyHtml(ctx, range, model, loading) {
   const title = `<h2 class="section">${ctx.esc(label)} <span class="rowcount">${ctx.esc(countText(ctx, tab, model, rows.length))}</span></h2>`;
   if (!rows.length) {
     const filtered = Object.keys(filterParams(tab, state.filters[tab], state.search)).length || (tab === 'leads' && state.attr !== 'all');
-    const why = all && !filtered ? 'No row matches.' : `No ${tab} ${VERBS[tab]} between ${ctx.fmt.date(`${range.start}T12:00:00`)} and ${ctx.fmt.date(`${range.end}T12:00:00`)}${filtered ? ' with these filters' : ''}.`;
+    const why = all && !filtered ? 'No row matches.' : `No ${tab} ${VERBS[tab]} between ${ctx.fmt.date(range.start)} and ${ctx.fmt.date(range.end)}${filtered ? ' with these filters' : ''}.`;
     return `${notes.join('')}${title}<div class="empty">${ctx.esc(why)}</div>`;
   }
   return `${notes.join('')}${title}${tableHtml(ctx, tab, rows, state.sort[tab])}`;
