@@ -36,3 +36,26 @@ test('Formatting: money follows the account currency', async () => {
   check('fmt.moneyIn leaves the account currency untouched afterwards', fmt.money(1), '€1.00');
   fmt.cents = was.cents; fmt.currency = was.currency;
 });
+
+test('Formatting: dates print in the account timezone, not the browser one', async () => {
+  const { fmt } = await import('../src/ui/fmt.js');
+  const was = fmt.timezone;
+  // 21:00 on February 19 at -05:00 is 02:00Z on February 20.
+  const sale = '2026-02-20T02:00:00Z';
+  fmt.timezone = '-05:00';
+  check('fmt.date follows an offset zone', fmt.date(sale), 'Feb 19, 2026');
+  check('fmt.datetime follows an offset zone', fmt.datetime(sale), 'Feb 19, 9:00 PM');
+  check('fmt.datetime keeps an ISO offset from HYROS', fmt.datetime('2026-02-19T21:00:00-05:00'), 'Feb 19, 9:00 PM');
+  fmt.timezone = 'America/New_York';
+  check('fmt.date follows an IANA zone', fmt.date(sale), 'Feb 19, 2026');
+  check('fmt.datetime follows an IANA zone', fmt.datetime(sale), 'Feb 19, 9:00 PM');
+  fmt.timezone = 'Asia/Tokyo';
+  check('fmt.datetime moves with the account zone', fmt.datetime(sale), 'Feb 20, 11:00 AM');
+  fmt.timezone = 'not a zone';
+  check('fmt.datetime prints UTC when the zone is not understood', fmt.datetime(sale), 'Feb 20, 2:00 AM');
+  fmt.timezone = '+14:00';
+  check('fmt.date prints a YYYY-MM-DD range bound as written', fmt.date('2026-02-19'), 'Feb 19, 2026');
+  check('fmt.datetime prints a date with no offset as written', fmt.datetime('2026-02-19T21:00:00'), 'Feb 19, 9:00 PM');
+  check('fmt.date prints - for a missing or broken date', [fmt.date(null), fmt.date('soon')].join(','), '-,-');
+  fmt.timezone = was;
+});
