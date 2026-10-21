@@ -111,16 +111,24 @@ export function openDrawer(root, { title = '', subtitle = '' } = {}) {
  * The documented `price` object is in the account currency (what the HYROS
  * UI shows), so it wins. The undocumented `usdPrice` is a USD conversion;
  * it is kept as `usdAmount` and used only when `price` is missing.
- * Returns { amount, currency, usdAmount? }.
+ * `refundedAmount` is the object's `refunded` (full or partial), only when > 0.
+ * Returns { amount, currency, usdAmount?, refundedAmount? }.
  */
 export function priceOf(x) {
   const usd = x?.usdPrice?.price != null ? Number(x.usdPrice.price) || 0 : null;
+  const refunded = (p) => {
+    const r = Number(p?.refunded) || 0;
+    return r > 0 ? { refundedAmount: r } : {};
+  };
   if (x?.price && typeof x.price === 'object' && x.price.price != null) {
-    return { amount: Number(x.price.price) || 0, currency: x.price.currency || null, ...(usd !== null ? { usdAmount: usd } : {}) };
+    return { amount: Number(x.price.price) || 0, currency: x.price.currency || null, ...(usd !== null ? { usdAmount: usd } : {}), ...refunded(x.price) };
   }
-  if (usd !== null) return { amount: usd, currency: x.usdPrice.currency || 'USD' };
+  if (usd !== null) return { amount: usd, currency: x.usdPrice.currency || 'USD', ...refunded(x.usdPrice) };
   return { amount: Number(x?.price) || 0, currency: null };
 }
+
+/** What a sale adds to a total: its amount net of refunds, as HYROS revenue counts it. */
+export const netAmount = (r) => (r.amount || 0) - (r.refundedAmount || 0);
 
 /** ISO dates whatever form HYROS sent; legacy dates with an unknown zone take the account offset. */
 const isoFor = (tz) => {
@@ -301,11 +309,11 @@ const tagsPill = (fmt, sent, left) => (left > 0
 const notQueried = (fmt, what, sent, left) =>
   `<div class="empty">No ${what} from the first ${fmt.int(sent)} of ${fmt.int(sent + left)} sources. The other ${fmt.int(left)} were not queried.</div>`;
 
-/** The income of a lead: its sales in the account currency (other currencies are not summed). */
+/** The income of a lead: its sales in the account currency, net of refunds (other currencies are not summed). */
 export function leadIncome(sales, accountCurrency) {
   return (sales || [])
     .filter((s) => !s.currency || s.currency === accountCurrency)
-    .reduce((sum, s) => sum + (s.amount || 0), 0);
+    .reduce((sum, s) => sum + netAmount(s), 0);
 }
 
 /** `{ subtitle, html }` for a cohort. `model = { leads, truncated, note?, tagsSent?, tagsLeft? }`. */
@@ -344,7 +352,7 @@ export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncat
   const e = ctx.esc || esc;
   const isSales = kind === 'sales';
   const inAccount = (r) => !r.currency || r.currency === fmt.currency;
-  const total = isSales ? records.filter(inAccount).reduce((s, r) => s + (r.amount || 0), 0) : null;
+  const total = isSales ? records.filter(inAccount).reduce((s, r) => s + netAmount(r), 0) : null;
   const foreign = isSales ? records.filter((r) => !inAccount(r)).length : 0;
 
   const subtitle = `${fmt.int(records.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${e(kind)}${inRange ? ' in the range' : ''} from ${fmt.int(cohortSize)} touched leads`

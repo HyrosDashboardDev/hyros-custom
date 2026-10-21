@@ -348,6 +348,18 @@ test('the calls tile reads qualified from the second aggregation, or from the fi
 
 /* ---------------- markup ---------------- */
 
+test('Revenue in rows is net of refunds, like HYROS revenue', () => {
+  const sales = shapeRows('sales', [
+    { lead: { email: 'a@x.test' }, price: { price: 100, refunded: 0, currency: 'USD' } },
+    { lead: { email: 'b@x.test' }, refundDate: '2026-09-02T10:00:00-05:00', price: { price: 50, refunded: 50, currency: 'USD' } },
+    { lead: { email: 'c@x.test' }, price: { price: 40, refunded: 10, currency: 'USD' } },
+  ], TZ);
+  assert.equal(sales[1].refunded, true);
+  assert.equal(sales[1].refundedAmount, 50);
+  const model = { aggs: { firstSource: readAggregation({ groups: [], totalCount: 3 }) }, aggErrors: [], list: { rows: sales, truncated: false } };
+  assert.match(tilesHtml(ctx, 'sales', model, { range: RANGE }), /Revenue in rows<\/div>\s*<div class="kpi-value good">\$130\.00</);
+});
+
 test('every HYROS string is escaped in the table, the tiles and the chips', () => {
   const evil = '<img src=x onerror=alert(1)>';
   const rows = shapeRows('leads', [{ id: 'L1', email: `${evil}@x.test`, firstName: evil, currentStage: { name: evil }, tags: [evil],

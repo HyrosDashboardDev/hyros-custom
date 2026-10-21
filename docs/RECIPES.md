@@ -405,7 +405,9 @@ both, and sort on `Date.parse` of its answer.
 Money on a sale or subscription: the `price` object (`price.price`,
 `price.currency`) is in the account currency and wins; the undocumented
 `usdPrice` is a USD conversion, use it only when `price` is missing. A
-mixed-currency account sums face values.
+mixed-currency account sums face values. Each price object also carries
+`refunded`, the refunded amount (full or partial): a total of sales subtracts
+it, because HYROS revenue is the price minus the refunded amount.
 
 What to keep from each row:
 
@@ -417,7 +419,7 @@ What to keep from each row:
 | Subscription | `id` or `subscriptionId`, `lead.email`, `date` = `startDate` or `creationDate`, `endDate`, `name` or `planId`, price, `periodicity`, `status`, `provider.integration.name` |
 
 Income per lead: the lead object has no revenue field. Show it where one
-lead is open (the Drill journey sums its sales in the account currency)
+lead is open (the Drill journey sums its sales in the account currency, net of refunds)
 rather than joining every sale of the window to every lead.
 `ctx.data.stages()` gives the stage names for the stage filter.
 
