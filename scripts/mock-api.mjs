@@ -76,13 +76,13 @@ const adAccounts = () => mock.adAccounts ?? AD_ACCOUNTS;
 const LEVELS_FOR = {
   FACEBOOK: ['facebook_campaign', 'facebook_adset', 'facebook_ad'],
   GOOGLE: ['google_campaign', 'google_ad'],
-  GOOGLE_V2: ['google_v2_adgroup', 'google_v2_keyword'],
+  GOOGLE_V2: ['google_v2_adgroup', 'google_v2_ad', 'google_v2_keyword'],
   TIKTOK: ['tiktok_adgroup', 'tiktok_ad'],
   SNAPCHAT: ['snapchat_adsquad', 'snapchat_ad'],
   PINTEREST: ['pinterest_adgroup', 'pinterest_ad'],
-  TWITTER: ['twitter_adgroup'],
+  TWITTER: ['twitter_adgroup', 'twitter_ad'],
   BING: ['bing_adgroup', 'bing_ad'],
-  LINKEDIN: ['linkedin_campaign'],
+  LINKEDIN: ['linkedin_campaign', 'linkedin_ad'],
   REDDIT: [],
 };
 

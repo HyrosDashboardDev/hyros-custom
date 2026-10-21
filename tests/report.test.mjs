@@ -24,6 +24,8 @@ const FB = { id: '101', name: 'Meta main', type: 'FACEBOOK' };
 const GG = { id: '202', name: 'Google <b>', type: 'GOOGLE' };
 const G2 = { id: '303', name: 'Google v2', type: 'GOOGLE_V2' };
 const RD = { id: '404', name: 'Reddit', type: 'REDDIT' };
+const TW = { id: '505', name: 'Twitter', type: 'TWITTER' };
+const LI = { id: '606', name: 'LinkedIn', type: 'LINKEDIN' };
 
 /**
  * The real data API (cached/peek semantics included) over a fake API client
@@ -77,11 +79,11 @@ const wire = (id, extra = {}) => ({ id, name: `set ${id}`, cost: 10, total_reven
 const base = { kind: 'adset', model: 'LAST_CLICK', window: 0, range: RANGE, tz: TZ, now: NOW };
 const far = () => Date.now() + 100000;
 
-test('every ad-account type maps to its level; types without one are set apart', () => {
-  const p = partitionAccounts([FB, GG, G2, RD]);
-  assert.deepEqual(p.adset.map((a) => a.id), ['101', '202', '303']);
-  assert.deepEqual(p.ad.map((a) => a.id), ['101', '202']);
-  assert.deepEqual(p.noAdLevel.map((a) => a.id), ['303']);
+test('every ad-account type maps to its levels; types without one are set apart', () => {
+  const p = partitionAccounts([FB, GG, G2, TW, LI, RD]);
+  assert.deepEqual(p.adset.map((a) => a.id), ['101', '202', '303', '505', '606']);
+  assert.deepEqual(p.ad.map((a) => a.id), ['101', '202', '303', '505', '606']);
+  assert.deepEqual(p.noAdLevel, []);
   assert.deepEqual(p.unsupported.map((a) => a.id), ['404']);
 });
 
@@ -121,6 +123,32 @@ test('levels are the lowercase API names, snapchat_adsquad included', () => {
     for (const level of Object.values(levels)) if (level) assert.match(level, /^[a-z0-9_]+$/);
   }
   assert.equal(LEVELS_BY_TYPE.SNAPCHAT.adset, 'snapchat_adsquad');
+});
+
+// The SOURCE_LINK_AD level of each platform, copied from the backend
+// (AdspendAttributionLevelType): every platform the report covers has one.
+const API_AD_LEVELS = {
+  FACEBOOK: 'facebook_ad', GOOGLE: 'google_ad', GOOGLE_V2: 'google_v2_ad', TIKTOK: 'tiktok_ad', SNAPCHAT: 'snapchat_ad',
+  PINTEREST: 'pinterest_ad', TWITTER: 'twitter_ad', BING: 'bing_ad', LINKEDIN: 'linkedin_ad',
+};
+
+test('every type asks for the ad level the API has for its platform', () => {
+  assert.deepEqual(Object.fromEntries(Object.entries(LEVELS_BY_TYPE).map(([type, levels]) => [type, levels.ad])), API_AD_LEVELS);
+});
+
+test('Google V2, Twitter and LinkedIn ads load at their ad level and join to their ad set through parent_id', async () => {
+  const env = setup({ report: (id) => [wire(`${id}-ad`, { parent_id: Number(`${id}0`), parent_name: null })] });
+  const memo = new Map();
+  const out = await loadReport(env.data, { ...base, kind: 'ad', selected: [G2, TW, LI], supported: [G2, TW, LI], memo, deadline: far() });
+  assert.deepEqual(env.reports().map((c) => c.params.level), ['google_v2_ad', 'twitter_ad', 'linkedin_ad']);
+  assert.deepEqual(env.calls.filter((c) => c.path === '/sources').map((c) => c.params.adSourceIds), [['3030', '5050', '6060']]);
+  const ads = enrichAds(out.rows, memo);
+  assert.deepEqual(ads.map((a) => [a.id, a._account, a._adset, a._parentSet, a.tag]), [
+    ['303-ad', '303', '3030', 'src 3030', '@t3030'],
+    ['505-ad', '505', '5050', 'src 5050', '@t5050'],
+    ['606-ad', '606', '6060', 'src 6060', '@t6060'],
+  ]);
+  assert.deepEqual(levelRows({ level: 'ad', ads, path: [{ level: 'adset', id: '6060' }] }).map((a) => a.id), ['606-ad']);
 });
 
 // `fields` values GET /attribution accepts (AttributionField api names) and the
