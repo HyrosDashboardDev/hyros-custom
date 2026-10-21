@@ -438,6 +438,11 @@ row carries the union of its members' tags (Report step 6).
   batch. List refunded sales but leave them out of the count and the total,
   as the report's Sales and Revenue do. Say in the panel what was matched and
   that the attribution window is not applied.
+- Leads, under every model: `ctx.data.call('/leads', { tags, fromDate, toDate, pageSize: 250 })`,
+  the leads that joined in the range and touched the row's sources. The last
+  source stored on a lead moves with its later clicks, so filtering on it
+  does not give the cell; say in the panel that the list is the touched
+  leads, not the credited count.
 - Touched (Scientific, which no filter reproduces): the cohort is
   `ctx.data.call('/leads', { tags, pageSize: 250 })`, the leads that touched
   those sources, which is not the attribution-credited count in the cell; say
