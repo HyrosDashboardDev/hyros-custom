@@ -19,9 +19,10 @@
  * the drill asks for both and keeps each record by that rule.
  *
  * A model with no credited rule falls back to the leads that TOUCHED the
- * row's sources (GET /leads?tags=...), then their sales or calls by lead id in
- * batches of 50. That is not the credited count in the cell, and the drawer
- * says so.
+ * row's sources (GET /leads?tags=..., newest first, up to COHORT_MAX_PAGES
+ * pages), then their sales or calls by lead id in batches of 50. That is not
+ * the credited count in the cell, and the drawer says so, and says when older
+ * leads were not queried.
  */
 import { esc } from './dom.js';
 import { TIMEOUTS, clampTimeout } from '../core/budget.js';
@@ -36,7 +37,8 @@ export const BATCH_MAX_PAGES = 4;
 /**
  * Credited sales or calls per batch of tags: 40 pages of 250. The credited
  * list is the cell itself, so it reads further than a cohort batch, and under
- * Scientific its first-source filter also returns the later sales it drops.
+ * Scientific its first-source filter also returns the later sales it drops;
+ * the drill time limit still bounds it.
  */
 export const CREDITED_MAX_PAGES = 40;
 /**
@@ -45,6 +47,10 @@ export const CREDITED_MAX_PAGES = 40;
  * `scientificDaysRange`, so HYROS computes its cells with this default.
  */
 export const SCIENTIFIC_DAYS = 30;
+/** Cohort leads: 8 pages of 250 (the newest 2,000) before the drawer says older leads were not read. */
+export const COHORT_MAX_PAGES = 8;
+/** A drill stops starting calls after this long and says what it did not query. */
+export const DRILL_MS = 60000;
 /** Click history window: bounded (the docs recommend a fromDate) but wide enough for a long journey. */
 export const CLICKS_LOOKBACK_DAYS = 365;
 /** Click history: 2 pages of 250 before the drawer says the list was cut short. */
@@ -179,27 +185,29 @@ const chunk = (arr, n) => {
 /* ---------------- loads ---------------- */
 
 /**
- * The cohort: one page of the newest 250 leads that touched any of `tags`.
- * Only the first MAX_TAGS tags are sent, so callers put the most relevant
- * first; `tagsLeft` counts the ones left out. A tag holding a comma is left
- * out too: the API reads `tags` as one comma-separated value, so it cannot be
- * sent. `dates` ({ fromDate, toDate }) keeps only the leads that joined in
- * that range. Merged leads (`originLead`) are dropped. Returns
- * { leads, ids, truncated, tagsSent, tagsLeft }.
+ * The cohort: the leads that touched any of `tags`, newest first, at most
+ * COHORT_MAX_PAGES pages of 250 (`truncated` when more exist or `deadline`
+ * came first). Only the first MAX_TAGS tags are sent, so callers put the most
+ * relevant first; `tagsLeft` counts the ones left out. A tag holding a comma
+ * is left out too: the API reads `tags` as one comma-separated value, so it
+ * cannot be sent. `dates` ({ fromDate, toDate }) keeps only the leads that
+ * joined in that range. Merged leads (`originLead`) are dropped. Returns
+ * { leads, ids, truncated, tagsSent, tagsLeft, error? }.
  */
 export async function loadCohort(data, tags, { tz = null, deadline = null, dates = null } = {}) {
   const all = [...new Set((tags || []).filter(Boolean))];
   const list = all.filter((t) => !String(t).includes(',')).slice(0, MAX_TAGS);
-  const body = await data.call('/leads', { tags: list, pageSize: 250, ...(dates || {}) },
-    { timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
+  const page = await data.pagedInfo('/leads', { tags: list, ...(dates || {}) },
+    { maxPages: COHORT_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
   const iso = isoFor(tz);
-  const raw = listOf(body).filter((l) => !l.originLead);
+  const raw = page.rows.filter((l) => !l.originLead);
   return {
     leads: raw.map((l) => compactLead(l, iso)),
     ids: raw.map((l) => l.id).filter(Boolean),
-    truncated: Boolean(body?.nextPageId),
+    truncated: Boolean(page.truncated),
     tagsSent: list.length,
     tagsLeft: all.length - list.length,
+    ...(page.error ? { error: page.error } : {}),
   };
 }
 
@@ -412,6 +420,9 @@ const creditedPill = (attribution, kind) => {
   return `<span class="pill" title="${title}">credited · ${which} click</span>`;
 };
 
+/** The subtitle part of a drill that hit its time limit (DRILL_MS). */
+const stoppedNote = (error) => (error === 'time budget' ? ', stopped at the time limit, the rest was not queried' : '');
+
 const notePill = (note, esc) => (note ? ` <span class="pill">${esc(note)}</span>` : '');
 
 /** The pill of a drill that sent only part of its tags: the list is incomplete, never a true 0. */
@@ -431,17 +442,24 @@ export function leadIncome(sales, accountCurrency) {
 }
 
 /**
- * `{ subtitle, html }` for a cohort. `model = { leads, truncated, note?, tagsSent?, tagsLeft?, inRange? }`:
- * `inRange` says the leads joined in the report's range.
+ * `{ subtitle, html }` for a cohort. `model = { leads, truncated, error?, note?, tagsSent?, tagsLeft?, inRange? }`:
+ * `inRange` says the leads joined in the report's range. A `truncated`
+ * cohort says that older leads were not read, never shows a bare 0.
  */
-export function renderCohort(ctx, { leads = [], truncated = false, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
+export function renderCohort(ctx, { leads = [], truncated = false, error = null, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const what = inRange ? 'leads joined in the range and touched this source' : 'leads touched this source';
   const subtitle = `${fmt.int(leads.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${what}`
-    + (truncated ? ', newest 250 shown' : '') + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
+    + (truncated ? `, newest ${fmt.int(leads.length)} shown, older ones not read` : '')
+    + stoppedNote(error)
+    + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
   if (!leads.length) {
-    return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, 'leads', tagsSent, tagsLeft) : '<div class="empty">No leads returned for this source.</div>' };
+    if (tagsLeft > 0) return { subtitle, html: notQueried(fmt, 'leads', tagsSent, tagsLeft) };
+    if (truncated) {
+      return { subtitle, html: '<div class="empty">No leads among the ones read. Older leads were not read.</div>' };
+    }
+    return { subtitle, html: '<div class="empty">No leads returned for this source.</div>' };
   }
 
   const html = `<div class="cohort">${leads.map((l) => `
@@ -462,10 +480,14 @@ export function renderCohort(ctx, { leads = [], truncated = false, note = '', ta
 
 /**
  * `{ subtitle, html }` for the sales or calls of a cohort.
- * `model = { kind, records, cohortSize, truncated, note?, tagsSent?, tagsLeft?, inRange? }`;
- * `inRange` says the records were limited to the report's date range.
+ * `model = { kind, records, cohortSize, truncated, cohortCut?, error?, note?, tagsSent?, tagsLeft?, inRange? }`;
+ * `inRange` says the records were limited to the report's date range,
+ * `truncated` that a lead batch had more pages than were read, `cohortCut`
+ * that the cohort itself stopped before its oldest leads, and `error` 'time
+ * budget' that the drill hit its time limit. Any of them reads as "N+" with
+ * what was left out, never as a bare 0.
  */
-export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncated = false, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
+export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncated = false, cohortCut = false, error = null, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const isSales = kind === 'sales';
@@ -473,13 +495,21 @@ export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncat
   const total = isSales ? records.filter(inAccount).reduce((s, r) => s + (r.amount || 0), 0) : null;
   const foreign = isSales ? records.filter((r) => !inAccount(r)).length : 0;
 
-  const subtitle = `${fmt.int(records.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${e(kind)}${inRange ? ' in the range' : ''} from ${fmt.int(cohortSize)} touched leads`
-    + (truncated ? ', newest shown' : '')
+  const stopped = error === 'time budget';
+  const subtitle = `${fmt.int(records.length)}${truncated || cohortCut || tagsLeft > 0 ? '+' : ''} ${e(kind)}${inRange ? ' in the range' : ''} from ${fmt.int(cohortSize)} touched leads`
+    + (cohortCut ? ', the newest that touched it; older leads were not queried' : '')
+    + (truncated && !stopped ? ', newest shown' : '')
+    + stoppedNote(error)
     + (isSales && total ? ` · <b class="good">${e(fmt.money(total))}</b>` : '')
     + (foreign ? ` · ${fmt.int(foreign)} sale${foreign === 1 ? '' : 's'} in other currencies not summed` : '')
     + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
   if (!records.length) {
-    return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, e(kind), tagsSent, tagsLeft) : `<div class="empty">No ${e(kind)} recorded for this cohort${inRange ? ' in the range' : ''}.</div>` };
+    if (tagsLeft > 0) return { subtitle, html: notQueried(fmt, e(kind), tagsSent, tagsLeft) };
+    if (cohortCut || stopped) {
+      const left = [cohortCut ? 'Older leads were not queried.' : '', stopped ? 'The drill stopped at its time limit before querying every lead.' : ''].filter(Boolean).join(' ');
+      return { subtitle, html: `<div class="empty">No ${e(kind)}${inRange ? ' in the range' : ''} from the ${fmt.int(cohortSize)} touched leads queried. ${left}</div>` };
+    }
+    return { subtitle, html: `<div class="empty">No ${e(kind)} recorded for this cohort${inRange ? ' in the range' : ''}.</div>` };
   }
 
   return { subtitle, html: recordRows(fmt, e, isSales, records) };
@@ -506,7 +536,7 @@ function recordRows(fmt, e, isSales, records) {
  * being the report's model. Refunded sales are listed but not counted or
  * summed: the report's Sales and Revenue leave them out too.
  */
-export function renderCredited(ctx, { kind, records = [], truncated = false, attribution, note = '', tagsSent = 0, tagsLeft = 0 }) {
+export function renderCredited(ctx, { kind, records = [], truncated = false, error = null, attribution, note = '', tagsSent = 0, tagsLeft = 0 }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const isSales = kind === 'sales';
@@ -517,7 +547,8 @@ export function renderCredited(ctx, { kind, records = [], truncated = false, att
   const foreign = isSales ? counted.filter((r) => !inAccount(r)).length : 0;
 
   const subtitle = `${fmt.int(counted.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${e(kind)} credited in the range`
-    + (truncated ? ', newest shown' : '')
+    + (truncated && error !== 'time budget' ? ', newest shown' : '')
+    + stoppedNote(error)
     + (isSales && total ? ` · <b class="good">${e(fmt.money(total))}</b>` : '')
     + (refunded ? ` · ${fmt.int(refunded)} refunded, listed but not counted` : '')
     + (foreign ? ` · ${fmt.int(foreign)} sale${foreign === 1 ? '' : 's'} in other currencies not summed` : '')
@@ -646,22 +677,23 @@ export async function openCohortDrill(ctx, { title, tags, metric = 'leads', labe
     const { timezone: tz } = await ctx.data.account();
     const dates = range ? { fromDate: dayStart(range.start, tz), toDate: dayEnd(range.end, tz, ctx.data.now()) } : null;
     const credited = CREDITED_MODELS.includes(attribution) ? attribution : null;
+    const deadline = Date.now() + DRILL_MS;
     if (metric === 'leads') {
-      const cohort = await loadCohort(ctx.data, tags, { tz, dates });
+      const cohort = await loadCohort(ctx.data, tags, { tz, dates, deadline });
       if (!live()) return d;
       view = renderCohort(ctx, { ...cohort, note, inRange: Boolean(dates) });
     } else if (credited) {
-      const out = await loadCredited(ctx.data, metric, tags, { model: credited, tz, isCurrent: live, dates });
+      const out = await loadCredited(ctx.data, metric, tags, { model: credited, tz, isCurrent: live, dates, deadline });
       if (!live()) return d;
       view = renderCredited(ctx, { kind: metric, ...out, attribution: credited, note });
     } else {
-      const cohort = await loadCohort(ctx.data, tags, { tz });
+      const cohort = await loadCohort(ctx.data, tags, { tz, deadline });
       if (!live()) return d;
-      const out = await loadRecords(ctx.data, metric, cohort.ids, { tz, isCurrent: live, dates });
+      const out = await loadRecords(ctx.data, metric, cohort.ids, { tz, isCurrent: live, dates, deadline });
       if (!live()) return d;
       view = renderRecords(ctx, {
         kind: metric, records: out.records, cohortSize: cohort.ids.length,
-        truncated: cohort.truncated || out.truncated, note,
+        truncated: out.truncated, cohortCut: cohort.truncated, error: cohort.error || out.error, note,
         tagsSent: cohort.tagsSent, tagsLeft: cohort.tagsLeft, inRange: Boolean(dates),
       });
     }
