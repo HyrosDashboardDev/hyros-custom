@@ -1,6 +1,6 @@
 # Performance Report: view spec
 
-**id** `report` · **version** 0.1.0 · **tools** `/user-info`, `/ad-accounts`, `/attribution`, `/sources`
+**id** `report` · **version** 0.1.1 · **tools** `/user-info`, `/ad-accounts`, `/attribution`, `/sources`
 
 ## Purpose
 The HYROS Performance Report inside the dashboard: cost, attributed revenue,
@@ -17,8 +17,8 @@ All calls run in sequence (one rate limit per HYROS account). One render:
 2. `ctx.data.adAccounts()` (cached getter): `{ rows: [{ id, name, type }], truncated }`.
    Each type maps to a level with `LEVELS_BY_TYPE` (`src/data/report-levels.js`).
    Types with no level (`REDDIT`, `APPLOVIN`, `WHOP_ADS`, ...) are listed in a note
-   and never called. On the Ad tab, types with `ad: null` (`GOOGLE_V2`, `TWITTER`,
-   `LINKEDIN`) are listed in a note too.
+   and never called. On the Ad tab, a type with `ad: null` (an ad-set level and no
+   ad level) would be listed in a note too; every type in the map has both today.
 3. For each supported and selected ad account, one paged call per level the tab
    needs: the ad-set level for Traffic, Account, Campaign and Ad set (one load
    serves the four tabs, switching between them costs nothing), the ad level only
