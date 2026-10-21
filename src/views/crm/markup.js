@@ -7,6 +7,7 @@
 import { sortHeader } from '../../ui/table.js';
 import { TABS } from './filters.js';
 import { inSomeGroup, groupCount } from './rows.js';
+import { netAmount } from '../../ui/drill.js';
 
 /** The USD revenue tile of the Sales sub-tab (HYROS stable price, sales with a first source). Set false to drop it. */
 export const SHOW_USD_REVENUE = true;
@@ -128,7 +129,7 @@ export function tilesHtml(ctx, tab, model, { range, filters } = {}) {
     const sourced = inSomeGroup(a.firstSource);
     const own = rows.filter(inAccount(fmt));
     const foreign = rows.length - own.length;
-    const shown = own.reduce((s, r) => s + (r.amount || 0), 0);
+    const shown = own.reduce((s, r) => s + netAmount(r), 0);
     items = [
       { label: 'Sales', value: int(a.firstSource?.total ?? null), sub: 'made in the range', cls: 'hy' },
       { label: 'With a first source', value: int(sourced), sub: pct(sourced, a.firstSource?.total) },
