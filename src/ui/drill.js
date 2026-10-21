@@ -14,10 +14,12 @@
  * touched the row: the last source stored on a lead moves with its later
  * clicks, so it is not the source the cell credited the lead to.
  *
- * SCIENTIFIC spreads credit over the journey, which no filter reproduces: its
- * drill is the leads that TOUCHED the row's sources (GET /leads?tags=...),
- * then their sales or calls by lead id in batches of 50. That is not the
- * credited count in the cell, and the drawer says so.
+ * SCIENTIFIC credits the whole sale to its first source when it came within
+ * the account's scientific range of the first click, and to its last source
+ * otherwise. The drill does not apply that rule: its drill is the leads that
+ * TOUCHED the row's sources (GET /leads?tags=...), then their sales or calls
+ * by lead id in batches of 50. That is not the credited count in the cell,
+ * and the drawer says so.
  */
 import { esc } from './dom.js';
 import { TIMEOUTS, clampTimeout } from '../core/budget.js';
@@ -195,8 +197,9 @@ export async function loadCohort(data, tags, { tz = null, deadline = null, dates
 /**
  * The source filter a drill sends for an attribution model: the source each
  * model credits is the one stored on the sale or call as its first or
- * last source. SCIENTIFIC spreads credit over the journey, so it has none and
- * the drill falls back to the leads that touched the row's sources.
+ * last source. SCIENTIFIC picks the first or the last one by how long the
+ * sale took after the first click, which one filter cannot express, so it has
+ * none and the drill falls back to the leads that touched the row's sources.
  */
 export const CREDITED_FIELD = { LAST_CLICK: 'lastSourceTags', FIRST_CLICK: 'firstSourceTags' };
 
