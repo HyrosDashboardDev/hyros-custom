@@ -87,24 +87,26 @@ export function normalizeRow(raw) {
 /**
  * Report levels per ad-account type, as the `level` param of GET /attribution
  * names them (lowercase, matched exactly: api-docs.hyros.com). `adset` is the
- * SOURCE_LINK level every platform has; `ad` exists only where the platform
- * exposes one. Classic Google and LinkedIn are tracked at campaign level,
- * Google V2 stops at ad group, Snapchat calls its ad set an "ad squad"
- * (snapchat_adsquad; snapchat_adset is rejected). The API accepts more levels
- * than each integration supports (classic Google rejects google_adgroup), so
- * the single-level rows stay. Types missing here (REDDIT, APPLOVIN, WHOP_ADS,
- * ...) have no attribution level and are skipped.
+ * SOURCE_LINK level and `ad` the SOURCE_LINK_AD level; an ad row's `parent_id`
+ * is the id of its ad set, the id the `adset` level and GET /sources use.
+ * Classic Google and LinkedIn are tracked at campaign level, so their ads hang
+ * from the campaign. Snapchat calls its ad set an "ad squad" (snapchat_adsquad;
+ * snapchat_adset is rejected). A type with `ad: null` would report at ad-set
+ * level only. The API accepts more levels than each integration supports
+ * (classic Google rejects google_adgroup), so the single-level rows stay. Types
+ * missing here (REDDIT, APPLOVIN, WHOP_ADS, ...) have no attribution level and
+ * are skipped.
  */
 export const LEVELS_BY_TYPE = {
   FACEBOOK:  { adset: 'facebook_adset',    ad: 'facebook_ad' },
   GOOGLE:    { adset: 'google_campaign',   ad: 'google_ad' },
-  GOOGLE_V2: { adset: 'google_v2_adgroup', ad: null },
+  GOOGLE_V2: { adset: 'google_v2_adgroup', ad: 'google_v2_ad' },
   TIKTOK:    { adset: 'tiktok_adgroup',    ad: 'tiktok_ad' },
   SNAPCHAT:  { adset: 'snapchat_adsquad',  ad: 'snapchat_ad' },
   PINTEREST: { adset: 'pinterest_adgroup', ad: 'pinterest_ad' },
-  TWITTER:   { adset: 'twitter_adgroup',   ad: null },
+  TWITTER:   { adset: 'twitter_adgroup',   ad: 'twitter_ad' },
   BING:      { adset: 'bing_adgroup',      ad: 'bing_ad' },
-  LINKEDIN:  { adset: 'linkedin_campaign', ad: null },
+  LINKEDIN:  { adset: 'linkedin_campaign', ad: 'linkedin_ad' },
 };
 
 export const REPORT_MODELS = ['LAST_CLICK', 'FIRST_CLICK', 'SCIENTIFIC'];

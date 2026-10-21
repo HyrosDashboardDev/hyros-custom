@@ -96,13 +96,17 @@ is refused):
 |---|---|---|
 | `FACEBOOK` | `facebook_adset` | `facebook_ad` |
 | `GOOGLE` (classic) | `google_campaign` | `google_ad` |
-| `GOOGLE_V2` | `google_v2_adgroup` | none |
+| `GOOGLE_V2` | `google_v2_adgroup` | `google_v2_ad` |
 | `TIKTOK` | `tiktok_adgroup` | `tiktok_ad` |
 | `SNAPCHAT` | `snapchat_adsquad` | `snapchat_ad` |
 | `PINTEREST` | `pinterest_adgroup` | `pinterest_ad` |
-| `TWITTER` | `twitter_adgroup` | none |
+| `TWITTER` | `twitter_adgroup` | `twitter_ad` |
 | `BING` | `bing_adgroup` | `bing_ad` |
-| `LINKEDIN` | `linkedin_campaign` | none |
+| `LINKEDIN` | `linkedin_campaign` | `linkedin_ad` |
+
+An ad row's `parent_id` is the id of its ad set, the id the ad-set level and
+GET `/sources` use. Classic `GOOGLE` and `LINKEDIN` have no ad set: their
+ad-set column is the campaign, so their ads hang from the campaign.
 
 Any other type (`REDDIT`, `APPLOVIN`, `WHOP_ADS`, ...) has no attribution
 level: skip it with a warning. "Accepted" is not "supported": classic
