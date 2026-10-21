@@ -449,20 +449,22 @@ row carries the union of its members' tags (Report step 6).
   record from `firstSourceTags` when its `creationDate` is at most 30 days
   after its `firstSource.clickDate`, and one from `lastSourceTags` when it is
   later; keep each record once, by `id`.
-- Leads, under every model: `ctx.data.call('/leads', { tags, fromDate, toDate, pageSize: 250 })`,
+- Leads, under every model: `ctx.data.pagedInfo('/leads', { tags, fromDate, toDate }, { pageSize: 250, maxPages: 8 })`,
   the leads that joined in the range and touched the row's sources. The last
   source stored on a lead moves with its later clicks, so filtering on it
   does not give the cell; say in the panel that the list is the touched
-  leads, not the credited count.
+  leads, not the credited count, and when more pages exist, that older leads
+  were not read.
 - Touched (a model with no credited rule): the cohort is
-  `ctx.data.call('/leads', { tags, pageSize: 250 })`, the leads that touched
-  those sources, which is not the attribution-credited count in the cell; say
-  so in the panel. More leads exist when the body carries a `nextPageId`. The
-  cohort has no date filter: a source tag only records the lead's first touch
-  of that source. Its sales or calls: the cohort's lead ids on
-  `/sales` / `/calls` with `{ leadIds, fromDate, toDate }` in batches of 50
-  (the filter's cap), in sequence, at most 4 pages of 250 per batch. Any
-  truncation reads "newest shown".
+  `ctx.data.pagedInfo('/leads', { tags }, { pageSize: 250, maxPages: 8 })`,
+  the leads that touched those sources, newest first, which is not the
+  attribution-credited count in the cell; say so in the panel. The cohort has
+  no date filter: a source tag only records the lead's first touch of that
+  source. Its sales or calls: the cohort's lead ids on `/sales` / `/calls`
+  with `{ leadIds, fromDate, toDate }` in batches of 50 (the filter's cap),
+  in sequence, at most 4 pages of 250 per batch. When the cohort has more
+  than 8 pages, say that older leads were not queried, also in the empty
+  state. A drill stops starting calls after 60 seconds and says so.
 - The `tags` filter of `/leads` is OR and takes at most 50 tags: a rolled-up
   row sends the tags of its members with the clicked column above 0, the
   biggest first, and when some are left out the panel says "first N of M
