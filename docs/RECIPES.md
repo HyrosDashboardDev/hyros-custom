@@ -434,7 +434,7 @@ row carries the union of its members' tags (Report step 6).
   source included, `sourceConfiguration: 'ALL_SOURCES'`). Sales and calls:
   `ctx.data.pagedInfo('/sales' | '/calls', { lastSourceTags | firstSourceTags, fromDate, toDate })`
   (the report's range), the row's tags with the clicked column above 0 in
-  batches of 50 (the filter's cap), in sequence, at most 4 pages of 250 per
+  batches of 50 (the filter's cap), in sequence, at most 20 pages of 250 per
   batch. List refunded sales but leave them out of the count and the total,
   as the report's Sales and Revenue do. Say in the panel what was matched and
   that the attribution window is not applied.
