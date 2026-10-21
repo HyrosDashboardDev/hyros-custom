@@ -238,6 +238,12 @@ test('loadCredited uses the first source tags under first click, on calls too', 
   assert.equal(out.truncated, true);
 });
 
+test('loadCohort sends the join date range when given', async () => {
+  const data = fakeData({ leads: [lead(1)] });
+  await loadCohort(data, ['@a'], { dates: { fromDate: 'F', toDate: 'T' } });
+  assert.equal(data.calls[0].args.fromDate, 'F');
+  assert.equal(data.calls[0].args.toDate, 'T');
+});
 
 
 test('renderCredited counts and sums only the sales that are not refunded, and lists all', () => {
@@ -255,3 +261,8 @@ test('renderCredited counts and sums only the sales that are not refunded, and l
   assert.match(renderCredited(ctx, { kind: 'calls', records: [], attribution: 'FIRST_CLICK' }).html, /No calls credited to this row in the range/);
 });
 
+test('renderCohort names the leads by join date and says they are touched, not credited', () => {
+  const touched = renderCohort(ctx, { leads: [{ email: 'a@x.test' }], inRange: true });
+  assert.match(touched.subtitle, /^1 leads joined in the range and touched this source/);
+  assert.match(touched.subtitle, /touched ≠ credited/);
+});

@@ -10,7 +10,9 @@
  * on it as its first or last source, so the drill asks GET /sales or /calls
  * for exactly those (`firstSourceTags` or `lastSourceTags`, the report's
  * range), in batches of 50 tags, in sequence (one rate limit per account).
- * The leads drill is the touched cohort under every model.
+ * Leads are, under every model, the ones that joined in the range and
+ * touched the row: the last source stored on a lead moves with its later
+ * clicks, so it is not the source the cell credited the lead to.
  *
  * SCIENTIFIC spreads credit over the journey, which no filter reproduces: its
  * drill is the leads that TOUCHED the row's sources (GET /leads?tags=...),
@@ -165,13 +167,14 @@ const chunk = (arr, n) => {
  * Only the first MAX_TAGS tags are sent, so callers put the most relevant
  * first; `tagsLeft` counts the ones left out. A tag holding a comma is left
  * out too: the API reads `tags` as one comma-separated value, so it cannot be
- * sent. Merged leads (`originLead`) are dropped. Returns
+ * sent. `dates` ({ fromDate, toDate }) keeps only the leads that joined in
+ * that range. Merged leads (`originLead`) are dropped. Returns
  * { leads, ids, truncated, tagsSent, tagsLeft }.
  */
-export async function loadCohort(data, tags, { tz = null, deadline = null } = {}) {
+export async function loadCohort(data, tags, { tz = null, deadline = null, dates = null } = {}) {
   const all = [...new Set((tags || []).filter(Boolean))];
   const list = all.filter((t) => !String(t).includes(',')).slice(0, MAX_TAGS);
-  const body = await data.call('/leads', { tags: list, pageSize: 250 },
+  const body = await data.call('/leads', { tags: list, pageSize: 250, ...(dates || {}) },
     { timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
   const iso = isoFor(tz);
   const raw = listOf(body).filter((l) => !l.originLead);
@@ -346,7 +349,7 @@ const TOUCH_PILL = '<span class="pill" title="Cohort from the leads with this so
 /** What a credited drill matched on, and what it does not reproduce of the report. */
 const creditedPill = (attribution, kind) => {
   const which = attribution === 'FIRST_CLICK' ? 'first' : 'last';
-  const title = `Matched on the ${which} source stored on each ${kind === 'leads' ? 'lead' : kind.replace(/s$/, '')}, the one ${which} click credits. `
+  const title = `Matched on the ${which} source stored on each ${kind.replace(/s$/, '')}, the one ${which} click credits. `
     + 'The report\'s attribution window is not applied here.';
   return `<span class="pill" title="${title}">credited · ${which} click</span>`;
 };
@@ -369,11 +372,15 @@ export function leadIncome(sales, accountCurrency) {
     .reduce((sum, s) => sum + (s.amount || 0), 0);
 }
 
-/** `{ subtitle, html }` for a cohort. `model = { leads, truncated, note?, tagsSent?, tagsLeft? }`. */
-export function renderCohort(ctx, { leads = [], truncated = false, note = '', tagsSent = 0, tagsLeft = 0 }) {
+/**
+ * `{ subtitle, html }` for a cohort. `model = { leads, truncated, note?, tagsSent?, tagsLeft?, inRange? }`:
+ * `inRange` says the leads joined in the report's range.
+ */
+export function renderCohort(ctx, { leads = [], truncated = false, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
-  const subtitle = `${fmt.int(leads.length)}${truncated || tagsLeft > 0 ? '+' : ''} leads touched this source`
+  const what = inRange ? 'leads joined in the range and touched this source' : 'leads touched this source';
+  const subtitle = `${fmt.int(leads.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${what}`
     + (truncated ? ', newest 250 shown' : '') + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
   if (!leads.length) {
     return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, 'leads', tagsSent, tagsLeft) : '<div class="empty">No leads returned for this source.</div>' };
@@ -549,8 +556,9 @@ export async function openLeadJourney(ctx, email, { drawer = null, back = null }
  * `note` is shown as a pill (e.g. "ad set cohort: <name>" for an ad row).
  * `range` ({ start, end } as YYYY-MM-DD) is the report's range and
  * `attribution` its model: under FIRST_CLICK and LAST_CLICK the sales and
- * calls are the ones that model credits to the tags; otherwise, and for
- * leads, the drill lists the leads that touched them.
+ * calls are the ones that model credits to the tags; otherwise the drill
+ * lists the sales or calls of the leads that touched them. Leads are the ones
+ * that joined in the range and touched the tags, under every model.
  * Clicking a lead opens its journey; Back returns to the list without calling
  * HYROS again.
  */
@@ -581,9 +589,9 @@ export async function openCohortDrill(ctx, { title, tags, metric = 'leads', labe
     const dates = range ? { fromDate: dayStart(range.start, tz), toDate: dayEnd(range.end, tz, ctx.data.now()) } : null;
     const credited = CREDITED_FIELD[attribution] ? attribution : null;
     if (metric === 'leads') {
-      const cohort = await loadCohort(ctx.data, tags, { tz });
+      const cohort = await loadCohort(ctx.data, tags, { tz, dates });
       if (!live()) return d;
-      view = renderCohort(ctx, { ...cohort, note });
+      view = renderCohort(ctx, { ...cohort, note, inRange: Boolean(dates) });
     } else if (credited) {
       const out = await loadCredited(ctx.data, metric, tags, { model: credited, tz, isCurrent: live, dates });
       if (!live()) return d;
