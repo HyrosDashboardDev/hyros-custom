@@ -152,8 +152,8 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   (two `<input type=date>` and Apply; end <= today in the account zone, start <=
   end). Default Last 30 days.
 - Model: Last click, First click, Scientific. Default Last click.
-- Window (days): `0..365`, only for Last click; `0` means the account default and
-  is not sent.
+- Window (days): `0..365`, only for Last click; `0` means no window (None in
+  HYROS) and is not sent.
 - Ad accounts: a panel with one checkbox per supported ad account, All / None,
   Apply. Default all. Kept for the life of the page, not stored.
 - Search (name, parent name, id), "Hide zero spend" (`cost > 0`).

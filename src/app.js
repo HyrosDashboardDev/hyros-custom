@@ -21,6 +21,7 @@ const COPY = {
   timeout: 'HYROS took too long to answer. Press Refresh again.',
 };
 const SIGN_IN_TEXT = 'Sign in with your HYROS account to see this dashboard. It can only read your data.';
+const REFUSAL_NEXT = 'Contact the account owner or HYROS support, then reload this page.';
 
 /** What to tell the user about a failed call. `not_allowed` and unknown errors show their own message. */
 function failureCopy(err) {
@@ -59,6 +60,11 @@ const needsSignIn = (err) => Boolean(oauth) && (err?.code === 'SIGN_IN' || err?.
 function showSignIn(err) {
   const text = err?.code === 'SIGN_IN' && err.message ? err.message : SIGN_IN_TEXT;
   showGate({ title: 'Sign in with HYROS', text, signIn: true });
+}
+
+/** No button: signing in again or retrying cannot fix what HYROS refused. */
+function showRefusal(err) {
+  showGate({ title: 'HYROS refused this dashboard', text: `${err.refusal} ${REFUSAL_NEXT}` });
 }
 
 async function signIn() {
@@ -118,6 +124,10 @@ async function show(id) {
     const view = await loadView(id);
     await withTimeout(Promise.resolve(view.render({ root, data, fmt, esc, kpis, now: data.now })), VIEW_LOAD_MS);
   } catch (err) {
+    if (err?.refusal) {
+      showRefusal(err);
+      return;
+    }
     if (needsSignIn(err)) {
       showSignIn(err);
       return;
@@ -153,6 +163,10 @@ async function connect(reason) {
     const account = await data.account();
     await enterApp(account);
   } catch (err) {
+    if (err?.refusal) {
+      showRefusal(err);
+      return;
+    }
     if (needsSignIn(err)) {
       showSignIn(err);
       return;

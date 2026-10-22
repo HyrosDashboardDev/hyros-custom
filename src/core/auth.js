@@ -22,13 +22,20 @@ export const TOKEN_TIMEOUT_MS = 10000;
 export const RENEW_LEAD_MS = 120000;
 
 const TOKEN_REQUEST_REASONS = new Set(['expiring', 'unauthorized', 'retry']);
+/** The OAuth errors HYROS answers with its own reason when it refuses the account or the login. */
+const REFUSAL_ERRORS = new Set(['invalid_grant', 'invalid_scope']);
 
-/** `code` is 'NO_TOKEN', or 'SIGN_IN' when the user has to sign in again. */
+/**
+ * `code` is 'NO_TOKEN', or 'SIGN_IN' when the session is over. `refusal` is
+ * the reason HYROS gave when it refused the account or the login: signing in
+ * again cannot fix it.
+ */
 export class AuthError extends Error {
-  constructor(message = 'HYROS did not hand over the dashboard credential', code = 'NO_TOKEN') {
+  constructor(message = 'HYROS did not hand over the dashboard credential', code = 'NO_TOKEN', refusal = null) {
     super(message);
     this.name = 'AuthError';
     this.code = code;
+    if (refusal) this.refusal = refusal;
   }
 }
 
@@ -271,7 +278,8 @@ export function createOAuthProvider({
     if (error || res.status === 400 || res.status === 401) {
       refreshToken = null;
       if (error === 'invalid_client') removeKey(local, CLIENT_KEY);
-      throw signInError(refused);
+      const reason = REFUSAL_ERRORS.has(error) && typeof res.body.error_description === 'string' ? res.body.error_description.trim() : '';
+      throw reason ? new AuthError(reason, 'SIGN_IN', reason) : signInError(refused);
     }
     throw new AuthError(`HYROS could not renew the dashboard credential (HTTP ${res.status})`);
   }

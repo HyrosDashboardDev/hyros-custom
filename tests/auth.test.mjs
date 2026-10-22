@@ -317,7 +317,31 @@ test('oauth: a code HYROS refuses asks to sign in again', async () => {
     session: pendingSignIn(),
     routes: { '/oauth2/token': () => json(400, { error: 'invalid_grant' }) },
   });
-  await assert.rejects(auth.getToken(), (err) => err.code === 'SIGN_IN');
+  await assert.rejects(auth.getToken(), (err) => err.code === 'SIGN_IN' && !err.refusal);
+});
+
+test('oauth: a code HYROS refuses with a reason carries that reason as the refusal', async () => {
+  for (const [error, reason] of [
+    ['invalid_grant', 'This HYROS account is not active.'],
+    ['invalid_scope', 'Custom dashboards are not enabled for this account.'],
+    ['invalid_scope', 'This login has no permission to read the data the custom dashboard shows.'],
+  ]) {
+    const { auth } = oauthSetup({
+      search: '?code=c&state=st-1',
+      session: pendingSignIn(),
+      routes: { '/oauth2/token': () => json(400, { error, error_description: reason }) },
+    });
+    await assert.rejects(auth.getToken(), (err) => err.code === 'SIGN_IN' && err.refusal === reason && err.message === reason);
+  }
+});
+
+test('oauth: a described error that is not a refusal still asks to sign in again', async () => {
+  const { auth } = oauthSetup({
+    search: '?code=c&state=st-1',
+    session: pendingSignIn(),
+    routes: { '/oauth2/token': () => json(401, { error: 'invalid_client', error_description: 'Client authentication failed: client_id' }) },
+  });
+  await assert.rejects(auth.getToken(), (err) => err.code === 'SIGN_IN' && !err.refusal);
 });
 
 test('oauth: a credential without the read scope is refused', async () => {
@@ -386,6 +410,19 @@ test('oauth: a revoked session (invalid_grant on refresh) asks to sign in and st
   const before = requests.length;
   await assert.rejects(auth.getToken('retry'), (err) => err.code === 'SIGN_IN');
   assert.equal(requests.length, before, 'no second refresh with a dead token');
+});
+
+test('oauth: an account blocked while the dashboard is open is a refusal on refresh', async () => {
+  let n = 1;
+  const inactive = 'This HYROS account is not active.';
+  const { auth } = oauthSetup({
+    search: '?code=c&state=st-1',
+    session: pendingSignIn(),
+    routes: { '/oauth2/token': (body) => (body.grant_type === 'refresh_token' ? json(400, { error: 'invalid_grant', error_description: inactive }) : tokens(n++)) },
+  });
+  await auth.getToken();
+  auth.markInvalid('access-1');
+  await assert.rejects(auth.getToken('unauthorized'), (err) => err.code === 'SIGN_IN' && err.refusal === inactive);
 });
 
 test('oauth: invalid_client forgets the registered client', async () => {
