@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   loadCohort, loadRecords, loadCredited, loadJourney, renderCohort, renderRecords, renderCredited, renderJourney, priceOf, leadIncome,
+  DRILL_METRICS,
 } from '../src/ui/drill.js';
 import { fmt } from '../src/ui/fmt.js';
 import { esc } from '../src/ui/dom.js';
@@ -281,8 +282,46 @@ test('loadCredited uses the first source tags under first click, on calls too', 
   const out = await loadCredited(data, 'calls', ['@a'], { model: 'FIRST_CLICK' });
   assert.equal(data.calls[0].name, '/calls');
   assert.deepEqual(data.calls[0].args.firstSourceTags, ['@a']);
+  assert.equal('qualified' in data.calls[0].args, false, 'the Calls drill lists every call, qualified or not');
   assert.equal(out.records[0].source, 'F');
   assert.equal(out.truncated, true);
+});
+
+test('Qualified Calls reads calls with qualified=true; Calls, Sales and Leads add no filter', () => {
+  assert.deepEqual(DRILL_METRICS.qualifiedCalls, { kind: 'calls', noun: 'qualified calls', filter: { qualified: true } });
+  assert.deepEqual(DRILL_METRICS.calls, { kind: 'calls', noun: 'calls', filter: null });
+  assert.equal(DRILL_METRICS.sales.filter, null);
+  assert.equal(DRILL_METRICS.leads.filter, null);
+});
+
+test('loadCredited sends the qualified filter with every batch, on both scientific filters too', async () => {
+  const { filter } = DRILL_METRICS.qualifiedCalls;
+  const tags = Array.from({ length: 60 }, (_, i) => `@t${i}`);
+  for (const model of ['LAST_CLICK', 'FIRST_CLICK', 'SCIENTIFIC']) {
+    const data = fakeData();
+    await loadCredited(data, 'calls', tags, { model, filter, dates: { fromDate: 'F', toDate: 'T' } });
+    assert.equal(data.calls.length, model === 'SCIENTIFIC' ? 4 : 2);
+    assert.ok(data.calls.every((c) => c.name === '/calls' && c.args.qualified === true && c.args.fromDate === 'F'), model);
+    assert.match(toQuery(data.calls[0].args), /(^|&)qualified=true(&|$)/);
+  }
+});
+
+test('loadRecords sends the qualified filter with every lead batch', async () => {
+  const data = fakeData();
+  await loadRecords(data, 'calls', Array.from({ length: 60 }, (_, i) => `L${i}`), { filter: DRILL_METRICS.qualifiedCalls.filter });
+  assert.equal(data.calls.length, 2);
+  assert.ok(data.calls.every((c) => c.args.qualified === true));
+});
+
+test('a qualified calls drill says qualified calls in its subtitle and empty states', () => {
+  const one = [{ email: 'a@x.test', date: '2026-07-01T10:00:00Z', state: 'QUALIFIED' }];
+  const credited = renderCredited(ctx, { kind: 'calls', noun: 'qualified calls', records: one, attribution: 'LAST_CLICK' });
+  assert.match(credited.subtitle, /^1 qualified calls credited in the range/);
+  assert.match(renderCredited(ctx, { kind: 'calls', noun: 'qualified calls', records: [], attribution: 'SCIENTIFIC' }).html,
+    /No qualified calls credited to this row in the range/);
+  assert.match(renderRecords(ctx, { kind: 'calls', noun: 'qualified calls', records: one, cohortSize: 3, inRange: true }).subtitle,
+    /^1 qualified calls in the range from 3 touched leads/);
+  assert.match(renderCredited(ctx, { kind: 'calls', records: one, attribution: 'LAST_CLICK' }).subtitle, /^1 calls credited in the range/);
 });
 
 test('loadCohort sends the join date range when given', async () => {
