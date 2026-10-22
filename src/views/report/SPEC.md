@@ -166,8 +166,10 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   to Ad set, Ad set to Ad); crumbs go back. The Ad tab under a crumb shows the
   ads whose parent ad set passes the crumb filters.
 - Drill: a Leads or New Leads cell over 0 opens `openCohortDrill` with
-  `metric: 'leads'`; Sales or Unique Sales with `'sales'`; Calls or Qualified
-  Calls with `'calls'`. Tags come from `drillTags(row, <column key>)`: the
+  `metric: 'leads'`; Sales or Unique Sales with `'sales'`; Calls with
+  `'calls'`; Qualified Calls with `'qualifiedCalls'`, the calls drill with
+  `qualified: true` on every `/calls` query ("N qualified calls credited in
+  the range"). Tags come from `drillTags(row, <column key>)`: the
   row's `tag`, or for a rolled-up row the tags of its ad sets with that
   column above 0, the biggest first (every tag when none has any). The drill
   sends the first 50 (the cap of GET /leads) and, when it leaves some out, says

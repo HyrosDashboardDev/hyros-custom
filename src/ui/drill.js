@@ -229,6 +229,20 @@ export const CREDITED_FIELD = { LAST_CLICK: 'lastSourceTags', FIRST_CLICK: 'firs
 /** The models whose credited records the drill can list. */
 export const CREDITED_MODELS = Object.freeze(['LAST_CLICK', 'FIRST_CLICK', 'SCIENTIFIC']);
 
+/**
+ * What each drill metric lists: the records it reads (`kind`), the filter it
+ * adds to every /sales or /calls query, and the noun the drawer names them
+ * with. `qualified: true` keeps the calls scored above 0; HYROS reads
+ * `qualified: false` as scored below 1, so a call scored between 0 and 1
+ * matches both.
+ */
+export const DRILL_METRICS = Object.freeze({
+  leads: { kind: 'leads', noun: 'leads', filter: null },
+  sales: { kind: 'sales', noun: 'sales', filter: null },
+  calls: { kind: 'calls', noun: 'calls', filter: null },
+  qualifiedCalls: { kind: 'calls', noun: 'qualified calls', filter: { qualified: true } },
+});
+
 /** Days from a record's first click to the record itself, or null when either date is missing. */
 function daysToRecord(x, iso) {
   const made = Date.parse(iso(x.creationDate) || '');
@@ -262,10 +276,11 @@ function creditedLegs(model, iso) {
  * so two batches of one filter never return the same one; across the two
  * SCIENTIFIC filters it is kept once, by id. A tag holding a comma cannot be
  * sent (the API reads the array as one comma-separated value), so it counts
- * in `tagsLeft`. Stops like loadRecords.
+ * in `tagsLeft`. `filter` (a DRILL_METRICS filter) goes on every query.
+ * Stops like loadRecords.
  * Returns { records, truncated, tagsSent, tagsLeft, error? }.
  */
-export async function loadCredited(data, kind, tags, { model, tz = null, deadline = null, isCurrent = () => true, dates = null } = {}) {
+export async function loadCredited(data, kind, tags, { model, tz = null, deadline = null, isCurrent = () => true, dates = null, filter = null } = {}) {
   const path = kind === 'sales' ? '/sales' : '/calls';
   const iso = isoFor(tz);
   const all = [...new Set((tags || []).filter(Boolean))];
@@ -280,7 +295,7 @@ export async function loadCredited(data, kind, tags, { model, tz = null, deadlin
     for (const batch of chunk(list, MAX_TAGS)) {
       if (!isCurrent()) { truncated = true; stopped = true; break; }
       if (deadline && Date.now() >= deadline) { truncated = true; stopped = true; error = 'time budget'; break; }
-      const page = await data.pagedInfo(path, { [leg.field]: batch, ...(dates || {}) },
+      const page = await data.pagedInfo(path, { [leg.field]: batch, ...(dates || {}), ...(filter || {}) },
         { maxPages: CREDITED_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
       raw.push(...page.rows);
       if (page.truncated) truncated = true;
@@ -299,11 +314,12 @@ export async function loadCredited(data, kind, tags, { model, tz = null, deadlin
 /**
  * The sales or calls of a cohort: `leadIds` in batches of 50, IN SERIES, at
  * most 4 pages each. `dates` ({ fromDate, toDate }) keeps only the records
- * made in that range. Stops before the next batch when `deadline` passes or
- * `isCurrent()` says a newer drill replaced this one; both read as truncated.
+ * made in that range; `filter` (a DRILL_METRICS filter) goes on every batch.
+ * Stops before the next batch when `deadline` passes or `isCurrent()` says a
+ * newer drill replaced this one; both read as truncated.
  * Returns { records, truncated, error? }.
  */
-export async function loadRecords(data, kind, leadIds, { tz = null, deadline = null, isCurrent = () => true, dates = null } = {}) {
+export async function loadRecords(data, kind, leadIds, { tz = null, deadline = null, isCurrent = () => true, dates = null, filter = null } = {}) {
   const path = kind === 'sales' ? '/sales' : '/calls';
   const iso = isoFor(tz);
   const raw = [];
@@ -312,7 +328,7 @@ export async function loadRecords(data, kind, leadIds, { tz = null, deadline = n
   for (const batch of chunk(leadIds || [], BATCH)) {
     if (!isCurrent()) { truncated = true; break; }
     if (deadline && Date.now() >= deadline) { truncated = true; error = 'time budget'; break; }
-    const page = await data.pagedInfo(path, { leadIds: batch, ...(dates || {}) },
+    const page = await data.pagedInfo(path, { leadIds: batch, ...(dates || {}), ...(filter || {}) },
       { maxPages: BATCH_MAX_PAGES, pageSize: 250, deadline, timeoutMs: clampTimeout(TIMEOUTS.default, deadline) });
     raw.push(...page.rows);
     if (page.truncated) truncated = true;
@@ -488,14 +504,15 @@ export function renderCohort(ctx, { leads = [], truncated = false, error = null,
 
 /**
  * `{ subtitle, html }` for the sales or calls of a cohort.
- * `model = { kind, records, cohortSize, truncated, cohortCut?, error?, note?, tagsSent?, tagsLeft?, inRange? }`;
+ * `model = { kind, noun?, records, cohortSize, truncated, cohortCut?, error?, note?, tagsSent?, tagsLeft?, inRange? }`;
+ * `noun` names the records in the drawer (default `kind`), e.g. "qualified calls";
  * `inRange` says the records were limited to the report's date range,
  * `truncated` that a lead batch had more pages than were read, `cohortCut`
  * that the cohort itself stopped before its oldest leads, and `error` 'time
  * budget' that the drill hit its time limit. Any of them reads as "N+" with
  * what was left out, never as a bare 0.
  */
-export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncated = false, cohortCut = false, error = null, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
+export function renderRecords(ctx, { kind, noun = kind, records = [], cohortSize = 0, truncated = false, cohortCut = false, error = null, note = '', tagsSent = 0, tagsLeft = 0, inRange = false }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const isSales = kind === 'sales';
@@ -504,7 +521,7 @@ export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncat
   const foreign = isSales ? records.filter((r) => !inAccount(r)).length : 0;
 
   const stopped = error === 'time budget';
-  const subtitle = `${fmt.int(records.length)}${truncated || cohortCut || tagsLeft > 0 ? '+' : ''} ${e(kind)}${inRange ? ' in the range' : ''} from ${fmt.int(cohortSize)} touched leads`
+  const subtitle = `${fmt.int(records.length)}${truncated || cohortCut || tagsLeft > 0 ? '+' : ''} ${e(noun)}${inRange ? ' in the range' : ''} from ${fmt.int(cohortSize)} touched leads`
     + (cohortCut ? ', the newest that touched it; older leads were not queried' : '')
     + (truncated && !stopped ? ', newest shown' : '')
     + stoppedNote(error)
@@ -512,12 +529,12 @@ export function renderRecords(ctx, { kind, records = [], cohortSize = 0, truncat
     + (foreign ? ` · ${fmt.int(foreign)} sale${foreign === 1 ? '' : 's'} in other currencies not summed` : '')
     + ` ${TOUCH_PILL}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
   if (!records.length) {
-    if (tagsLeft > 0) return { subtitle, html: notQueried(fmt, e(kind), tagsSent, tagsLeft) };
+    if (tagsLeft > 0) return { subtitle, html: notQueried(fmt, e(noun), tagsSent, tagsLeft) };
     if (cohortCut || stopped) {
       const left = [cohortCut ? 'Older leads were not queried.' : '', stopped ? 'The drill stopped at its time limit before querying every lead.' : ''].filter(Boolean).join(' ');
-      return { subtitle, html: `<div class="empty">No ${e(kind)}${inRange ? ' in the range' : ''} from the ${fmt.int(cohortSize)} touched leads queried. ${left}</div>` };
+      return { subtitle, html: `<div class="empty">No ${e(noun)}${inRange ? ' in the range' : ''} from the ${fmt.int(cohortSize)} touched leads queried. ${left}</div>` };
     }
-    return { subtitle, html: `<div class="empty">No ${e(kind)} recorded for this cohort${inRange ? ' in the range' : ''}.</div>` };
+    return { subtitle, html: `<div class="empty">No ${e(noun)} recorded for this cohort${inRange ? ' in the range' : ''}.</div>` };
   }
 
   return { subtitle, html: recordRows(fmt, e, isSales, records) };
@@ -540,11 +557,12 @@ function recordRows(fmt, e, isSales, records) {
 
 /**
  * `{ subtitle, html }` for the sales or calls credited to a row.
- * `model = { kind, records, truncated, attribution, note?, tagsSent?, tagsLeft? }`, `attribution`
- * being the report's model. Refunded sales are listed but not counted or
- * summed: the report's Sales and Revenue leave them out too.
+ * `model = { kind, noun?, records, truncated, attribution, note?, tagsSent?, tagsLeft? }`, `attribution`
+ * being the report's model and `noun` the records' name (default `kind`).
+ * Refunded sales are listed but not counted or summed: the report's Sales
+ * and Revenue leave them out too.
  */
-export function renderCredited(ctx, { kind, records = [], truncated = false, error = null, attribution, note = '', tagsSent = 0, tagsLeft = 0 }) {
+export function renderCredited(ctx, { kind, noun = kind, records = [], truncated = false, error = null, attribution, note = '', tagsSent = 0, tagsLeft = 0 }) {
   const { fmt } = ctx;
   const e = ctx.esc || esc;
   const isSales = kind === 'sales';
@@ -554,7 +572,7 @@ export function renderCredited(ctx, { kind, records = [], truncated = false, err
   const total = isSales ? counted.filter(inAccount).reduce((s, r) => s + (r.amount || 0), 0) : null;
   const foreign = isSales ? counted.filter((r) => !inAccount(r)).length : 0;
 
-  const subtitle = `${fmt.int(counted.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${e(kind)} credited in the range`
+  const subtitle = `${fmt.int(counted.length)}${truncated || tagsLeft > 0 ? '+' : ''} ${e(noun)} credited in the range`
     + (truncated && error !== 'time budget' ? ', newest shown' : '')
     + stoppedNote(error)
     + (isSales && total ? ` · <b class="good">${e(fmt.money(total))}</b>` : '')
@@ -562,7 +580,7 @@ export function renderCredited(ctx, { kind, records = [], truncated = false, err
     + (foreign ? ` · ${fmt.int(foreign)} sale${foreign === 1 ? '' : 's'} in other currencies not summed` : '')
     + ` ${creditedPill(attribution, kind)}${tagsPill(fmt, tagsSent, tagsLeft)}${notePill(note, e)}`;
   if (!records.length) {
-    return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, e(kind), tagsSent, tagsLeft) : `<div class="empty">No ${e(kind)} credited to this row in the range.</div>` };
+    return { subtitle, html: tagsLeft > 0 ? notQueried(fmt, e(noun), tagsSent, tagsLeft) : `<div class="empty">No ${e(noun)} credited to this row in the range.</div>` };
   }
   return { subtitle, html: recordRows(fmt, e, isSales, records) };
 }
@@ -648,9 +666,10 @@ export async function openLeadJourney(ctx, email, { drawer = null, back = null }
 }
 
 /**
- * Open the drill behind a report number: the leads for `metric` 'leads', or
- * the sales or calls. `tags` are the row's source tags, most relevant first;
- * `note` is shown as a pill (e.g. "ad set cohort: <name>" for an ad row).
+ * Open the drill behind a report number: `metric` is a DRILL_METRICS key
+ * ('leads', 'sales', 'calls' or 'qualifiedCalls'). `tags` are the row's
+ * source tags, most relevant first; `note` is shown as a pill (e.g. "ad set
+ * cohort: <name>" for an ad row).
  * `range` ({ start, end } as YYYY-MM-DD) is the report's range and
  * `attribution` its model: under the CREDITED_MODELS the sales and calls are
  * the ones that model credits to the tags; any other model lists the sales or
@@ -686,21 +705,22 @@ export async function openCohortDrill(ctx, { title, tags, metric = 'leads', labe
     const dates = range ? { fromDate: dayStart(range.start, tz), toDate: dayEnd(range.end, tz, ctx.data.now()) } : null;
     const credited = CREDITED_MODELS.includes(attribution) ? attribution : null;
     const deadline = Date.now() + DRILL_MS;
-    if (metric === 'leads') {
+    const { kind, noun, filter } = DRILL_METRICS[metric] || DRILL_METRICS.leads;
+    if (kind === 'leads') {
       const cohort = await loadCohort(ctx.data, tags, { tz, dates, deadline });
       if (!live()) return d;
       view = renderCohort(ctx, { ...cohort, note, inRange: Boolean(dates) });
     } else if (credited) {
-      const out = await loadCredited(ctx.data, metric, tags, { model: credited, tz, isCurrent: live, dates, deadline });
+      const out = await loadCredited(ctx.data, kind, tags, { model: credited, tz, isCurrent: live, dates, deadline, filter });
       if (!live()) return d;
-      view = renderCredited(ctx, { kind: metric, ...out, attribution: credited, note });
+      view = renderCredited(ctx, { kind, noun, ...out, attribution: credited, note });
     } else {
       const cohort = await loadCohort(ctx.data, tags, { tz, deadline });
       if (!live()) return d;
-      const out = await loadRecords(ctx.data, metric, cohort.ids, { tz, isCurrent: live, dates, deadline });
+      const out = await loadRecords(ctx.data, kind, cohort.ids, { tz, isCurrent: live, dates, deadline, filter });
       if (!live()) return d;
       view = renderRecords(ctx, {
-        kind: metric, records: out.records, cohortSize: cohort.ids.length,
+        kind, noun, records: out.records, cohortSize: cohort.ids.length,
         truncated: out.truncated, cohortCut: cohort.truncated, error: cohort.error || out.error, note,
         tagsSent: cohort.tagsSent, tagsLeft: cohort.tagsLeft, inRange: Boolean(dates),
       });
