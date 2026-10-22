@@ -39,9 +39,11 @@ disagree, the docs win.
   partial states, and one failing call should become a warning in the view,
   never a blank page.
 - `src/core/dates.js`: `parseTimezone`, `ymdInTz`, `dayStart`, `dayEnd`,
-  `parseHyrosDate`, `addDays`, `offsetSuffix`. The account timezone comes
-  from `ctx.data.account().timezone` as HYROS stores it (`"-05:00"`,
-  `"UTC"`, `"America/New_York"`).
+  `parseHyrosDate`, `addDays`, `offsetSuffix`. The account timezone is
+  `ctx.data.account().timezone`: the offset HYROS applies today to dates
+  sent without one, read from the newest lead's date (`"-04:00"`); without a
+  lead it is `userProfile.timezone` as HYROS stores it (`"-05:00"`, `"UTC"`,
+  `"America/New_York"`), which ignores daylight saving.
 - `src/core/budget.js` has `TIMEOUTS` (`default` 15 s, `slow` 45 s) and
   `clampTimeout` for per-call timeouts.
 - `ctx.data.account()`, `adAccounts()`, `sources()` and `stages()` are

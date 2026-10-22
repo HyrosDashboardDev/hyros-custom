@@ -1,6 +1,6 @@
 # Account: view spec
 
-**id** `account` · **version** 0.1.0 · **tools** `/user-info`, `/ad-accounts`, `/sources`
+**id** `account` · **version** 0.1.1 · **tools** `/user-info`, `/leads`, `/ad-accounts`, `/sources`
 
 ## Purpose
 Who this dashboard is looking at: the account's email, timezone, currency
@@ -15,12 +15,12 @@ Refresh drops the cache (`ctx.data.invalidate()`) and fetches them again.
 
 | Getter | Path | Query | Paging |
 |---|---|---|---|
-| `account()` | `GET /user-info` | none | one call; the getter reads `result` |
+| `account()` | `GET /user-info` and `GET /leads` | none; `pageSize=1` for `/leads` | one call each, in parallel; the getter reads `result` |
 | `adAccounts()` | `GET /ad-accounts` | none | `pageSize=250`, at most 4 pages |
 | `sources()` | `GET /sources` | `includeOrganic=true&includeDisregarded=false` | `pageSize=250`, at most 40 pages |
 
-One render costs 3 calls when the cache is cold (more when a list spans
-several pages) and none when it is warm. The three run in parallel; they
+One render costs 4 calls when the cache is cold (more when a list spans
+several pages) and none when it is warm. They run in parallel; they
 share the account's rate limit.
 
 ## Rows shape
@@ -28,7 +28,8 @@ share the account's rate limit.
 {
   "account": {
     "email": "owner@example.com",
-    "timezone": "-05:00",
+    "timezone": "-04:00",
+    "savedTimezone": "-05:00",
     "currency": "USD",
     "attributionWindowDefault": 30,
     "managedBy": [{ "accountId": "", "email": "", "company": "", "status": "" }],
@@ -38,7 +39,13 @@ share the account's rate limit.
   "sources": { "rows": ["raw GET /sources rows"], "truncated": false }
 }
 ```
-`account()` keeps `timezone` raw (`"-05:00"`, `"UTC"`, `"America/New_York"`);
+`timezone` is the offset the newest lead's date carries (`"-04:00"`): HYROS
+prints lead dates with the offset it applies to every date sent without one,
+the account's zone with today's daylight saving. `savedTimezone` is
+`userProfile.timezone` raw (`"-05:00"`, `"UTC"`, `"America/New_York"`), the
+offset saved in the settings, which for a zone with daylight saving is its
+standard offset all year; `timezone` falls back to it when the account has no
+lead or the lead read fails.
 `currency` comes from `trueTrackingData.OUTBOUND_CURRENCY` (default `USD`)
 and `attributionWindowDefault` from `trueTrackingData.LEAD_ATTRIBUTION_TIMEFRAME`.
 The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
