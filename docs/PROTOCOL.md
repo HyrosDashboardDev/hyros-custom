@@ -49,7 +49,8 @@ the user can switch it.
   expires, in the background. Without it, the token is kept until the API
   answers 401; then the dashboard drops it, asks once (`unauthorized`) and
   retries the call. A second 401 is shown as "HYROS rejected the dashboard
-  credential".
+  credential", or, when its body says the account is not active, as that
+  reason with no button (see "Refusals" below).
 - The token lives only in memory.
 
 ## Dashboard rules: the theme (`src/core/theme.js`)
@@ -130,6 +131,11 @@ client (no secret). `src/core/auth.js`, `createOAuthProvider`.
 - `invalid_grant` (the session was revoked, expired or the refresh token was
   used) and any other OAuth error drop the session and show "Sign in with
   HYROS" again. `invalid_client` also forgets the `client_id`.
+- Refusals: an `invalid_grant` or `invalid_scope` with an `error_description`
+  is HYROS refusing the account or the login (not active, custom dashboards
+  not enabled, no read permission). The page shows that reason and "Contact
+  the account owner or HYROS support, then reload this page." with no
+  button: signing in again with the same HYROS session gets the same answer.
 - A sign-in that started in this tab and never came back forgets the
   `client_id`, so the next attempt registers again: HYROS shows its own error
   page, instead of redirecting back, for a `client_id` it does not know.
@@ -159,7 +165,7 @@ Where the data comes from, with either credential. `src/core/api.js`.
 | Auth | `Authorization: Bearer <token>`, never an `API-Key` header (it would win over the bearer) |
 | Methods | GET only. Anything else from this credential answers 403 `This credential can only read.` |
 | Roles | the read roles of the login that signed in (`ApiKeyRole.getCustomDashboardReadRoles`); a path outside them answers 403 naming the missing role |
-| 401 | plain text `Unauthorized`: expired, revoked or not accepted at this path. The dashboard asks for a new token once, then shows the sign-in |
+| 401 | plain text `Unauthorized`: expired, revoked or not accepted at this path. The dashboard asks for a new token once, then shows the sign-in. `{result:'ERROR', message:['This HYROS account is not active.']}` when the account is blocked: shown as a refusal |
 | 429 | the dashboard's own bucket per account and endpoint, apart from the account's API keys, with `Retry-After` and `X-RateLimit-*` |
 | CORS | any origin, without credentials |
 | Sandbox | `/api/v1.0/sandbox` refuses this credential |
