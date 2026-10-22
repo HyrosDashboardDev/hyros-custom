@@ -8,7 +8,7 @@ export const view = {
   id: 'account',
   title: 'Account',
   version: '0.1.0',
-  description: 'The account the dashboard is looking at: owner, timezone, currency, attribution window, sources and ad accounts.',
+  description: 'The account the dashboard is looking at: owner, timezone, currency, attribution timeframe, sources and ad accounts.',
   style: false,
   tools: ['/user-info', '/ad-accounts', '/sources'],
   author: 'HYROS',
@@ -22,7 +22,7 @@ export const view = {
       { label: 'Email', value: account.email || '-' },
       { label: 'Timezone', value: account.timezone || '-' },
       { label: 'Currency', value: fmt.currencyCode(account.currency) },
-      { label: 'Attribution window', value: attributionDays ? `${fmt.int(attributionDays)} days` : '-', sub: 'account default' },
+      { label: 'Attribution timeframe', value: attributionDays ? `${fmt.int(attributionDays)} days` : '-', sub: 'how far back HYROS matches clicks to leads' },
       { label: 'Sources', value: fmt.int(sources.rows.length), sub: sources.truncated ? 'more exist, list cut short' : '' },
     ]);
 
