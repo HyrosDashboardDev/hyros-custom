@@ -7,10 +7,10 @@
 export const view = {
   id: 'account',
   title: 'Account',
-  version: '0.1.0',
+  version: '0.1.1',
   description: 'The account the dashboard is looking at: owner, timezone, currency, attribution timeframe, sources and ad accounts.',
   style: false,
-  tools: ['/user-info', '/ad-accounts', '/sources'],
+  tools: ['/user-info', '/leads', '/ad-accounts', '/sources'],
   author: 'HYROS',
 
   async render(ctx) {
