@@ -7,7 +7,8 @@
  * defines the account; nothing else selects it.
  *
  * Transport errors, as ApiError codes:
- *   401  token rejected        -> drop it, ask auth.js for a new one, retry once; then 'auth'
+ *   401  token rejected        -> drop it, ask auth.js for a new one, retry once; then 'auth',
+ *                                 with `refusal` when HYROS says the account is not active
  *   403  account or role       -> 'forbidden'
  *   429  per-account limit     -> wait Retry-After (1 s, then 2 s without it), at most
  *                                 twice; then 'rate_limited'
@@ -21,12 +22,14 @@
  * No SDK on purpose: plain fetch, zero dependencies.
  */
 
+/** `refusal`, on an 'auth' error, is the reason HYROS refused the account: a new credential cannot fix it. */
 export class ApiError extends Error {
-  constructor(message, detail, code) {
+  constructor(message, detail, code, refusal = null) {
     super(message);
     this.name = 'ApiError';
     this.detail = detail;
     if (code) this.code = code;
+    if (refusal) this.refusal = refusal;
   }
 }
 
@@ -122,6 +125,17 @@ function errorText(text) {
 }
 
 /**
+ * The reason of a 401 in the API's own `{result:'ERROR', message:[...]}`, which
+ * HYROS sends when the account is no longer active. A credential that expired or
+ * was revoked gets a plain 401 instead, and a new one fixes it.
+ */
+function refusalOf(text) {
+  try {
+    return JSON.parse(text)?.result === 'ERROR' ? errorText(text) || null : null;
+  } catch { return null; }
+}
+
+/**
  * Some reads answer 200 with only `message` and no `result` when there is
  * nothing to compute (an attribution report or a curve without data). That is
  * a failure the user should read, not an empty table.
@@ -147,7 +161,8 @@ async function attempt(href, token, timeoutMs) {
     });
 
     if (res.status === 401) {
-      return { unauthorized: true, message: errorText(await res.text()) };
+      const text = await res.text();
+      return { unauthorized: true, message: errorText(text), refusal: refusalOf(text) };
     }
     if (res.status === 429) {
       const retryAfterMs = parseRetryAfter(res.headers.get('retry-after'));
@@ -197,7 +212,7 @@ async function send(href, timeoutMs) {
 
     if (out.unauthorized) {
       if (reauthed) {
-        throw new ApiError(`HYROS rejected the dashboard credential (HTTP 401)${out.message ? `: ${out.message}` : ''}`, out.message, 'auth');
+        throw new ApiError(`HYROS rejected the dashboard credential (HTTP 401)${out.message ? `: ${out.message}` : ''}`, out.message, 'auth', out.refusal);
       }
       reauthed = true;
       cfg.markInvalid(token);
