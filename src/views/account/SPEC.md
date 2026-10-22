@@ -4,7 +4,8 @@
 
 ## Purpose
 Who this dashboard is looking at: the account's email, timezone, currency
-and default attribution window, how many traffic sources it has, and which
+and attribution timeframe (how far back HYROS matches clicks to leads), how
+many traffic sources it has, and which
 ad accounts are connected. It is the first tab, so it doubles as a check
 that the connection works, and it is the worked example of a view.
 
@@ -44,7 +45,7 @@ and `attributionWindowDefault` from `trueTrackingData.LEAD_ATTRIBUTION_TIMEFRAME
 The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
 
 ## View states
-- Data: five KPI tiles (Email, Timezone, Currency, Attribution window,
+- Data: five KPI tiles (Email, Timezone, Currency, Attribution timeframe,
   Sources) and the "Ad accounts" table (ID, Name, Type as a pill).
 - A list cut short: the Sources tile says "more exist, list cut short" and
   the ad accounts count says "list cut short".
