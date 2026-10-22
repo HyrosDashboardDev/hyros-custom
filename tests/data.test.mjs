@@ -57,6 +57,51 @@ test('account() reads email, timezone, currency, attribution window and agency l
   assert.equal(account.raw, USER);
 });
 
+/** account() over a /user-info that saves `saved` as timezone and a /leads that answers `leads` (a function, to fail or vary). */
+async function accountWith(saved, leads) {
+  const calls = [];
+  const api = {
+    get: async (path, params) => {
+      calls.push({ path, params });
+      if (path === '/user-info') return { result: { userProfile: { timezone: saved } } };
+      if (path === '/leads') return leads();
+      throw new Error(`unexpected ${path}`);
+    },
+  };
+  return { account: await createData({ api }).account(), calls };
+}
+
+test('account() takes the offset HYROS prints lead dates with over the saved one', async () => {
+  // Antarctica/Troll in summer: the settings saved its standard +00:00, HYROS applies +02:00.
+  const { account, calls } = await accountWith('+00:00', () => ({ result: [{ creationDate: '2026-08-24T17:14:34+02:00' }] }));
+  assert.equal(account.timezone, '+02:00');
+  assert.equal(account.savedTimezone, '+00:00');
+  assert.deepEqual(calls.find((c) => c.path === '/leads').params, { pageSize: 1 });
+});
+
+test('account() reads a Z or compact lead offset', async () => {
+  assert.equal((await accountWith('-05:00', () => ({ result: [{ creationDate: '2026-08-24T17:14:34Z' }] }))).account.timezone, '+00:00');
+  assert.equal((await accountWith('-05:00', () => ({ result: [{ creationDate: '2026-08-24T17:14:34-0400' }] }))).account.timezone, '-04:00');
+});
+
+test('account() keeps the saved timezone when there is no lead offset to read', async () => {
+  const none = await accountWith('-05:00', () => ({ result: [] }));
+  assert.equal(none.account.timezone, '-05:00');
+  const failed = await accountWith('America/New_York', () => { throw new Error('403 missing API_LEAD_GET'); });
+  assert.equal(failed.account.timezone, 'America/New_York');
+  const naive = await accountWith('-05:00', () => ({ result: [{ creationDate: '2026-08-24T17:14:34' }] }));
+  assert.equal(naive.account.timezone, '-05:00');
+  const legacy = await accountWith('-05:00', () => ({ result: [{ creationDate: 'Mon Aug 24 15:08:57 UTC 2026' }] }));
+  assert.equal(legacy.account.timezone, '-05:00');
+});
+
+test('a day on a daylight saving account is bounded with the offset HYROS applies', async () => {
+  const { dayStart, dayEnd } = await import('../src/core/dates.js');
+  const { account } = await accountWith('+00:00', () => ({ result: [{ creationDate: '2026-08-24T17:14:34+02:00' }] }));
+  assert.equal(dayStart('2026-08-24', account.timezone), '2026-08-24T00:00:00+02:00');
+  assert.equal(dayEnd('2026-08-24', account.timezone), '2026-08-24T23:59:59+02:00');
+});
+
 test('adAccounts() pages with a cap of 4 and returns { rows, truncated }', async () => {
   const mcp = fakeApi({ adAccountPages: 6 });
   const data = createData({ api: mcp });

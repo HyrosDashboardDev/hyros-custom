@@ -1,6 +1,6 @@
 # Scale: view spec
 
-**id** `scale` · **version** 0.1.0 · **tools** `/user-info`, `/ad-accounts`, `/attribution/marginal-cac-curve`
+**id** `scale` · **version** 0.1.1 · **tools** `/user-info`, `/leads`, `/ad-accounts`, `/attribution/marginal-cac-curve`
 
 ## Purpose
 For the ad accounts the user picks (and, when the Report already ranked

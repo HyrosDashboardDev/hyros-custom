@@ -291,10 +291,10 @@ function wire(ctx) {
 export const view = {
   id: 'scale',
   title: 'Scale',
-  version: '0.1.0',
+  version: '0.1.1',
   description: 'How far each ad account (and the top ad sets) can scale daily spend before the next customer costs more than the CAC ceiling.',
   style: true,
-  tools: ['/user-info', '/ad-accounts', '/attribution/marginal-cac-curve'],
+  tools: ['/user-info', '/leads', '/ad-accounts', '/attribution/marginal-cac-curve'],
   author: 'HYROS',
 
   async render(ctx) {

@@ -6,7 +6,7 @@
  * for the account cost one call. A failed promise is dropped from the cache
  * so the next ask tries again. Nothing is stored outside memory.
  *
- *   account()     GET /user-info, normalized
+ *   account()     GET /user-info, normalized, with the offset of the newest lead's date (GET /leads)
  *   adAccounts()  { rows: [{ id, name, type }], truncated }
  *   sources()     { rows, truncated } with the raw source rows
  *   stages()      raw stage rows
@@ -40,12 +40,22 @@ export function createData({ api, now = () => new Date() }) {
 
   return {
     account: () => once('account', async () => {
-      const user = (await api.get('/user-info'))?.result;
+      const [info, newest] = await Promise.all([
+        api.get('/user-info'),
+        // HYROS prints every lead date with the offset it applies to dates sent without one: the
+        // account's zone with today's daylight saving. GET /user-info only has the offset saved in the
+        // settings, which for a zone with daylight saving is its standard offset all year, so the
+        // newest lead's date says which offset HYROS uses. No lead, or no access to leads: the saved one.
+        api.get('/leads', { pageSize: 1 }).catch(() => null),
+      ]);
+      const user = info?.result;
+      const saved = user?.userProfile?.timezone || null;
       return {
         email: user?.userProfile?.email || null,
-        // Raw on purpose: the API types it as a free string ("-05:00", "UTC", "America/New_York").
-        // dates.js parses it when a view needs it.
-        timezone: user?.userProfile?.timezone || null,
+        // The offset of the newest lead's date ("+02:00"), else the saved value raw: the API types it
+        // as a free string ("-05:00", "UTC", "America/New_York"); dates.js parses it when a view needs it.
+        timezone: isoOffset(newest?.result?.[0]?.creationDate) || saved,
+        savedTimezone: saved,
         currency: user?.trueTrackingData?.OUTBOUND_CURRENCY || 'USD',
         attributionWindowDefault: Number(user?.trueTrackingData?.LEAD_ATTRIBUTION_TIMEFRAME) || null,
         // Agency relationships: who manages this account, and which client accounts it can operate on.
@@ -89,4 +99,13 @@ export function createData({ api, now = () => new Date() }) {
 
     now,
   };
+}
+
+/** The offset an ISO date-time ends with ('2026-08-24T17:14:34+02:00' -> '+02:00', 'Z' -> '+00:00'), or null. */
+function isoOffset(value) {
+  const raw = String(value ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) return null;
+  if (raw.endsWith('Z')) return '+00:00';
+  const m = /([+-]\d{2}):?(\d{2})$/.exec(raw);
+  return m ? `${m[1]}:${m[2]}` : null;
 }
