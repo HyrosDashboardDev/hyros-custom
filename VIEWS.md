@@ -128,7 +128,7 @@ Two shared modules build on the kit; import them from `view.js`:
 - `src/ui/drill.js`: the drawer and the drill behind a number.
   `openCohortDrill(ctx, { title, tags, metric, label, note })` opens the
   leads that touched the row's source tags (`metric: 'leads'`) or their
-  `'sales'` / `'calls'`; `openLeadJourney(ctx, email)` opens one lead's
+  `'sales'` / `'calls'` / `'qualifiedCalls'` (`DRILL_METRICS`); `openLeadJourney(ctx, email)` opens one lead's
   journey and click history. Both mount the drawer inside `ctx.root`, run
   their calls in sequence and say when a list is cut short. The pieces
   (`openDrawer`, `loadCohort`, `loadRecords`, `loadJourney`, the
