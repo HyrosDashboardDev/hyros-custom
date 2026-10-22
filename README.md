@@ -151,4 +151,6 @@ nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`.
   stored. With a live HYROS session that is just a redirect.
 - No sign-out button yet. Revoking the session in HYROS cuts the dashboard
   off: the next call answers 401, the refresh is refused and the page asks
-  to sign in again.
+  to sign in again. When HYROS refuses the account or the login itself (not
+  active, custom dashboards not enabled, no read permission), the page shows
+  the reason HYROS gave instead.

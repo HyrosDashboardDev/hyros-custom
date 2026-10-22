@@ -115,8 +115,14 @@ test('a 401 drops the token, asks for a new one and retries once', async () => {
 test('a second 401 fails with code auth after exactly two attempts', async () => {
   wire();
   mock.failNext({ status: 401, times: 2, body: 'Unauthorized' });
-  await assert.rejects(get('/user-info'), (err) => err.code === 'auth' && /Unauthorized/.test(err.message));
+  await assert.rejects(get('/user-info'), (err) => err.code === 'auth' && /Unauthorized/.test(err.message) && !err.refusal);
   assert.equal(calls.length, 2);
+});
+
+test('a second 401 saying the account is not active carries that reason as the refusal', async () => {
+  wire();
+  mock.failNext({ status: 401, times: 2, body: { result: 'ERROR', message: ['This HYROS account is not active.'] } });
+  await assert.rejects(get('/user-info'), (err) => err.code === 'auth' && err.refusal === 'This HYROS account is not active.');
 });
 
 test('a NO_TOKEN from the token source keeps its code', async () => {
