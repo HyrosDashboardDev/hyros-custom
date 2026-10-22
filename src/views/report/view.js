@@ -506,10 +506,10 @@ function emptyModel() {
 export const view = {
   id: 'report',
   title: 'Performance Report',
-  version: '0.1.1',
+  version: '0.1.2',
   description: 'What each traffic source, ad account, campaign, ad set and ad cost and earned, under the attribution model you pick.',
   style: true,
-  tools: ['/user-info', '/ad-accounts', '/attribution', '/sources'],
+  tools: ['/user-info', '/leads', '/ad-accounts', '/attribution', '/sources'],
   author: 'HYROS',
   render,
 };

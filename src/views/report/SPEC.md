@@ -1,6 +1,6 @@
 # Performance Report: view spec
 
-**id** `report` · **version** 0.1.1 · **tools** `/user-info`, `/ad-accounts`, `/attribution`, `/sources`
+**id** `report` · **version** 0.1.2 · **tools** `/user-info`, `/leads`, `/ad-accounts`, `/attribution`, `/sources`
 
 ## Purpose
 The HYROS Performance Report inside the dashboard: cost, attributed revenue,
