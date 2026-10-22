@@ -32,7 +32,7 @@ const authError = (err) => err?.code === 'SIGN_IN' || err?.code === 'auth' || er
 
 /* ---------------- keys ---------------- */
 
-/** The window actually sent: LAST_CLICK only, 1..365; anything else is 0 (not sent, the account default). */
+/** The window actually sent: LAST_CLICK only, 1..365; anything else is 0 (not sent: no window, as None in HYROS). */
 export function sentWindow(model, window) {
   const w = Math.trunc(Number(window));
   return model === 'LAST_CLICK' && Number.isFinite(w) && w > 0 && w <= MAX_WINDOW ? w : 0;

@@ -80,7 +80,7 @@ function controlsHtml(ctx, { supported }) {
       <select data-model aria-label="Attribution model">
         ${MODELS.map((m) => `<option value="${esc(m.key)}"${m.key === state.model ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}
       </select>
-      <label class="report-window" title="${lastClick ? '0 uses the account default' : 'Only for Last click'}">
+      <label class="report-window" title="${lastClick ? '0 = None: no window, every attributed sale counts however long after the click' : 'Only for Last click'}">
         <span class="sub">Window</span>
         <input type="number" data-window min="0" max="${MAX_WINDOW}" step="1" value="${esc(lastClick ? state.window : 0)}"${lastClick ? '' : ' disabled'} aria-label="Attribution window in days">
         <span class="sub">days</span>
