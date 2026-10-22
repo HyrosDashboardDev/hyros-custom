@@ -35,11 +35,11 @@ export const KPIS = [
   { key: 'clicks', label: 'Clicks', t: 'int' },
 ];
 
-/** Which drill a cell opens. */
+/** Which drill a cell opens: a key of DRILL_METRICS in src/ui/drill.js. */
 export const DRILL_METRIC = {
   leads: 'leads', newLeads: 'leads',
   sales: 'sales', uniqueSales: 'sales',
-  calls: 'calls', qualifiedCalls: 'calls',
+  calls: 'calls', qualifiedCalls: 'qualifiedCalls',
 };
 
 /* ---------------- columns ---------------- */

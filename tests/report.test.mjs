@@ -12,8 +12,10 @@ import {
 } from '../src/views/report/load.js';
 import {
   levelRows, enrichAds, filterRows, rowDrillTags, drillTags, readCols, writeCols, usableCols, colPanelHtml, COLS_KEY, toneClass,
+  DRILL_METRIC,
 } from '../src/views/report/columns.js';
 import { notesHtml, tableHtml } from '../src/views/report/view.js';
+import { DRILL_METRICS } from '../src/ui/drill.js';
 
 const NOW = new Date('2026-10-14T15:30:00Z');
 const TZ = '-05:00';
@@ -444,4 +446,14 @@ test('HYROS strings are escaped in the table and the notes', () => {
   assert.match(notes, /class="note err"/);
   assert.match(notes, /skipped: time budget/);
   assert.match(notes, /Showing newest 2,000 ad sets of/);
+});
+
+test('a Qualified Calls cell opens the qualified calls drill, a Calls cell the plain calls drill', () => {
+  assert.equal(DRILL_METRIC.calls, 'calls');
+  assert.equal(DRILL_METRIC.qualifiedCalls, 'qualifiedCalls');
+  for (const metric of Object.values(DRILL_METRIC)) assert.ok(DRILL_METRICS[metric], `${metric} is a drill metric`);
+  const cols = [{ k: 'calls', l: 'Calls', t: 'int' }, { k: 'qualifiedCalls', l: 'Qualified Calls', t: 'int' }];
+  const html = tableHtml(ctx, [{ id: '1', name: 'AVDP', calls: 6, qualifiedCalls: 5, tag: '@x' }], cols);
+  assert.match(html, /data-metric="calls" data-key="calls"/);
+  assert.match(html, /data-metric="qualifiedCalls" data-key="qualifiedCalls"/);
 });

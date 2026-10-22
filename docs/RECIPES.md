@@ -453,6 +453,10 @@ row carries the union of its members' tags (Report step 6).
   record from `firstSourceTags` when its `creationDate` is at most 30 days
   after its `firstSource.clickDate`, and one from `lastSourceTags` when it is
   later; keep each record once, by `id`.
+- Qualified Calls: the same calls drill with `qualified: true` added to every
+  `/calls` query, under every model, and the panel names them "qualified
+  calls". `qualified: true` is a call scored above 0; `qualified: false` is
+  scored below 1, so a call scored between 0 and 1 matches both.
 - Leads, under every model: `ctx.data.pagedInfo('/leads', { tags, fromDate, toDate }, { pageSize: 250, maxPages: 8 })`,
   the leads that joined in the range and touched the row's sources. The last
   source stored on a lead moves with its later clicks, so filtering on it
