@@ -171,8 +171,26 @@ test('priceOf: price wins over usdPrice, usdPrice only when price is missing', (
   assert.deepEqual(priceOf({}), { amount: 0, currency: null });
 });
 
+test('priceOf keeps the refunded amount of the price it read', () => {
+  assert.deepEqual(priceOf({ price: { price: 90, refunded: 30, currency: 'EUR' } }), { amount: 90, currency: 'EUR', refundedAmount: 30 });
+  assert.deepEqual(priceOf({ usdPrice: { price: 100, refunded: 100 } }), { amount: 100, currency: 'USD', refundedAmount: 100 });
+  assert.deepEqual(priceOf({ price: { price: 90, refunded: 0, currency: 'EUR' } }), { amount: 90, currency: 'EUR' });
+});
+
 test('leadIncome sums sales in the account currency only', () => {
   assert.equal(leadIncome([{ amount: 10, currency: 'EUR' }, { amount: 5, currency: null }, { amount: 99, currency: 'USD' }], 'EUR'), 15);
+});
+
+test('sale totals are net of refunds, like HYROS revenue', () => {
+  const sales = [
+    { amount: 100, currency: 'USD' },
+    { amount: 50, refundedAmount: 50, currency: 'USD', state: 'REFUNDED' },
+    { amount: 40, refundedAmount: 10, currency: 'USD' },
+  ];
+  assert.equal(leadIncome(sales, 'USD'), 130);
+  assert.match(renderRecords(ctx, { kind: 'sales', records: sales, cohortSize: 1 }).subtitle, /130/);
+  const journey = renderJourney(ctx, { journey: { lead: {}, sales, journey: [] }, clicks: [] });
+  assert.match(journey.subtitle, /income <b class="good">[^<]*130/);
 });
 
 test('renderers escape emails, names and sources', () => {
