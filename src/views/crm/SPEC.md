@@ -102,8 +102,8 @@ firstSource: { name, tag, organic, trafficSource, category, clickDate },
 lastSource, firstSourceName, lastSourceName, lastSourceDate, lastSourceMs,
 hasAttribution }`. Leads with `originLead` (merged into another) are dropped.
 Sale row: `{ id, email, leadName, date, dateMs, amount, currency, usdAmount?,
-product, recurring, refunded, refundDate, firstSource, lastSource }`
-(`amount`/`currency` from `priceOf`). Call row: `{ id, email, leadName,
+refundedAmount?, product, recurring, refunded, refundDate, firstSource,
+lastSource }` (`amount`/`currency`/`refundedAmount` from `priceOf`). Call row: `{ id, email, leadName,
 date, dateMs, name, state, qualified, firstSource, ad, lastSource }`.
 Subscription row: `{ id, email, leadName, date, dateMs, endDate, name,
 price, currency, periodicity, status, provider }`.
@@ -123,7 +123,8 @@ Tiles:
   Revenue (USD, HYROS stable price) = sum of `groups[].details.revenue.amount`,
   which covers only sales with a first source, and is a lower bound ("+") when
   `remainingCount > 0`. Behind `SHOW_USD_REVENUE` so it can be dropped.
-  Plus "Revenue in rows" in the account currency from the loaded rows.
+  Plus "Revenue in rows" in the account currency from the loaded rows, net of
+  refunds (`amount - refundedAmount`, as HYROS revenue counts them).
 - Calls: Calls = `totalCount`; Qualified = `totalCount` of the `qualified:
   true` aggregation (the CALL_QUALIFICATION groups are stage names, they do
   not say which stage counts as qualified).
