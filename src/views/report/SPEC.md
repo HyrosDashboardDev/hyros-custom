@@ -17,8 +17,10 @@ All calls run in sequence (one rate limit per HYROS account). One render:
 2. `ctx.data.adAccounts()` (cached getter): `{ rows: [{ id, name, type }], truncated }`.
    Each type maps to a level with `LEVELS_BY_TYPE` (`src/data/report-levels.js`).
    Types with no level (`REDDIT`, `APPLOVIN`, `WHOP_ADS`, ...) are listed in a note
-   and never called. On the Ad tab, a type with `ad: null` (an ad-set level and no
-   ad level) would be listed in a note too; every type in the map has both today.
+   (the first 12 names, "and N more", and that their numbers are not in the
+   report) and never called. On the Ad tab, a type with `ad: null` (an ad-set
+   level and no ad level) would be listed in a note too; every type in the map
+   has both today.
 3. For each supported and selected ad account, one paged call per level the tab
    needs: the ad-set level for Traffic, Account, Campaign and Ad set (one load
    serves the four tabs, switching between them costs nothing), the ad level only
@@ -124,7 +126,11 @@ Money as plain numbers in the account currency; derived metrics re-derived by
 ## View states
 - Data: controls row, KPI strip (Cost, Total Revenue as the `hy` tile, Profit
   toned, ROAS, Sales, Leads, Calls, Clicks) over the visible rows with the range
-  printed once above it (`.kpi-range`), crumbs when the hierarchy is drilled,
+  printed once above it (`.kpi-range`) and, under it, the coverage line
+  (`.report-coverage`, `COVERAGE_NOTE`: ad accounts with a report level only;
+  what HYROS credits to sources without an ad account or to an ad platform
+  without a report level is not in the numbers), crumbs when the hierarchy is
+  drilled,
   the table in a `.win` with a `tfoot` of totals (`aggregate` over the visible
   rows). The HYROS band (`th.hy`, `td.hy`) on Total Revenue, Revenue and ROAS.
 - Loading after a control change: the body shows "Loading..." while the controls
@@ -139,8 +145,14 @@ Money as plain numbers in the account currency; derived metrics re-derived by
   under "Uncategorised" (Campaign) and "unknown" (Traffic), and their drills are
   off (no tag to query).
 - Ad accounts list truncated: `.note` saying so.
-- No supported ad account: `.empty`. No row in the range: `.empty` "No spend in
-  this range". Filters hide every row: `.empty` "No rows match this filter."
+- No ad account at all: `.empty` "No ad account is connected, so there is
+  nothing to report". Ad accounts but none with a report level: `.empty` "No ad
+  account with a report level is connected", saying that what HYROS credits to
+  other ad platforms and to sources without an ad account is not in the report.
+  No row in the range: `.empty` "No spend or sales on the ad accounts with a
+  report level in this range", or "on the selected ad accounts" when the
+  ad-account filter is on. Filters hide every row: `.empty` "No rows match this
+  filter."
 - Custom range invalid (end after today in the account zone, start after end, a
   missing date): `.note.err` with the reason and no call.
 - `adAccounts()` failing: `.note.err`, no table. `account()` failing: the render
@@ -213,6 +225,13 @@ require, the snake_case row keys read by `normalizeRow`, and the source join by
 `adSource.adSourceId`.
 
 ## Open limitations
+- The report covers ad accounts with a report level only. GET /attribution has
+  no level for sources without an ad account (organic, general, automatic) or
+  for ad platforms without one (Whop Ads, Reddit, AppLovin), so what HYROS
+  credits to them is in no row and no total; the coverage line, the note on
+  those ad accounts and the empty states say so. The HYROS Performance Report
+  screen does list such sources (automatic, general, reddit and pinterest rows
+  seen on a QA account).
 - Campaign and Traffic are HYROS source categories and traffic sources, rolled
   up in the browser; GET /attribution has no such level over ad-account ids.
 - At most 2,000 rows (8 pages of 250, newest first) per ad account and level.

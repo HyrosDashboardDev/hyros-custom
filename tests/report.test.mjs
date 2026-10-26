@@ -5,7 +5,7 @@ import { buildLevels, normalizeRow, wireKey, REPORT_FIELDS, LEVELS_BY_TYPE } fro
 import { aggregate, CATALOG, DEFAULT_KEYS } from '../src/data/metrics.js';
 import { toQuery } from '../src/core/api.js';
 import { fmt } from '../src/ui/fmt.js';
-import { esc } from '../src/ui/dom.js';
+import { esc, kpis } from '../src/ui/dom.js';
 import {
   cacheKey, accountKey, sentWindow, validateCustom, resolveRange, partitionAccounts, reportRequest,
   loadAccounts, loadReport, joinSources, createSerial, rangeLabel, MAX_PAGES, PAGE_SIZE,
@@ -14,7 +14,7 @@ import {
   levelRows, enrichAds, filterRows, rowDrillTags, drillTags, readCols, writeCols, usableCols, colPanelHtml, COLS_KEY, toneClass,
   DRILL_METRIC,
 } from '../src/views/report/columns.js';
-import { notesHtml, tableHtml } from '../src/views/report/view.js';
+import { notesHtml, tableHtml, kpiHtml } from '../src/views/report/view.js';
 import { DRILL_METRICS } from '../src/ui/drill.js';
 
 const NOW = new Date('2026-10-14T15:30:00Z');
@@ -446,6 +446,27 @@ test('HYROS strings are escaped in the table and the notes', () => {
   assert.match(notes, /class="note err"/);
   assert.match(notes, /skipped: time budget/);
   assert.match(notes, /Showing newest 2,000 ad sets of/);
+});
+
+test('the report says what its totals leave out: under the KPI range and on the ad accounts without a level', () => {
+  const html = kpiHtml({ ...ctx, kpis }, [], { model: 'LAST_CLICK', range: RANGE, window: 7 });
+  assert.match(html, /class="kpi-range">Sep 15, 2026 to Oct 14, 2026 · Last click · 7-day window<\/div>/);
+  assert.match(html, /class="report-coverage">Ad accounts with a report level only\. What HYROS credits to sources without an ad account, such as organic, general or automatic, or to an ad platform without a report level, is not in these numbers\.<\/div>/);
+  assert.ok(html.indexOf('report-coverage') < html.indexOf('class="kpi"'), 'the coverage line sits above the tiles');
+
+  const notes = notesHtml(ctx, {
+    kind: 'adset', unsupported: [RD, { id: '707', name: 'TestWads', type: 'WHOP_ADS' }], noAdLevel: [],
+    failed: [], skipped: [], cut: [], capped: [], join: { failed: [], unjoined: 0, sourceless: 0 },
+  });
+  assert.match(notes, /No report level for 2 ad accounts\.<\/b> Reddit \(REDDIT\), TestWads \(WHOP_ADS\)\. Their spend, sales, leads and calls are not in this report\.<\/div>/);
+
+  const many = Array.from({ length: 15 }, (_, i) => ({ id: `9${i}`, name: `Whop ${i}`, type: 'WHOP_ADS' }));
+  const cut = notesHtml(ctx, {
+    kind: 'adset', unsupported: many, noAdLevel: [],
+    failed: [], skipped: [], cut: [], capped: [], join: { failed: [], unjoined: 0, sourceless: 0 },
+  });
+  assert.match(cut, /No report level for 15 ad accounts\.<\/b> Whop 0 \(WHOP_ADS\), .*Whop 11 \(WHOP_ADS\) and 3 more\. Their spend, sales, leads and calls are not in this report\./);
+  assert.equal(cut.includes('Whop 12'), false);
 });
 
 test('a Qualified Calls cell opens the qualified calls drill, a Calls cell the plain calls drill', () => {

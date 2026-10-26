@@ -115,6 +115,13 @@ level: skip it with a warning. "Accepted" is not "supported": classic
 `GOOGLE` rejects `google_adgroup`, so stay with the table. Snapchat's ad
 set is `snapchat_adsquad`; `snapchat_adset` is refused.
 
+The report covers only the ad accounts with a level. What HYROS credits to
+a skipped type, or to a source without an ad account (organic, general,
+automatic), is in no row and no total, and GET `/attribution` has no level
+that returns it. Print that next to the totals, and say it again in the
+warning on the skipped ad accounts and in the empty states, so the user
+does not read the headline revenue as the account's.
+
 ### 3. The call
 
 ```js

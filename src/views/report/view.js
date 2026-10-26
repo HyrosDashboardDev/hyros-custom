@@ -206,8 +206,8 @@ function showLevel(ctx) {
 
 /* ---------------- notes ---------------- */
 
-const names = (list, esc, max = 12) => {
-  const shown = list.slice(0, max).map((a) => esc(a.name || a.id)).join(', ');
+const names = (list, esc, max = 12, label = (a) => esc(a.name || a.id)) => {
+  const shown = list.slice(0, max).map(label).join(', ');
   return list.length > max ? `${shown} and ${list.length - max} more` : shown;
 };
 
@@ -217,7 +217,7 @@ export function notesHtml(ctx, m) {
   const unit = m.kind === 'ad' ? 'ads' : 'ad sets';
   if (m.adAccountsTruncated) out.push('<div class="note"><b>Ad accounts list cut short.</b> The report covers the ad accounts that loaded.</div>');
   if (m.unsupported.length) {
-    out.push(`<div class="note"><b>No report level for ${fmt.int(m.unsupported.length)} ad account${m.unsupported.length > 1 ? 's' : ''}.</b> ${m.unsupported.slice(0, 12).map((a) => `${esc(a.name || a.id)} (${esc(a.type)})`).join(', ')}</div>`);
+    out.push(`<div class="note"><b>No report level for ${fmt.int(m.unsupported.length)} ad account${m.unsupported.length > 1 ? 's' : ''}.</b> ${names(m.unsupported, esc, 12, (a) => `${esc(a.name || a.id)} (${esc(a.type)})`)}. Their spend, sales, leads and calls are not in this report.</div>`);
   }
   if (m.kind === 'ad' && m.noAdLevel.length) {
     out.push(`<div class="note"><b>No ad level for ${fmt.int(m.noAdLevel.length)} ad account${m.noAdLevel.length > 1 ? 's' : ''}</b> (they report at ad-set level only): ${names(m.noAdLevel, esc)}</div>`);
@@ -304,7 +304,10 @@ export function tableHtml(ctx, rows, cols) {
     </div>`;
 }
 
-function kpiHtml(ctx, rows, m) {
+/** Printed under the KPI range line: what the totals cover and what HYROS credits elsewhere. */
+const COVERAGE_NOTE = 'Ad accounts with a report level only. What HYROS credits to sources without an ad account, such as organic, general or automatic, or to an ad platform without a report level, is not in these numbers.';
+
+export function kpiHtml(ctx, rows, m) {
   const { fmt, esc, kpis } = ctx;
   const totals = aggregate(rows);
   const tiles = kpis(KPIS.map((k) => {
@@ -314,7 +317,8 @@ function kpiHtml(ctx, rows, m) {
   }));
   const model = MODELS.find((x) => x.key === m.model)?.label || m.model;
   const range = `<div class="kpi-range">${esc(rangeLabel(m.range))} · ${esc(model)}${m.window ? ` · ${esc(fmt.int(m.window))}-day window` : ''}</div>`;
-  return tiles.replace('<div class="kpis">', `<div class="kpis">${range}`);
+  const coverage = `<div class="report-coverage">${COVERAGE_NOTE}</div>`;
+  return tiles.replace('<div class="kpis">', `<div class="kpis">${range}${coverage}`);
 }
 
 /** Paint the body from `current` (no calls). */
@@ -332,7 +336,8 @@ function paintBody(ctx) {
   if (state.selected && !state.selected.size) {
     main = '<div class="empty">No ad account selected.</div>';
   } else if (!loaded.length) {
-    main = `<div class="empty">No spend in this range (${esc(rangeLabel(m.range))}).</div>`;
+    const scope = state.selected ? 'the selected ad accounts' : 'the ad accounts with a report level';
+    main = `<div class="empty">No spend or sales on ${scope} in this range (${esc(rangeLabel(m.range))}).</div>`;
   } else {
     const rows = visibleRows(m);
     const cols = activeCols(state.cols);
@@ -443,8 +448,11 @@ async function render(ctx) {
   if (current?.root === root) current = null;
 
   if (!supported.length) {
+    const why = adAccounts.rows.length
+      ? 'No ad account with a report level is connected, so there is nothing to report. What HYROS credits to other ad platforms or to sources without an ad account is not in this report.'
+      : 'No ad account is connected, so there is nothing to report.';
     body.innerHTML = `${parts.unsupported.length ? notesHtml(ctx, { ...emptyModel(), unsupported: parts.unsupported }) : ''}
-      <div class="empty">No ad account with a report level is connected.</div>`;
+      <div class="empty">${why}</div>`;
     return;
   }
 
