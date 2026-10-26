@@ -7,7 +7,7 @@
 import { ymdInTz, addDays } from '../../core/dates.js';
 import { TIMEOUTS, VIEW_LOAD_MS, clampTimeout } from '../../core/budget.js';
 import { buildRanges } from '../../data/report-levels.js';
-import { normalizeCurve, curveSvg, curveVerdict, isThin, NOTE_WORD } from './curve.js';
+import { normalizeCurve, curveSvg, curveVerdict, isThin, unjudgedReason, NOTE_WORD } from './curve.js';
 
 export const TOP_ADSETS = 6;
 export const DEFAULT_ACCOUNTS = 2;
@@ -224,6 +224,7 @@ function html(ctx, { accounts, end, today, curves, report }) {
   const analyzed = done.filter((c) => !c.skipped);
   const withData = analyzed.filter((c) => (c.points || []).length >= 2);
   const saturated = withData.filter((c) => c.saturationSpend !== null && c.saturationSpend !== undefined);
+  const unjudged = withData.filter((c) => unjudgedReason(c));
   const skipped = done.length - analyzed.length;
   const loading = curves.length - done.length;
   const allFailed = curves.length > 0 && curves.every((c) => c.error);
@@ -240,7 +241,8 @@ function html(ctx, { accounts, end, today, curves, report }) {
     { label: 'Entities analyzed', value: fmt.int(analyzed.length), sub: [loading ? `${fmt.int(loading)} loading` : '', skipped ? `${fmt.int(skipped)} skipped (time budget)` : ''].filter(Boolean).join(', ') || 'ad accounts + top ad sets by spend' },
     { label: 'With spend history', value: fmt.int(withData.length) },
     { label: 'Saturation found', value: fmt.int(saturated.length), sub: 'a budget ceiling exists' },
-    { label: 'Room to scale', value: fmt.int(withData.length - saturated.length), cls: 'good', sub: 'no saturation in range' },
+    { label: 'Room to scale', value: fmt.int(withData.length - saturated.length - unjudged.length), cls: 'good', sub: 'below the CAC ceiling in range' },
+    { label: 'Not judged', value: fmt.int(unjudged.length), sub: 'no customers, too little data or no CAC ceiling' },
   ]);
 
   const accountBlock = allFailed ? unavailableCard(curves, esc)
