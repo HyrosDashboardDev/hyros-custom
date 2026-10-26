@@ -79,8 +79,8 @@ Money as plain numbers in the account currency.
 - Controls: one chip per ad account (toggle), an end date input (max today
   in the account zone). A future or malformed date is refused with a
   `.note.err` and the previous date stays.
-- Data: four KPI tiles (Entities analyzed, With spend history, Saturation
-  found, Room to scale) and one card per target with the SVG chart (average
+- Data: five KPI tiles (Entities analyzed, With spend history, Saturation
+  found, Room to scale, Not judged) and one card per target with the SVG chart (average
   CAC in INK, marginal CAC dashed purple, ceiling dotted terracotta,
   saturation green) and three stats (ceiling, saturation spend, marginal CAC
   at the top of the range).
@@ -88,6 +88,10 @@ Money as plain numbers in the account currency.
 - One curve failed: that card shows the message (`.note.err`), the rest
   render. Every curve failed: one "HYROS did not answer the marginal CAC
   curve" card.
+- Verdict: a curve with no saturation point reads "Still efficient" (and
+  counts in Room to scale) only when HYROS could judge it: customers, enough
+  data (no `NO_CUSTOMERS` / `INSUFFICIENT_DATA`) and a CAC ceiling. Otherwise
+  it reads "Not judged: <why>" in neutral and counts in Not judged.
 - `notes` are shown in plain words; fewer than 2 points: "Not enough data
   yet" (or the note's words).
 - Thin curve (3 spend levels or fewer, a level with no customers, or
@@ -117,6 +121,7 @@ strict parameter list and the lowercase `level` and `attributionModel` values.
   default window" in this page; Scale never loads the report itself (it
   would cost ~100 calls).
 - Account curves have no ceiling (no caller ceiling is sent), so their
-  saturation reads only "no incremental customers".
+  saturation reads only "no incremental customers"; without it they read
+  "Not judged: no CAC ceiling at this level", never "Still efficient".
 - The curve uses last-click credit (closing cost), so its figures differ
   from a first-click acquisition curve.

@@ -106,6 +106,20 @@ export function curveSvg(c, fmt) {
     ${c.ceiling ? '<span><i class="scale-ceil"></i>CAC ceiling</span>' : ''}${sat !== null && sat !== undefined ? '<span><i class="scale-sat"></i>Saturation</span>' : ''}</div>`;
 }
 
+/**
+ * Why HYROS could not judge saturation, or null when it could. A missing
+ * saturation point means "efficient" only when HYROS had customers, enough
+ * data and a CAC ceiling to compare against; otherwise nothing was checked.
+ */
+export function unjudgedReason(c) {
+  if (c?.saturationSpend !== null && c?.saturationSpend !== undefined) return null;
+  const notes = c?.notes || [];
+  if (notes.includes('NO_CUSTOMERS')) return 'no customers in the window';
+  if (notes.includes('INSUFFICIENT_DATA')) return 'too little data';
+  if (c?.ceiling === null || c?.ceiling === undefined) return c?.level === 'ACCOUNT' ? 'no CAC ceiling at this level' : 'no CAC ceiling';
+  return null;
+}
+
 /** The one-line verdict of a card: { cls: good | bad | '', text }. */
 export function curveVerdict(c, fmt) {
   if (c.error) return { cls: 'bad', text: 'Curve unavailable' };
@@ -120,8 +134,9 @@ export function curveVerdict(c, fmt) {
   const current = points.reduce((m, p) => (p.customers !== null && p.customers > (m?.customers ?? -1) ? p : m), null);
   const sat = c.saturationSpend ?? null;
   if (sat === null) {
-    const why = c.ceiling === null || c.ceiling === undefined ? ' (no CAC ceiling at this level)' : ', no saturation found';
-    return { cls: 'good', text: `Still efficient at ${fmt.money(last.spend)}/day${why}` };
+    const unjudged = unjudgedReason(c);
+    if (unjudged) return { cls: '', text: `Not judged: ${unjudged}` };
+    return { cls: 'good', text: `Still efficient at ${fmt.money(last.spend)}/day, no saturation found` };
   }
   const headroom = sat - (current?.spend ?? last.spend);
   return headroom > 0

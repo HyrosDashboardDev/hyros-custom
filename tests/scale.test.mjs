@@ -4,7 +4,7 @@ import {
   curveRequest, curveKey, reportKey, reportAdsets, adsetTargets, defaultSelection,
   readSelection, writeSelection, validEnd, loadCurves, STORE_KEY, view,
 } from '../src/views/scale/view.js';
-import { normalizeCurve, curveSvg, curveVerdict, isThin } from '../src/views/scale/curve.js';
+import { normalizeCurve, curveSvg, curveVerdict, isThin, unjudgedReason } from '../src/views/scale/curve.js';
 import { fmt } from '../src/ui/fmt.js';
 import { esc } from '../src/ui/dom.js';
 
@@ -143,7 +143,22 @@ test('curveVerdict: fewer than 2 points, notes, error, skipped', () => {
   assert.equal(curveVerdict(normalizeCurve({ curve: [], notes: ['NO_SPEND_DATA'] }, {}), fmt).text, 'No spend history in the window');
   assert.equal(curveVerdict({ error: 'x' }, fmt).cls, 'bad');
   assert.equal(curveVerdict({ skipped: 'time budget' }, fmt).text, 'Skipped: time budget');
-  assert.match(curveVerdict(normalizeCurve(curve(4), {}), fmt).text, /^Still efficient/);
+  assert.match(curveVerdict(normalizeCurve(curve(4, { cacCeiling: 50 }), {}), fmt).text, /^Still efficient/);
+});
+
+test('curveVerdict: no saturation point is "Not judged" when HYROS could not judge it', () => {
+  const v = (extra, meta = {}) => curveVerdict(normalizeCurve(curve(4, extra), meta), fmt);
+  assert.deepEqual(v({ cacCeiling: 50, notes: ['NO_CUSTOMERS'] }), { cls: '', text: 'Not judged: no customers in the window' });
+  assert.deepEqual(v({ cacCeiling: 50, notes: ['INSUFFICIENT_DATA'] }), { cls: '', text: 'Not judged: too little data' });
+  assert.deepEqual(v({ notes: ['LTV_CEILING_UNAVAILABLE'] }, { level: 'ACCOUNT' }), { cls: '', text: 'Not judged: no CAC ceiling at this level' });
+  assert.deepEqual(v({}, { level: 'SOURCE_LINK' }), { cls: '', text: 'Not judged: no CAC ceiling' });
+  // Spend that buys no extra customers is found without a ceiling: that is a real verdict.
+  assert.match(v({ saturationPoint: { efficientSpendPerDay: 200, saturatedSpendPerDay: 300, reason: 'NO_INCREMENTAL_CUSTOMERS' } }, { level: 'ACCOUNT' }).text, /^Past saturation/);
+});
+
+test('unjudgedReason is null for a saturated curve and for a judged one', () => {
+  assert.equal(unjudgedReason(normalizeCurve(curve(4, { saturationPoint: { saturatedSpendPerDay: 300 } }), { level: 'ACCOUNT' })), null);
+  assert.equal(unjudgedReason(normalizeCurve(curve(4, { cacCeiling: 50 }), {})), null);
 });
 
 test('curveSvg has no color in its markup: classes only', () => {
@@ -210,4 +225,17 @@ test('render: account curves first, escaped names, ad sets wait for the Report',
   assert.match(root.innerHTML, /&lt;b&gt;A&lt;\/b&gt;/);
   assert.doesNotMatch(root.innerHTML, /<b>A<\/b>/);
   assert.match(root.innerHTML, /Open Report, last 30 days, Last click, to rank ad sets/);
+});
+
+test('render: Room to scale counts only judged curves, the rest go to Not judged', async () => {
+  // The first 2 ad accounts are selected by default: one without a ceiling (as every account curve), one with.
+  const replies = { 1: bare(5, { notes: ['LTV_CEILING_UNAVAILABLE'] }), 2: bare(5, { cacCeiling: 80 }) };
+  const data = fakeData({ answer: (p) => ({ request_id: 'r', result: replies[p.id] }) });
+  const root = { innerHTML: '', querySelectorAll: () => [], querySelector: () => null, insertAdjacentHTML() {} };
+  const ctx = { root, data, fmt, esc, kpis: (items) => items.map((i) => `${i.label}=${i.value}`).join('|') };
+  await view.render(ctx);
+  for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.match(root.innerHTML, /Saturation found=0\|Room to scale=1\|Not judged=1/);
+  assert.equal((root.innerHTML.match(/Still efficient/g) || []).length, 1);
+  assert.match(root.innerHTML, /Not judged: no CAC ceiling at this level/);
 });
