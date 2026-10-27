@@ -33,7 +33,9 @@ worked on by HYROS developers. Then:
   changes small, and prefer a new file or a view's own `style.css`.
 - "GitHub access and deploys" and the `update-from-template` skill do not
   apply: this repository is public, the developer uses their own GitHub
-  credentials, and changes go through pull requests to `main`.
+  credentials, and changes go through pull requests to `main`. Commits are
+  still authored as the repository owner, `HyrosEngineeringAI`: the session
+  hook in `.claude/settings.json` sets it here too.
 
 ## Read order
 
@@ -130,14 +132,22 @@ without the user asking.
 
 ## GitHub access and deploys
 This repo is private, under `HyrosEngineeringAI` on GitHub, and Vercel
-deploys it: **a push to `main` is a production deploy**. Any other branch
-also gets a preview deployment, but nobody can open it: the user has no
-access to the GitHub or Vercel dashboards, and the token below cannot read
-deployments (GitHub answers 403). Never offer a branch preview, and never
-send the user to GitHub or Vercel to find one.
+deploys it: **`main` is the dashboard**. Every push to `main` is live a
+minute or two later, and that is how every change reaches the user. Work on
+`main` and push there when a change is done; do not create branches or pull
+requests unless the user asks for one. Any other branch gets a preview
+deployment, but nobody can open it: the user has no access to Vercel. Never
+offer a branch preview, and never send the user to GitHub or Vercel to find
+one.
 
-The user has no GitHub credentials for it and must never need any. Access
-comes from a token issued by the HYROS MCP tool
+How Claude Code reaches GitHub depends on where it runs.
+`echo "$CLAUDE_CODE_REMOTE"` prints `true` in Claude Code on the web
+(claude.ai/code) and nothing on the user's computer.
+
+### Claude Code on your computer
+
+The user has no GitHub credentials for this repo here and must never need
+any. Access comes from a token issued by the HYROS MCP tool
 `hyros_get_dashboard_repository_token` (your client may show it with a
 prefix). A token works for this one repository only (clone, pull, push) and
 expires one hour after it is issued.
@@ -147,14 +157,8 @@ local ones such as `status`, `diff` or `commit` need nothing):
 1. Get the repository name: `basename -s .git "$(git remote get-url origin)"`.
    Before the first clone, ask the user for it; it looks like
    `dash-<number>-<7 hex chars>`.
-2. Call `hyros_get_dashboard_repository_token` with that name. Besides the
-  token it returns `commitAuthorName` and `commitAuthorEmail`.
-3. Set them as this repository's commit author (never `--global`):
-   ```
-   git config user.name "<commitAuthorName>"
-   git config user.email "<commitAuthorEmail>"
-   ```
-4. Point `origin` at the token, then run the command:
+2. Call `hyros_get_dashboard_repository_token` with that name.
+3. Point `origin` at the token, then run the command:
    ```
    git remote set-url origin "https://x-access-token:<token>@github.com/HyrosEngineeringAI/<repo>.git"
    git push origin <branch>
@@ -169,16 +173,53 @@ Rules:
 - The token lives only in the `origin` URL inside `.git/config`. Never write
  it into a tracked file, a commit message, a script or an env file, and do
  not print it back unless the user asks.
-- Before pushing to `main`, run `npm run check`, summarize the changes and
- confirm the user wants them in production. There is no local or preview
- check: the user looks at a change on their dashboard in HYROS once the
- deploy is done, a minute or two after the push. If it is wrong, fix it or
- `git revert` it and push again. A branch can still be pushed to keep work
- safe; it gives the user nothing to look at.
 - Tool not available: the HYROS MCP server is not connected. Ask the user to
  add `https://mcp.hyros.com/mcp` as an MCP server in their client and sign
  in with their HYROS account. Tool refused as not enabled ("Custom
  dashboards are not enabled for this account."): the feature is off for
  their account; they should contact HYROS support.
-- Commits are authored as the dashboard owner returned by the tool, not as the user.
-  Do not override the repository's `user.name` or `user.email`
+
+### Claude Code on the web
+
+The repository is already attached to the session, with the GitHub access
+of the account the user connected to Claude. `git fetch`, `git pull` and
+`git push` work as they are.
+
+- Never run the token step above: a token in the remote URL does not work
+  here. Never put a token in `origin`, and never change `origin`.
+- Never ask the user for a GitHub username, password, token or SSH key.
+- The HYROS MCP server is usually out of reach here. Nothing in this
+  section needs it.
+- `git push` refused means the user's GitHub account has no access to this
+  repository yet. Tell them to use "Add collaborator" on the Repository
+  screen in HYROS, accept the invitation on GitHub, then start a new
+  session with this repository selected.
+
+### Both: commits and pushes
+
+Every commit is authored and committed as the GitHub account that owns this
+repository, the owner in `git remote get-url origin` (`HyrosEngineeringAI`
+in production), with that account's `users.noreply.github.com` address. The
+session hook in `.claude/settings.json` runs
+`.claude/hooks/set-commit-identity.sh` when a session starts; it reads the
+owner from `origin` and sets the identity through this repository's git
+config and the session environment. The same settings file turns off
+Claude's commit trailers.
+
+- Never set `user.name` or `user.email` to anything else, never pass
+  `--author` or `--signoff`, and never add trailers (`Co-Authored-By` or
+  any other) to a commit message.
+- Before committing, check `git config user.name`. If it is not the owner
+  of `origin`, run the hook script yourself (never `--global`):
+  ```
+  sh .claude/hooks/set-commit-identity.sh
+  ```
+- No model identifiers in commits.
+- When a change is done and `npm run check` passes, commit and push to
+  `main` right away, without asking: the push is how the user gets to see
+  the change. Tell them in one line what went live and that it shows on
+  their dashboard in HYROS a minute or two later. There is no local or
+  preview check. If something looks wrong once deployed, fix it or
+  `git revert` it and push again.
+- Ask before pushing only when the change removes a tab or data the user
+  did not ask to remove.

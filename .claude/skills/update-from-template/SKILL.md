@@ -12,10 +12,11 @@ first update anchors the history once; after that every update is a plain
 `git merge`. Run it only when the user asks. Nothing here changes `main`
 without the user's confirmation.
 
-GitHub access for `origin` (fetch, pull, push) follows "GitHub access and
-deploys" in `CLAUDE.md`: get a token with
-`hyros_get_dashboard_repository_token` first. The template is public, so
-reading it needs no token.
+GitHub access for `origin` (fetch, pull, push) depends on where Claude Code
+runs, as "GitHub access and deploys" in `CLAUDE.md` says: on the user's
+computer, get a token with `hyros_get_dashboard_repository_token` first; on
+the web, `origin` works as it is. The template is public, so reading it
+needs no token.
 
 When `git remote get-url origin` ends in `HyrosEngineeringAI/hyros-custom.git`,
 this is the template itself, not a dashboard: there is nothing to update
@@ -25,7 +26,8 @@ from, so say so and stop.
 
 - `git status` must be clean. If it is not, ask the user to commit or
   discard their changes first; never stash or reset them yourself.
-- `git switch main` and `git pull origin main` (with a fresh token).
+- `git switch main` and `git pull origin main` (on the user's computer, with a
+  fresh token).
 
 ## 2. Is there an update?
 
