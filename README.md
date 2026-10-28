@@ -63,7 +63,7 @@ Each tab's data and states are in its `SPEC.md`; the API paths behind them in
 
 Tokens stay in memory. Both ways of getting one, and how the theme arrives,
 are in `docs/PROTOCOL.md`;
-the rules for adding views are in `CLAUDE.md` and `VIEWS.md`.
+the rules for adding views are in `AGENTS.md` and `VIEWS.md`.
 
 ## Design system
 
@@ -136,7 +136,8 @@ for manual deploys built without it.
 `Content-Security-Policy: frame-ancestors https://app.hyros.com
 https://ui-test.hyros.com https://localhost:8080`, `X-Content-Type-Options:
 nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`.
-`.vercelignore` leaves out `dev/`, `scripts/`, `tests/` and `docs/`.
+`.vercelignore` leaves out `dev/`, `scripts/`, `tests/`, `docs/`, the
+agent files (`.claude/`, `.cursor/`, `.githooks/`) and the `*.md` docs.
 
 ## Limits
 

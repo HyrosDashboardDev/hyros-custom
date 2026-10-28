@@ -253,6 +253,6 @@ prefix and step 5 adds it to `TEMPLATE_VIEWS` in `src/views/registry.js`;
 5. Add the id to `CUSTOM_VIEWS` in `src/views/custom.js`.
 6. `npm run check`.
 7. Once the user confirms and it is in production (see "GitHub access and
-   deploys" in `CLAUDE.md`), ask them to look at the tab on their
+   deploys" in `AGENTS.md`), ask them to look at the tab on their
    dashboard: data, a refresh, and the empty and warning states.
 8. Bump `version` whenever the view's data needs or layout change.

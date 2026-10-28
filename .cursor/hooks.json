@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "sh .claude/hooks/set-commit-identity.sh >/dev/null 2>&1; true"
+      }
+    ]
+  }
+}

@@ -4,7 +4,9 @@
 # environment the repository was created in. Known owners get the GitHub noreply address that
 # carries their account id, which is what links the commits to the account on GitHub. When
 # Claude Code provides a session environment file, the identity is exported there too, so it
-# also applies where git ignores the repository config.
+# also applies where git ignores the repository config. It also points git at .githooks, whose
+# commit-msg drops the trailers a client adds on its own. Claude Code and Cursor both run it on
+# session start (.claude/settings.json, .cursor/hooks.json).
 
 dir="${CLAUDE_PROJECT_DIR:-.}"
 url=$(git -C "$dir" remote get-url origin 2>/dev/null) || exit 0
@@ -22,6 +24,7 @@ esac
 
 git -C "$dir" config user.name "$owner"
 git -C "$dir" config user.email "$email"
+[ -f "$dir/.githooks/commit-msg" ] && git -C "$dir" config core.hooksPath .githooks
 
 if [ -n "$CLAUDE_ENV_FILE" ] && ! grep -qsF "export GIT_COMMITTER_EMAIL=$email" "$CLAUDE_ENV_FILE"; then
     {

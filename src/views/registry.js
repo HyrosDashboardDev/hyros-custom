@@ -6,7 +6,7 @@
  * This file belongs to the template and changes with its updates. In a
  * dashboard, add or hide a tab in src/views/custom.js, never here. In the
  * template repository itself, template tabs are added here, to
- * TEMPLATE_VIEWS (CLAUDE.md, "Working on the template itself").
+ * TEMPLATE_VIEWS (AGENTS.md, "Working on the template itself").
  */
 import { CUSTOM_VIEWS, HIDDEN_VIEWS } from './custom.js';
 

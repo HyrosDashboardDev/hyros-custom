@@ -1,0 +1,11 @@
+#!/bin/sh
+# Every commit is authored by the account that owns this repository and carries no trailers
+# (AGENTS.md, "Everywhere: commits and pushes"). Some clients add one on their own, Cursor a
+# Co-authored-by and a Made-with, so they are removed here, with the blank lines they leave.
+
+msg="$1"
+tmp="$msg.tmp"
+
+grep -v -i -E '^(co-authored-by|made-with):' "$msg" \
+    | awk '{ lines[NR] = $0 } END { n = NR; while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--; for (i = 1; i <= n; i++) print lines[i] }' \
+    > "$tmp" && mv "$tmp" "$msg"
