@@ -5,3 +5,5 @@ docs/
 .claude/
 *.md
 src/views/_template/
+.cursor/
+.githooks/

@@ -9,9 +9,9 @@ description: Add a new tab (view) to the HYROS Custom Dashboard the plug-and-pla
 `HyrosEngineeringAI/hyros-custom`): the view is a template tab. Use an id
 without the `custom-` prefix, register it in `TEMPLATE_VIEWS` in
 `src/views/registry.js`, and never touch `src/views/custom.js`. See
-"Working on the template itself" in `CLAUDE.md`.
+"Working on the template itself" in `AGENTS.md`.
 
-Read `VIEWS.md` and `CLAUDE.md` first, then `UI-STYLE-GUIDE.md` before any
+Read `VIEWS.md` and `AGENTS.md` first, then `UI-STYLE-GUIDE.md` before any
 markup or CSS. `src/views/account/` (with its `SPEC.md`) is the worked
 example; `src/views/_template/` is the skeleton.
 
@@ -45,7 +45,7 @@ example; `src/views/_template/` is the skeleton.
    updates.
 6. Verify: `npm run check` must pass (the view contract, `SPEC.md`
    present, no fetch, no core imports, no native dialogs, no hex colors).
-   Then push to `main` (see "GitHub access and deploys" in `CLAUDE.md`)
+   Then push to `main` (see "GitHub access and deploys" in `AGENTS.md`)
    and ask the user to look at the tab on their dashboard once it is live:
    data, Refresh, and the warning and empty states.
 

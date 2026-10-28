@@ -12,8 +12,8 @@ first update anchors the history once; after that every update is a plain
 `git merge`. Run it only when the user asks. Nothing here changes `main`
 without the user's confirmation.
 
-GitHub access for `origin` (fetch, pull, push) depends on where Claude Code
-runs, as "GitHub access and deploys" in `CLAUDE.md` says: on the user's
+GitHub access for `origin` (fetch, pull, push) depends on where you run,
+as "GitHub access and deploys" in `AGENTS.md` says: on the user's
 computer, get a token with `hyros_get_dashboard_repository_token` first; on
 the web, `origin` works as it is. The template is public, so reading it
 needs no token.
@@ -132,7 +132,20 @@ showing:
 
 Tell the user which tabs were renamed and which were hidden.
 
-### 4b. Resolve each conflict
+### 4b. Own instructions in `CLAUDE.md` (dashboards created before `AGENTS.md`)
+
+The instructions moved from `CLAUDE.md` to `AGENTS.md`, which Claude Code
+and Cursor both read; `CLAUDE.md` is now only `@AGENTS.md`. When the
+dashboard changed its `CLAUDE.md`, the merge conflicts there, and those
+changes must move or they stop applying:
+
+1. See what the dashboard changed:
+   `git diff "$(git merge-base HEAD template/main)" HEAD -- CLAUDE.md`.
+2. Make each change in `AGENTS.md`, at the same place in the text, and
+   show the user the result.
+3. Take the template's `CLAUDE.md` (`git checkout --theirs CLAUDE.md`).
+
+### 4c. Resolve each conflict
 
 Resolve block by block, never a whole file at once: `git checkout --theirs`
 or `--ours` on a file also throws away the other side's changes that git

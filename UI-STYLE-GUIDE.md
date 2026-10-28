@@ -288,7 +288,7 @@ reduced-motion opt-out.
 ## 9. Verifying a visual change
 
 A visual change is checked on the deployed dashboard, once it is in
-production (see "GitHub access and deploys" in `CLAUDE.md`). Ask the user
+production (see "GitHub access and deploys" in `AGENTS.md`). Ask the user
 to look at it in **both themes** (inside HYROS it follows the HYROS theme;
 at its own url it has a dark/white switch): every tab, the loading state,
 and a view's error card.

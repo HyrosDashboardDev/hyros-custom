@@ -1,5 +1,5 @@
 /**
- * The rules CLAUDE.md and VIEWS.md state, checked on the source: views reach
+ * The rules AGENTS.md and VIEWS.md state, checked on the source: views reach
  * HYROS only through ctx.data, the core depends on nothing above it, every
  * registered view honors the contract and ships a SPEC.md, colors come only
  * from the tokens in styles.css, and no file uses what the HYROS iframe

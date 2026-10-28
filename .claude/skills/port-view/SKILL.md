@@ -9,7 +9,7 @@ description: Bring a view into the HYROS Custom Dashboard from another copy of t
 `HyrosEngineeringAI/hyros-custom`): the view is a template tab. Use an id
 without the `custom-` prefix, register it in `TEMPLATE_VIEWS` in
 `src/views/registry.js`, and never touch `src/views/custom.js`. See
-"Working on the template itself" in `CLAUDE.md`.
+"Working on the template itself" in `AGENTS.md`.
 
 A view travels as its folder: `src/views/<id>/` with `view.js`, `SPEC.md`
 and, when the view has one, `style.css`. Nothing outside the folder belongs
@@ -36,4 +36,4 @@ provided, keep the `id` and `version` from the spec, and note in the new
 
 Always finish with `npm run check`. The user looks at the tab on their
 dashboard once it is in production (see "GitHub access and deploys" in
-`CLAUDE.md`).
+`AGENTS.md`).
