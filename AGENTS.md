@@ -143,9 +143,9 @@ one.
 How you reach GitHub depends on where you run.
 `echo "$CLAUDE_CODE_REMOTE"` prints `true` in Claude Code on the web
 (claude.ai/code). Anywhere else you are on the user's computer, in Claude
-Code or in Cursor.
+Code or in Cursor, or in a Cursor Cloud Agent.
 
-### On the user's computer (Claude Code or Cursor)
+### On the user's computer (Claude Code or Cursor) or a Cursor Cloud Agent
 
 The user has no GitHub credentials for this repo here and must never need
 any. Access comes from a token issued by the HYROS MCP tool
@@ -170,13 +170,19 @@ Rules:
 - `Authentication failed`, `403` or `could not read Username` means the
  token expired: request a new one and retry once, never with the old one.
 - Never ask the user for a GitHub username, password, token or SSH key, and
- never switch the remote to SSH.
+ never switch the remote to SSH. The one exception is the command from the
+ Repository screen in HYROS, below.
 - The token lives only in the `origin` URL inside `.git/config`. Never write
  it into a tracked file, a commit message, a script or an env file, and do
  not print it back unless the user asks.
-- Tool not available: the HYROS MCP server is not connected. Ask the user to
- add `https://mcp.hyros.com/mcp` as an MCP server in their client (in
- Cursor: Settings, MCP) and sign in with their HYROS account. Tool refused
+- Tool not available: the HYROS MCP server is not connected. If `origin`
+ already has a token, run the command with it first. Once it fails as
+ expired, ask the user for a new renew command: on the Repository screen in
+ HYROS, "Get new commands", then "Already cloned it before?". Run the
+ `git remote set-url origin ...` they paste and retry once. Mention that
+ adding `https://mcp.hyros.com/mcp` as an MCP server in their client (in
+ Cursor: Settings, MCP) and signing in with their HYROS account renews it
+ on its own. Tool refused
  as not enabled ("Custom dashboards are not enabled for this account."):
  the feature is off for their account; they should contact HYROS support.
 - Cursor asks the user before it runs an MCP tool and before some terminal
@@ -200,9 +206,13 @@ of the account the user connected to Claude. `git fetch`, `git pull` and
 
 ### Cursor Cloud Agents
 
-Not supported. They reach GitHub only through the Cursor GitHub app, and
-only the account that owns this repository can install it. Tell the user to
-work on the dashboard from Cursor on their computer.
+The user starts the agent at cursor.com/agents and pastes the clone command
+from the Repository screen in HYROS (Cursor tab) into the first message. Run
+it as given: it clones with the token and sets the commit identity. The
+session hooks ran before the clone, so run
+`sh .claude/hooks/set-commit-identity.sh` once inside the clone. The HYROS
+MCP server is usually not connected here: renew the token as the rules above
+say.
 
 ### Everywhere: commits and pushes
 
