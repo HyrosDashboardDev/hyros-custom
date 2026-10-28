@@ -354,18 +354,21 @@ input::placeholder { color: var(--ink-3); }
 
 /* ---------- KPI tiles (the site's .eo-kpi) ---------- */
 .kpis {
-  display: grid; gap: 10px; margin-bottom: 18px;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
 }
+/* the range and note lines take a row of their own */
+.kpis > :not(.kpi) { flex: 0 0 100%; }
 /* the date range prints ONCE above the tiles, never per card */
-.kpi-range { grid-column: 1 / -1; margin: 0 2px -2px; }
+.kpi-range { margin: 0 2px -2px; }
+/* each tile is as wide as its figure; one that does not fit moves to the next row */
 .kpi {
+  flex: 0 0 auto; min-width: 120px; max-width: 100%;
   background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: var(--r-tile); padding: 12px 14px 11px; position: relative;
+  border-radius: var(--r-tile); padding: 10px 22px; position: relative;
 }
-.kpi-label { margin-bottom: 6px; }
+.kpi-label { margin-bottom: 7px; }
 .kpi-value {
-  font-family: var(--serif); font-weight: 400; font-size: 25px; line-height: 1.1;
+  font-family: var(--serif); font-weight: 400; font-size: 22px; line-height: 1.05; white-space: nowrap;
   letter-spacing: -0.012em; font-variant-numeric: tabular-nums; color: var(--ink);
 }
 .kpi-sub { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-3); margin-top: 5px; }
