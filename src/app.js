@@ -5,7 +5,8 @@
  */
 import { createAuth, createHostProvider, createOAuthProvider } from './core/auth.js';
 import * as api from './core/api.js';
-import { resolveApiUrl, resolveAuthServer, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
+import { directUrls, resolveApiUrl, resolveAuthServer, resolveEnv, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
+import { createRoutes } from './core/routes.js';
 import { createThemeReceiver } from './core/theme.js';
 import { VIEW_LOAD_MS } from './core/budget.js';
 import { createData } from './data/data.js';
@@ -19,6 +20,7 @@ const COPY = {
   forbidden: 'This HYROS login cannot read this data. Ask the account owner for access.',
   rate_limited: 'HYROS is rate limiting this account. Wait a minute and press Refresh.',
   timeout: 'HYROS took too long to answer. Press Refresh again.',
+  network: 'Could not reach HYROS. If you use an ad blocker or antivirus, allow hyros.com and reload.',
 };
 const SIGN_IN_TEXT = 'Sign in with your HYROS account to see this dashboard. It can only read your data.';
 const REFUSAL_NEXT = 'Contact the account owner or HYROS support, then reload this page.';
@@ -204,19 +206,26 @@ function boot() {
   // Before the first request for a token: HYROS answers `ready` with the theme first.
   wireThemeSwitch(createThemeReceiver());
   const mcpUrl = resolveMcpUrl();
+  const apiUrl = resolveApiUrl(mcpUrl);
+  // A known environment starts on its direct hosts, even when the build named its CDN, and falls back
+  // to the CloudFront hosts of CONFIG.fallback when a call gets no answer at all. An unknown one
+  // (a local server) uses the configured urls only.
+  const env = resolveEnv(mcpUrl, apiUrl);
+  const direct = env ? directUrls(env) : null;
+  const routes = direct ? createRoutes({ env, direct }) : null;
   const host = createHostProvider();
   if (!host.isAvailable()) {
     host.dispose();
-    oauth = createOAuthProvider({ authServer: resolveAuthServer(mcpUrl), redirectUri: resolveRedirectUri() });
+    oauth = createOAuthProvider({ authServer: direct ? direct.auth : resolveAuthServer(mcpUrl), routes, redirectUri: resolveRedirectUri() });
   }
   auth = createAuth({ provider: oauth || host });
-  const apiUrl = resolveApiUrl(mcpUrl);
-  if (!apiUrl) {
+  const apiBase = direct ? direct.api : apiUrl;
+  if (!apiBase) {
     // build.mjs refuses this; only a page served without the build gets here.
     showGate({ title: 'This dashboard is not set up', text: `There is no HYROS API for ${mcpUrl}. Build it with HYROS_API_URL.` });
     return;
   }
-  api.configure({ url: apiUrl, getToken: auth.getToken, markInvalid: auth.markInvalid });
+  api.configure({ url: apiBase, routes, getToken: auth.getToken, markInvalid: auth.markInvalid });
   data = createData({ api });
 
   $('#gateRetry').addEventListener('click', () => connect('retry'));

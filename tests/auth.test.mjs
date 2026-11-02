@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createAuth, createHostProvider, createOAuthProvider, pkceChallenge, AuthError, TOKEN_TIMEOUT_MS, DASHBOARD_SCOPE, OAUTH_CLIENT_NAME,
 } from '../src/core/auth.js';
+import { createRoutes } from '../src/core/routes.js';
 
 const HOST = 'http://localhost:4323';
 const ORIGINS = ['https://app.hyros.com', HOST];
@@ -199,8 +200,17 @@ function fakeStorage(seed = {}, { blocked = false } = {}) {
 
 const json = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 
-function oauthSetup({ search = '', local = fakeStorage(), session = fakeStorage(), routes = {}, clock = fakeClock(), redirectUri = PAGE } = {}) {
+/**
+ * `routes` is the table of OAuth paths HYROS answers. `hosts` is a routes.js
+ * object for the provider. Every fetch to an origin in `down` rejects with a
+ * TypeError, like a blocked host; on an origin in `lost` only the POSTs do,
+ * like an answer lost on the way back, and the metadata GET still answers.
+ * `origins` records where each POST went and `probes` where each GET went.
+ */
+function oauthSetup({ search = '', local = fakeStorage(), session = fakeStorage(), routes = {}, clock = fakeClock(), redirectUri = PAGE, hosts = null, down = new Set(), lost = new Set() } = {}) {
   const requests = [];
+  const origins = [];
+  const probes = [];
   const assigned = [];
   const replaced = [];
   const win = {
@@ -208,16 +218,23 @@ function oauthSetup({ search = '', local = fakeStorage(), session = fakeStorage(
     history: { state: null, replaceState: (_state, _title, url) => replaced.push(url) },
   };
   const fetchFn = async (url, init) => {
-    const path = new URL(url).pathname;
+    const { origin, pathname: path } = new URL(url);
+    if (init.method === 'GET') {
+      probes.push(`${origin}${path}`);
+      if (down.has(origin)) throw new TypeError('Failed to fetch');
+      return json(404, null);
+    }
+    origins.push(origin);
+    if (down.has(origin) || lost.has(origin)) throw new TypeError('Failed to fetch');
     const body = init.headers['content-type'] === 'application/json' ? JSON.parse(init.body) : Object.fromEntries(new URLSearchParams(init.body));
     requests.push({ path, body });
     const route = routes[path];
     if (!route) return json(404, { error: 'not_found' });
     return route(body, requests.filter((r) => r.path === path).length);
   };
-  const provider = createOAuthProvider({ authServer: AUTH_SERVER, redirectUri, win, fetchFn, local, session, now: clock.now });
+  const provider = createOAuthProvider({ authServer: AUTH_SERVER, routes: hosts, redirectUri, win, fetchFn, local, session, now: clock.now });
   const auth = createAuth({ provider, now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
-  return { provider, auth, requests, assigned, replaced, local, session, clock };
+  return { provider, auth, requests, origins, probes, assigned, replaced, local, session, clock };
 }
 
 const registered = () => json(201, { client_id: 'client-1' });
@@ -475,4 +492,95 @@ test('oauth: a failed registration is NO_TOKEN with the status and no redirect',
   const { provider, assigned } = oauthSetup({ routes: { '/connect/register': () => json(500, null) } });
   await assert.rejects(provider.signIn(), (err) => err.code === 'NO_TOKEN' && /HTTP 500/.test(err.message));
   assert.equal(assigned.length, 0);
+});
+
+const CDN = 'https://cdn.example';
+const cdnRoutes = () => createRoutes({
+  env: 'prod',
+  direct: { api: 'https://api.example/v1/api/v1.0', auth: AUTH_SERVER },
+  fallbacks: { api: [], auth: [CDN] },
+});
+
+test('oauth routes: registration falls back to the CDN, the sign-in page stays on the auth server', async () => {
+  const { provider, requests, origins, assigned, local } = oauthSetup({
+    hosts: cdnRoutes(), down: new Set([AUTH_SERVER]), routes: { '/connect/register': registered },
+  });
+  await provider.signIn();
+  assert.deepEqual(origins, [AUTH_SERVER, CDN]);
+  assert.deepEqual(requests.map((r) => r.path), ['/connect/register']);
+  assert.equal(new URL(assigned[0]).origin, AUTH_SERVER, 'the browser navigates to the auth server itself');
+  assert.equal(JSON.parse(local.map.get('hyros-dashboard-oauth-client')).authServer, AUTH_SERVER, 'the client stays keyed by the auth server');
+
+  await provider.signIn();
+  assert.equal(requests.length, 1, 'the cached client is reused after the switch');
+});
+
+test('oauth routes: the code and the refresh go to the CDN once it answered, and the cached client is not registered again', async () => {
+  let n = 1;
+  const local = fakeStorage({ 'hyros-dashboard-oauth-client': JSON.stringify({ authServer: AUTH_SERVER, redirectUri: PAGE, clientId: 'client-1' }) });
+  const { provider, auth, requests, origins } = oauthSetup({
+    search: '?code=c&state=st-1',
+    session: pendingSignIn(),
+    local,
+    hosts: cdnRoutes(),
+    down: new Set([AUTH_SERVER]),
+    routes: { '/oauth2/token': () => tokens(n++) },
+  });
+  assert.equal(await auth.getToken(), 'access-1');
+  auth.markInvalid('access-1');
+  assert.equal(await auth.getToken('unauthorized'), 'access-2');
+  assert.deepEqual(origins, [AUTH_SERVER, CDN, CDN]);
+  assert.deepEqual(requests.map((r) => r.body.grant_type), ['authorization_code', 'refresh_token']);
+  await provider.signIn();
+  assert.equal(requests.filter((r) => r.path === '/connect/register').length, 0);
+});
+
+test('oauth routes: an HTTP error from the auth server does not switch to the CDN', async () => {
+  const { provider, origins } = oauthSetup({ hosts: cdnRoutes(), routes: { '/connect/register': () => json(500, null) } });
+  await assert.rejects(provider.signIn(), (err) => /HTTP 500/.test(err.message));
+  assert.deepEqual(origins, [AUTH_SERVER]);
+});
+
+test('oauth routes: every host unreachable is Could not reach HYROS to sign in', async () => {
+  const { provider, origins, assigned } = oauthSetup({ hosts: cdnRoutes(), down: new Set([AUTH_SERVER, CDN]), routes: { '/connect/register': registered } });
+  await assert.rejects(provider.signIn(), (err) => err instanceof AuthError && err.message === 'Could not reach HYROS to sign in');
+  assert.deepEqual(origins, [AUTH_SERVER, CDN]);
+  assert.equal(assigned.length, 0);
+});
+
+test('oauth routes: a lost answer from a reachable auth server is not replayed on the CDN', async () => {
+  const { auth, origins, probes } = oauthSetup({
+    search: '?code=c&state=st-1',
+    session: pendingSignIn(),
+    hosts: cdnRoutes(),
+    lost: new Set([AUTH_SERVER]),
+    routes: { '/oauth2/token': () => tokens(1) },
+  });
+  await assert.rejects(auth.getToken(), (err) => err instanceof AuthError && err.message === 'Could not reach HYROS to sign in');
+  assert.deepEqual(origins, [AUTH_SERVER], 'the code went to the auth server only');
+  assert.deepEqual(probes, [`${AUTH_SERVER}/.well-known/oauth-authorization-server`]);
+});
+
+test('oauth routes: a blocked auth server is probed, then the token call succeeds on the CDN', async () => {
+  const { auth, origins, probes } = oauthSetup({
+    search: '?code=c&state=st-1',
+    session: pendingSignIn(),
+    hosts: cdnRoutes(),
+    down: new Set([AUTH_SERVER]),
+    routes: { '/oauth2/token': () => tokens(1) },
+  });
+  assert.equal(await auth.getToken(), 'access-1');
+  assert.deepEqual(origins, [AUTH_SERVER, CDN]);
+  assert.deepEqual(probes, [`${AUTH_SERVER}/.well-known/oauth-authorization-server`]);
+});
+
+test('oauth routes: no probe when the auth server answers', async () => {
+  const { auth, probes } = oauthSetup({
+    search: '?code=c&state=st-1',
+    session: pendingSignIn(),
+    hosts: cdnRoutes(),
+    routes: { '/oauth2/token': () => tokens(1) },
+  });
+  assert.equal(await auth.getToken(), 'access-1');
+  assert.deepEqual(probes, []);
 });

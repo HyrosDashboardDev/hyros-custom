@@ -1,7 +1,8 @@
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startMock, mock, calls } from '../scripts/mock-api.mjs';
-import { configure, get, getPagedInfo, parseRetryAfter, toQuery, RATE_LIMIT_WAITS_MS, READ_PATHS } from '../src/core/api.js';
+import { configure, connection, get, getPagedInfo, parseRetryAfter, toQuery, RATE_LIMIT_WAITS_MS, READ_PATHS } from '../src/core/api.js';
+import { createRoutes } from '../src/core/routes.js';
 
 let server;
 let url;
@@ -235,4 +236,82 @@ test('pagination: an expired cursor on page 2 keeps the rows so far and marks tr
   assert.equal(out.rows.length, 2);
   assert.equal(out.truncated, true);
   assert.match(out.error, /pageId/);
+});
+
+/** Nothing listens on port 1: the connection is refused and fetch rejects with a TypeError, like a blocked host. */
+const CLOSED = 'http://127.0.0.1:1/api/v1.0';
+
+/** Routes whose direct API is `direct` and whose only fallback is `fallback`. */
+function routesTo(direct, fallback) {
+  return createRoutes({
+    env: 'prod',
+    direct: { api: direct, auth: 'https://mcp.example' },
+    fallbacks: { api: fallback ? [fallback] : [], auth: [] },
+  });
+}
+
+test('routes: a direct host that cannot be reached falls back, and later calls go straight to the fallback', async () => {
+  const routes = routesTo(CLOSED, url);
+  wire({ url: CLOSED, routes });
+  const realFetch = globalThis.fetch;
+  const hrefs = [];
+  globalThis.fetch = (input, init) => { hrefs.push(String(input)); return realFetch(input, init); };
+  try {
+    assert.deepEqual(connection(), { base: CLOSED, viaFallback: false });
+    const body = await get('/user-info');
+    assert.equal(body.result.userProfile.email, 'mock@hyros.test');
+    await get('/stages');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.deepEqual(hrefs, [`${CLOSED}/user-info`, `${url}/user-info`, `${url}/stages`]);
+  assert.deepEqual(calls.map((c) => c.token), ['tok-1', 'tok-1'], 'the same token, no re-auth');
+  assert.deepEqual(connection(), { base: url, viaFallback: true });
+});
+
+test('routes: a 401 on the direct host does not switch; the retry with a new token stays there', async () => {
+  const routes = routesTo(url, CLOSED);
+  wire({ url, routes });
+  mock.failNext({ status: 401, body: 'Unauthorized' });
+  await get('/user-info');
+  assert.deepEqual(calls.map((c) => c.token), ['tok-1', 'tok-2']);
+  assert.deepEqual(connection(), { base: url, viaFallback: false });
+});
+
+test('routes: a 500 or a 429 on the direct host does not switch either', async () => {
+  const routes = routesTo(url, CLOSED);
+  wire({ url, routes });
+  mock.failNext({ status: 500, body: 'gateway exploded' });
+  await assert.rejects(get('/leads'), (err) => /HTTP 500/.test(err.message));
+  mock.failNext({ status: 429, retryAfter: 0, body: LIMIT });
+  await get('/stages');
+  assert.equal(calls.length, 3);
+  assert.equal(connection().viaFallback, false);
+});
+
+test('routes: every host unreachable is ApiError network, after one try on each', async () => {
+  const routes = routesTo(CLOSED, 'http://127.0.0.1:1/other/api/v1.0');
+  wire({ url: CLOSED, routes });
+  const realFetch = globalThis.fetch;
+  const hrefs = [];
+  globalThis.fetch = (input, init) => { hrefs.push(String(input)); return realFetch(input, init); };
+  try {
+    await assert.rejects(get('/user-info'), (err) => err.name === 'ApiError' && err.code === 'network');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.deepEqual(hrefs, [`${CLOSED}/user-info`, 'http://127.0.0.1:1/other/api/v1.0/user-info']);
+});
+
+test('routes: two identical calls in flight share one request, whichever host serves them', async () => {
+  wire({ url: CLOSED, routes: routesTo(CLOSED, url) });
+  mock.latencyMs = 30;
+  await Promise.all([get('/stages'), get('/stages')]);
+  assert.equal(calls.length, 1);
+});
+
+test('without routes an unreachable host keeps the fetch error as it is', async () => {
+  wire({ url: CLOSED });
+  await assert.rejects(get('/user-info'), (err) => err instanceof TypeError);
+  assert.deepEqual(connection(), { base: CLOSED, viaFallback: false });
 });

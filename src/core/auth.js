@@ -117,6 +117,7 @@ export const OAUTH_PATHS = Object.freeze({
   register: '/connect/register',
   authorize: '/oauth2/authorize',
   token: '/oauth2/token',
+  metadata: '/.well-known/oauth-authorization-server',
 });
 /** HYROS issues a read-only credential, accepted at /mcp only, for this scope. */
 export const DASHBOARD_SCOPE = 'mcp:read';
@@ -175,9 +176,18 @@ function readCallback(search) {
  *   hasCallback()  whether this page load is HYROS redirecting back
  *   wasAbandoned() whether a sign-in started in this tab never came back (the user went back)
  *   signIn()       registers the page once, then leaves for the HYROS sign-in
+ *
+ * With `routes` (routes.js) registration and token calls start on `authServer`
+ * and move to a fallback host only when the fetch never got an HTTP answer
+ * and a GET of the server's metadata on that host gets none either: neither
+ * POST may run twice, and a code or refresh token replayed on another host
+ * would be refused.
+ * The sign-in page itself is always `authServer`, and the registered client
+ * stays keyed by `authServer`: a fallback host proxies the same server.
  */
 export function createOAuthProvider({
   authServer,
+  routes = null,
   redirectUri,
   win = globalThis.window,
   fetchFn = (...args) => globalThis.fetch(...args),
@@ -209,8 +219,11 @@ export function createOAuthProvider({
   async function call(path, init) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const at = (base) => fetchFn(new URL(path, base).href, { ...init, signal: ctrl.signal });
+    // Any HTTP answer, a 404 included, means the host is reachable.
+    const probe = (base) => fetchFn(new URL(OAUTH_PATHS.metadata, base).href, { method: 'GET', signal: ctrl.signal });
     try {
-      const res = await fetchFn(new URL(path, authServer).href, { ...init, signal: ctrl.signal });
+      const res = await (routes ? routes.withFallback('auth', at, { probe }) : at(authServer));
       let body = null;
       try { body = await res.json(); } catch { /* not JSON */ }
       return { ok: res.ok, status: res.status, body };

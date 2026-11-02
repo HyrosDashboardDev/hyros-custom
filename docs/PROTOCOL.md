@@ -105,7 +105,7 @@ client (no secret). `src/core/auth.js`, `createOAuthProvider`.
 
 | | |
 |---|---|
-| OAuth server | the origin of the MCP url (`https://mcp.hyros.com` for `https://mcp.hyros.com/mcp`) |
+| OAuth server | the origin of the MCP url (`https://mcp.hyros.com` for `https://mcp.hyros.com/mcp`); for a known environment always its direct host, even when the MCP url names its CloudFront host. Registration and token calls that get no HTTP answer are retried on the `auth` fallback hosts of `CONFIG.fallback` (`https://d1dan6xu9gc9j7.cloudfront.net`, QA `https://d1uwky5nlh5sj8.cloudfront.net`; `src/core/routes.js`) only when a `GET /.well-known/oauth-authorization-server` on the same host gets no answer either, so a code or refresh token whose answer was lost is never replayed elsewhere; the sign-in page and the cached `client_id` stay on the direct host |
 | Registration | `POST /connect/register` once per page url and server; the `client_id` is kept in `localStorage` |
 | Sign-in | `GET /oauth2/authorize`, `scope=mcp:read`, `code_challenge_method=S256` |
 | Tokens | `POST /oauth2/token`: the code for an access and a refresh token, later the refresh token for new ones |
@@ -161,11 +161,11 @@ Where the data comes from, with either credential. `src/core/api.js`.
 
 | | |
 |---|---|
-| Base url | `https://api.hyros.com/v1/api/v1.0` (QA `https://api-staging.hyros.com/v1/api/v1.0`), picked from the MCP url or `<meta name="hyros-api-url">` |
+| Base url | `https://api.hyros.com/v1/api/v1.0` (QA `https://api-staging.hyros.com/v1/api/v1.0`), picked from the MCP url or `<meta name="hyros-api-url">`; a CloudFront url there maps to the same environment and the page still starts on the direct host. A call whose fetch gets no HTTP answer is retried on the `api` fallback hosts of `CONFIG.fallback` (`https://d1dan6xu9gc9j7.cloudfront.net/v1/api/v1.0`, QA `https://d1uwky5nlh5sj8.cloudfront.net/v1/api/v1.0`). The first host that answers serves the rest of the page load; an HTTP status never switches hosts, and no host answering is the `network` error |
 | Auth | `Authorization: Bearer <token>`, never an `API-Key` header (it would win over the bearer) |
 | Methods | GET only. Anything else from this credential answers 403 `This credential can only read.` |
 | Roles | the read roles of the login that signed in (`ApiKeyRole.getCustomDashboardReadRoles`); a path outside them answers 403 naming the missing role |
 | 401 | plain text `Unauthorized`: expired, revoked or not accepted at this path. The dashboard asks for a new token once, then shows the sign-in. `{result:'ERROR', message:['This HYROS account is not active.']}` when the account is blocked: shown as a refusal |
 | 429 | the dashboard's own bucket per account and endpoint, apart from the account's API keys, with `Retry-After` and `X-RateLimit-*` |
-| CORS | any origin, without credentials |
+| CORS | any origin, without credentials, on the direct host and on the CloudFront hosts, which pass `Origin` and the API's CORS headers through |
 | Sandbox | `/api/v1.0/sandbox` refuses this credential |
