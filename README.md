@@ -26,6 +26,9 @@ HYROS page ──iframe──> dashboard (static files)
                             │  GET https://api.hyros.com/v1/api/v1.0/...
                             │  Authorization: Bearer <token>
                             └────────────────────> HYROS API
+                               no answer at all (ad blocker)? the same call
+                               on a CloudFront host built into
+                               src/core/config.js
 
 dashboard at its own url
      │  "Sign in with HYROS": register once (client id in localStorage),
@@ -37,7 +40,7 @@ dashboard at its own url
 ```
 
 - `src/core/`: config, auth (postMessage and the HYROS sign-in), the theme,
-  the API client, dates, time limits.
+  the API client and its fallback hosts (`routes.js`), dates, time limits.
 - `src/data/data.js`: the data API views get as `ctx.data`.
 - `src/views/`: one folder per tab. `src/views/registry.js` lists the
   template's tabs and `src/views/custom.js` the account's own.
@@ -126,9 +129,12 @@ it provisions the dashboard, and `npm run build` copies the site into
 `<meta name="hyros-mcp-url">`, which wins over `?mcp=`. The build fails
 without the variable. The data comes from the customer API of the same
 environment (`api.hyros.com` for `mcp.hyros.com`, `api-staging.hyros.com`
-for `mcp-qa.hyros.com`); an optional `HYROS_API_URL` is baked as
-`<meta name="hyros-api-url">` and overrides it, and is required when
-`HYROS_MCP_URL` is no known environment (a local server).
+for `mcp-qa.hyros.com`). An optional `HYROS_API_URL` is baked as
+`<meta name="hyros-api-url">`. When both urls name the same known
+environment, by its direct or its CloudFront hosts, they only pick that
+environment and the page starts on its direct hosts; `HYROS_API_URL` sets
+the API only when they do not, and is required when `HYROS_MCP_URL` is no
+known environment (a local server).
 `?mcp=qa|prod` only matters for the local harness and
 for manual deploys built without it.
 
@@ -141,6 +147,19 @@ agent files (`.claude/`, `.cursor/`, `.githooks/`) and the `*.md` docs.
 
 ## Limits
 
+- Ad blockers cut browser calls to `hyros.com` from another site
+  (EasyList `||hyros.com^$third-party`). Every page load starts on the
+  direct hosts (`api.hyros.com` and `mcp.hyros.com`, or their QA ones); a
+  call whose fetch never gets an HTTP answer is retried on the next
+  fallback host: the HYROS CloudFront distributions in front of the same
+  API and sign-in, built into `src/core/config.js` (`CONFIG.fallback`).
+  Changing them means updating the template. The first host that answers
+  anything, an error status included, serves the rest of the page load;
+  an HTTP status never moves to another host. When no host answers, the page says HYROS could not be
+  reached and suggests allowing `hyros.com` in the ad blocker. The sign-in
+  page itself always opens on the direct host (`mcp.hyros.com`), as a page
+  of its own rather than a call from the dashboard. A local MCP url (no
+  known environment) uses the configured urls only.
 - A 429 is retried at most twice, after what `Retry-After` says (1 s, then
   2 s, when it is missing). A `Retry-After` longer than the time left fails
   the call at once, and the error card says how long to wait.

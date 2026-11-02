@@ -7,7 +7,7 @@
 export const view = {
   id: 'account',
   title: 'Account',
-  version: '0.1.1',
+  version: '0.1.2',
   description: 'The account the dashboard is looking at: owner, timezone, currency, attribution timeframe, sources and ad accounts.',
   style: false,
   tools: ['/user-info', '/leads', '/ad-accounts', '/sources'],
@@ -40,8 +40,13 @@ export const view = {
         </table></div>`
       : '<div class="empty">No ad accounts connected</div>';
 
+    // The host the dashboard is using now (the next call goes there), not necessarily the one behind these numbers.
+    const link = data.connection();
+    const connection = link?.viaFallback ? `via CDN (${new URL(link.base).host})` : 'direct';
+
     root.innerHTML = `
       ${tiles}
+      <div class="meta">Connection: ${esc(connection)}</div>
       <h2 class="section">Ad accounts <span class="rowcount">${fmt.int(adAccounts.rows.length)}${adAccounts.truncated ? ', list cut short' : ''}</span></h2>
       ${table}`;
   },

@@ -15,6 +15,8 @@
  *   cached(key, loader)        a view's own memo: `loader()` once per key until invalidate()
  *   peek(key)                  the promise cached() holds for `key`, or undefined; never loads
  *   invalidate(key?)           drop one cached getter, or all of them (memos included)
+ *   connection()               { base, viaFallback }: the API host the next call goes to and
+ *                              whether it is a fallback (CDN) host; null when the client cannot say
  *   now()                      the clock views should use
  */
 export function createData({ api, now = () => new Date() }) {
@@ -96,6 +98,8 @@ export function createData({ api, now = () => new Date() }) {
       if (key === undefined) cache.clear();
       else cache.delete(key);
     },
+
+    connection: () => (typeof api.connection === 'function' ? api.connection() : null),
 
     now,
   };

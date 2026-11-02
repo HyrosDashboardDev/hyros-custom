@@ -13,14 +13,21 @@
  *   429  per-account limit     -> wait Retry-After (1 s, then 2 s without it), at most
  *                                 twice; then 'rate_limited'
  *   abort after timeoutMs      -> 'timeout'
+ *   no answer from any host    -> 'network', once every base in routes.js failed at network
+ *                                 level (an ad blocker, a firewall); without routes the fetch
+ *                                 error as it is
  *   path outside READ_PATHS    -> 'not_allowed', before any request
  *   not configured / no token  -> 'NO_TOKEN', or 'SIGN_IN' when the user has to sign in
  *   400 and other failures     -> no code, the server text in the message
+ *
+ * With `routes` (src/core/routes.js) every request starts on the direct API
+ * and moves to a fallback host only when the fetch never got an HTTP answer.
  *
  * Two identical calls in flight share one request.
  *
  * No SDK on purpose: plain fetch, zero dependencies.
  */
+import { isNetworkError } from './routes.js';
 
 /** `refusal`, on an 'auth' error, is the reason HYROS refused the account: a new credential cannot fix it. */
 export class ApiError extends Error {
@@ -66,11 +73,19 @@ let cfg = null;
 /**
  * Wire the client to the API base url (ending in `/api/v1.0`) and the token
  * source (auth.js). Until this runs, every call fails with code 'NO_TOKEN'.
+ * With `routes` (routes.js) the bases come from its 'api' channel and `url`
+ * is only reported; without it `url` is the only base.
  * `rateLimitWaitsMs` exists for tests.
  */
-export function configure({ url, getToken, markInvalid, rateLimitWaitsMs = RATE_LIMIT_WAITS_MS }) {
-  cfg = { url: url.replace(/\/+$/, ''), getToken, markInvalid, rateLimitWaitsMs };
+export function configure({ url, routes = null, getToken, markInvalid, rateLimitWaitsMs = RATE_LIMIT_WAITS_MS }) {
+  cfg = { url: url.replace(/\/+$/, ''), routes, getToken, markInvalid, rateLimitWaitsMs };
   inFlight.clear();
+}
+
+/** The base the next call goes to and whether it is a fallback host; null before configure. */
+export function connection() {
+  if (!cfg) return null;
+  return cfg.routes ? cfg.routes.active('api') : { base: cfg.url, viaFallback: false };
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -200,15 +215,30 @@ async function tokenFor(reason) {
   }
 }
 
-/** A GET with the 401 and 429 policies above. */
-async function send(href, timeoutMs) {
+/**
+ * One round trip of `rel` (path and query): on the configured url, or through
+ * the routes, which retry it on the next base after a network failure.
+ */
+function attemptOn(rel, token, started, timeoutMs) {
+  const at = async (base) => {
+    const left = timeoutMs - (Date.now() - started);
+    if (left <= 0) throw new ApiError(`HYROS call timed out after ${timeoutMs}ms`, null, 'timeout');
+    return attempt(`${base}${rel}`, token, left);
+  };
+  if (!cfg.routes) return at(cfg.url);
+  return cfg.routes.withFallback('api', at).catch((err) => {
+    if (isNetworkError(err)) throw new ApiError('Could not reach HYROS', err.message, 'network');
+    throw err;
+  });
+}
+
+/** A GET of `rel` (path and query) with the 401 and 429 policies above. */
+async function send(rel, timeoutMs) {
   const started = Date.now();
   let token = await tokenFor();
   let reauthed = false;
   for (let limited = 0; ;) {
-    const left = timeoutMs - (Date.now() - started);
-    if (left <= 0) throw new ApiError(`HYROS call timed out after ${timeoutMs}ms`, null, 'timeout');
-    const out = await attempt(href, token, left);
+    const out = await attemptOn(rel, token, started, timeoutMs);
 
     if (out.unauthorized) {
       if (reauthed) {
@@ -237,7 +267,7 @@ async function send(href, timeoutMs) {
 /**
  * GET one read path and return the parsed body as the API sends it: usually
  * the envelope `{ result, nextPageId?, message?, request_id? }`. In-flight
- * dedup on the url.
+ * dedup on the path and query, whichever host serves it.
  */
 export function get(path, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   if (!cfg) return Promise.reject(new ApiError('The HYROS API client is not configured', null, 'NO_TOKEN'));
@@ -246,17 +276,17 @@ export function get(path, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) 
   }
   let query;
   try { query = toQuery(params); } catch (err) { return Promise.reject(err); }
-  const href = `${cfg.url}${path}${query ? `?${query}` : ''}`;
-  const running = inFlight.get(href);
+  const rel = `${path}${query ? `?${query}` : ''}`;
+  const running = inFlight.get(rel);
   if (running) return running;
-  const call = send(href, timeoutMs).then((body) => {
+  const call = send(rel, timeoutMs).then((body) => {
     const msg = messageOnly(body);
     if (msg) throw new ApiError(`${path}: ${msg}`, body);
     return body;
   }).finally(() => {
-    if (inFlight.get(href) === call) inFlight.delete(href);
+    if (inFlight.get(rel) === call) inFlight.delete(rel);
   });
-  inFlight.set(href, call);
+  inFlight.set(rel, call);
   return call;
 }
 

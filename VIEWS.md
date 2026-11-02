@@ -84,7 +84,7 @@ Partial states are the view's job:
 | key | what |
 |---|---|
 | `root` | the element the view renders into (a fresh `<div class="view">` per render) |
-| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `cached`, `invalidate`, `now`. Which paths to call and how to shape the rows: `docs/RECIPES.md` |
+| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `cached`, `invalidate`, `connection`, `now`. Which paths to call and how to shape the rows: `docs/RECIPES.md` |
 | `fmt` | `src/ui/fmt.js`: `money(v)`, `moneyIn(v, code)`, `money0(v)`, `int(v)`, `pct(v)`, `ratio(v)`, `date(iso)`, `datetime(iso)`, `currencyCode(code)`. Money is in the account currency, dates in the account timezone; a missing value prints `-` |
 | `esc(s)` | HTML-escape; use it on every string that came from HYROS |
 | `kpis(list)` | KPI tiles HTML, already wrapped in `<div class="kpis">`: `[{ label, value, sub?, cls? }]`. `label`, `value` and `sub` are rendered as **escaped text** (no HTML inside them; pass values already formatted with `fmt`). `cls: 'hy'` goes on the tile and makes it the one highlight tile of the screen; `cls: 'good'` or `'bad'` goes on the figure (`.kpi-value`), the money tone; any other `cls` is ignored |

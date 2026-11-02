@@ -194,3 +194,9 @@ test('peek(key) reads a memo without loading or caching anything', async () => {
   data.invalidate();
   assert.equal(data.peek('report:30d'), undefined);
 });
+
+test('connection() is what the API client reports, and null when it cannot say', () => {
+  const link = { base: 'https://cdn.example/v1/api/v1.0', viaFallback: true };
+  assert.deepEqual(createData({ api: { ...fakeApi(), connection: () => link } }).connection(), link);
+  assert.equal(createData({ api: fakeApi() }).connection(), null);
+});

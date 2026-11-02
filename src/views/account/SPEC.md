@@ -1,6 +1,6 @@
 # Account: view spec
 
-**id** `account` · **version** 0.1.1 · **tools** `/user-info`, `/leads`, `/ad-accounts`, `/sources`
+**id** `account` · **version** 0.1.2 · **tools** `/user-info`, `/leads`, `/ad-accounts`, `/sources`
 
 ## Purpose
 Who this dashboard is looking at: the account's email, timezone, currency
@@ -19,8 +19,10 @@ Refresh drops the cache (`ctx.data.invalidate()`) and fetches them again.
 | `account()` | `GET /user-info` and `GET /leads` | none; `pageSize=1` for `/leads` | one call each, in parallel; the getter reads `result` |
 | `adAccounts()` | `GET /ad-accounts` | none | `pageSize=250`, at most 4 pages |
 | `sources()` | `GET /sources` | `includeOrganic=true&includeDisregarded=false` | `pageSize=250`, at most 40 pages |
+| `connection()` | none | none | none: `{ base, viaFallback }`, the API host the next call goes to |
 
-One render costs 4 calls when the cache is cold (more when a list spans
+`connection()` reads the API client's state after the getters answered and
+costs no call. One render costs 4 calls when the cache is cold (more when a list spans
 several pages) and none when it is warm. They run in parallel; they
 share the account's rate limit.
 
@@ -53,7 +55,13 @@ The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
 
 ## View states
 - Data: five KPI tiles (Email, Timezone, Currency, Attribution timeframe,
-  Sources) and the "Ad accounts" table (ID, Name, Type as a pill).
+  Sources), a "Connection" line and the "Ad accounts" table (ID, Name, Type
+  as a pill).
+- Connection: the API host the dashboard is using now, the one the next
+  call goes to, which is not necessarily the host that served the numbers
+  on screen. "Connection: direct" on the direct HYROS API host (or when the
+  client cannot say), "Connection: via CDN (<host>)" on a fallback host,
+  used because the direct one could not be reached.
 - A list cut short: the Sources tile says "more exist, list cut short" and
   the ad accounts count says "list cut short".
 - No ad accounts: "No ad accounts connected" (`.empty`).
@@ -63,8 +71,8 @@ The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
 
 ## Rules honoured
 - Data only through `ctx.data`; read paths only.
-- Every string from HYROS (email, timezone, ad account id, name, type)
-  escaped with `ctx.esc`; numbers through `ctx.fmt.int`; the currency code
+- Every string from HYROS (email, timezone, ad account id, name, type) and
+  the connection line escaped with `ctx.esc`; numbers through `ctx.fmt.int`; the currency code
   through `ctx.fmt.currencyCode`, which falls back to `USD` for anything
   that is not three letters.
 - Shared kit only (`.kpis`, `.section`, `.rowcount`, `.table-wrap`,
@@ -72,7 +80,8 @@ The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
 
 ## Porting notes
 Another dashboard reuses `view.js` unchanged if its `ctx.data` has
-`account()`, `adAccounts()` and `sources()` answering the shapes above, and
+`account()`, `adAccounts()`, `sources()` and `connection()` answering the
+shapes above, and
 its `ctx` has `fmt`, `esc` and `kpis`.
 
 ## Open limitations

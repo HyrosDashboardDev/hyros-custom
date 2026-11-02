@@ -8,6 +8,10 @@
  * index.html as <meta name="hyros-mcp-url">, which src/core/config.js reads.
  * HYROS_API_URL is optional: when set it is baked as <meta name="hyros-api-url">;
  * without it the page uses the customer API of the environment of the MCP url.
+ * When both urls name the same known environment (its direct or CloudFront
+ * hosts), the metas only pick that environment and the page starts on its
+ * direct hosts; HYROS_API_URL is used as given only when they do not (a local
+ * server).
  *
  * Usage: HYROS_MCP_URL=<url> [HYROS_API_URL=<url>] node build.mjs   (OUT_DIR defaults to public/)
  */
