@@ -244,7 +244,6 @@ const CLOSED = 'http://127.0.0.1:1/api/v1.0';
 /** Routes whose direct API is `direct` and whose only fallback is `fallback`. */
 function routesTo(direct, fallback) {
   return createRoutes({
-    env: 'prod',
     direct: { api: direct, auth: 'https://mcp.example' },
     fallbacks: { api: fallback ? [fallback] : [], auth: [] },
   });

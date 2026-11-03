@@ -496,7 +496,6 @@ test('oauth: a failed registration is NO_TOKEN with the status and no redirect',
 
 const CDN = 'https://cdn.example';
 const cdnRoutes = () => createRoutes({
-  env: 'prod',
   direct: { api: 'https://api.example/v1/api/v1.0', auth: AUTH_SERVER },
   fallbacks: { api: [], auth: [CDN] },
 });

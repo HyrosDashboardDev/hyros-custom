@@ -24,23 +24,6 @@ export const CONFIG = Object.freeze({
     'https://localhost:8080',
     'http://localhost:4323',
   ]),
-  /**
-   * The fallback hosts of each environment: the HYROS CloudFront distributions
-   * in front of the same customer API and OAuth server, tried in order after
-   * the direct host of the environment (src/core/routes.js). The direct hosts
-   * are never listed: they always come first. These hosts also map a dashboard
-   * built with a CDN url to its environment (resolveEnv).
-   */
-  fallback: Object.freeze({
-    prod: Object.freeze({
-      api: Object.freeze(['https://d1dan6xu9gc9j7.cloudfront.net/v1/api/v1.0']),
-      auth: Object.freeze(['https://d1dan6xu9gc9j7.cloudfront.net']),
-    }),
-    qa: Object.freeze({
-      api: Object.freeze(['https://d1uwky5nlh5sj8.cloudfront.net/v1/api/v1.0']),
-      auth: Object.freeze(['https://d1uwky5nlh5sj8.cloudfront.net']),
-    }),
-  }),
 });
 
 /**
@@ -92,10 +75,9 @@ export function resolveRedirectUri({
   return `${origin}${pathname}${query}`;
 }
 
-/** Every host of an environment: its MCP, its API and its fallback hosts. */
+/** The direct hosts of an environment: its MCP and its API. */
 function hostsOf(env) {
-  const { api, auth } = CONFIG.fallback[env];
-  return new Set([CONFIG.mcp[env], CONFIG.api[env], ...api, ...auth].map((url) => new URL(url).hostname));
+  return new Set([CONFIG.mcp[env], CONFIG.api[env]].map((url) => new URL(url).hostname));
 }
 
 function envOfUrl(url) {
@@ -105,11 +87,11 @@ function envOfUrl(url) {
 }
 
 /**
- * The HYROS environment ('prod' or 'qa') the MCP and API urls belong to,
- * reading their direct hosts and their CloudFront hosts alike; null when
- * either names no known environment (a local server) or they name different
- * ones. A null `apiUrl` leaves the MCP url to decide. With an environment the
- * page starts on its direct hosts (directUrls) and falls back to the CDN;
+ * The HYROS environment ('prod' or 'qa') the MCP and API urls belong to, read
+ * from their direct hosts; null when either is on any other host (a local
+ * server, for instance) or they name different environments. A null `apiUrl`
+ * leaves the MCP url to decide. With an environment the page starts on its
+ * direct hosts (directUrls) and falls back to the hosts of resolveFallback;
  * with null it uses the configured urls only.
  */
 export function resolveEnv(mcpUrl, apiUrl) {
@@ -117,6 +99,22 @@ export function resolveEnv(mcpUrl, apiUrl) {
   if (!env) return null;
   if (apiUrl == null) return env;
   return envOfUrl(apiUrl) === env ? env : null;
+}
+
+/**
+ * The fallback hosts, `{ api, auth }`, tried after the direct hosts of the
+ * environment (src/core/routes.js): the ones HYROS set on the Vercel project,
+ * which build.mjs bakes from HYROS_FALLBACK_API_URL and HYROS_FALLBACK_AUTH_URL
+ * as `<meta name="hyros-fallback-api-url">` and
+ * `<meta name="hyros-fallback-auth-url">`. Each meta is the only fallback of
+ * its channel; a channel without its meta has no fallback.
+ */
+export function resolveFallback({
+  apiMeta = globalThis.document?.querySelector('meta[name="hyros-fallback-api-url"]')?.content,
+  authMeta = globalThis.document?.querySelector('meta[name="hyros-fallback-auth-url"]')?.content,
+} = {}) {
+  const pick = (meta) => (typeof meta === 'string' && meta ? [meta] : []);
+  return { api: pick(apiMeta), auth: pick(authMeta) };
 }
 
 /** The direct customer API base and OAuth server of an environment, or null for an unknown one. */

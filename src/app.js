@@ -5,7 +5,7 @@
  */
 import { createAuth, createHostProvider, createOAuthProvider } from './core/auth.js';
 import * as api from './core/api.js';
-import { directUrls, resolveApiUrl, resolveAuthServer, resolveEnv, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
+import { directUrls, resolveApiUrl, resolveAuthServer, resolveEnv, resolveFallback, resolveMcpUrl, resolveRedirectUri } from './core/config.js';
 import { createRoutes } from './core/routes.js';
 import { createThemeReceiver } from './core/theme.js';
 import { VIEW_LOAD_MS } from './core/budget.js';
@@ -207,12 +207,12 @@ function boot() {
   wireThemeSwitch(createThemeReceiver());
   const mcpUrl = resolveMcpUrl();
   const apiUrl = resolveApiUrl(mcpUrl);
-  // A known environment starts on its direct hosts, even when the build named its CDN, and falls back
-  // to the CloudFront hosts of CONFIG.fallback when a call gets no answer at all. An unknown one
+  // A known environment starts on its direct hosts and falls back to the hosts of the build's fallback
+  // metas, when the build has them, if a call gets no answer at all (resolveFallback). An unknown one
   // (a local server) uses the configured urls only.
   const env = resolveEnv(mcpUrl, apiUrl);
   const direct = env ? directUrls(env) : null;
-  const routes = direct ? createRoutes({ env, direct }) : null;
+  const routes = direct ? createRoutes({ direct, fallbacks: resolveFallback() }) : null;
   const host = createHostProvider();
   if (!host.isAvailable()) {
     host.dispose();

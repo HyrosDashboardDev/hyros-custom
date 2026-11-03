@@ -1,56 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONFIG, directUrls, resolveEnv } from '../src/core/config.js';
+import { directUrls } from '../src/core/config.js';
 import { createRoutes } from '../src/core/routes.js';
 
-const PROD_CDN = 'https://d1dan6xu9gc9j7.cloudfront.net';
-const QA_CDN = 'https://d1uwky5nlh5sj8.cloudfront.net';
+const CDN = 'https://cdn.example';
 
-test('the built-in fallback hosts are https urls', () => {
-  for (const env of Object.keys(CONFIG.fallback)) {
-    for (const channel of ['api', 'auth']) {
-      for (const url of CONFIG.fallback[env][channel]) {
-        assert.equal(new URL(url).protocol, 'https:', url);
-      }
-    }
-  }
-});
-
-test('each environment tries its direct host, then its CloudFront host, on both channels', () => {
-  const cdn = { prod: PROD_CDN, qa: QA_CDN };
-  for (const env of ['prod', 'qa']) {
-    const direct = directUrls(env);
-    const routes = createRoutes({ env, direct });
-    assert.deepEqual(routes.bases('api'), [direct.api, `${cdn[env]}/v1/api/v1.0`], env);
-    assert.deepEqual(routes.bases('auth'), [direct.auth, cdn[env]], env);
-  }
-});
-
-test('an environment without fallback hosts has only its direct host', () => {
-  const routes = createRoutes({ env: 'local', direct: { api: 'https://localhost:8443/v1/api/v1.0/', auth: 'https://localhost:8046' } });
+test('without fallbacks each channel has only its direct host, and a network failure ends the call after one try', async () => {
+  const direct = { api: 'https://localhost:8443/v1/api/v1.0/', auth: 'https://localhost:8046' };
+  const routes = createRoutes({ direct });
   assert.deepEqual(routes.bases('api'), ['https://localhost:8443/v1/api/v1.0']);
   assert.deepEqual(routes.bases('auth'), ['https://localhost:8046']);
-});
-
-test('bases always start with the direct host, even when the build named the CDN', () => {
-  const env = resolveEnv(`${PROD_CDN}/mcp`, `${PROD_CDN}/v1/api/v1.0`);
-  assert.equal(env, 'prod');
-  const routes = createRoutes({ env, direct: directUrls(env) });
-  assert.deepEqual(routes.bases('api'), ['https://api.hyros.com/v1/api/v1.0', `${PROD_CDN}/v1/api/v1.0`]);
-  assert.deepEqual(routes.bases('auth'), ['https://mcp.hyros.com', PROD_CDN]);
-  assert.deepEqual(routes.active('api'), { base: 'https://api.hyros.com/v1/api/v1.0', viaFallback: false });
+  let tries = 0;
+  const failure = new TypeError('Failed to fetch');
+  const run = async () => { tries += 1; throw failure; };
+  const thrown = await routes.withFallback('api', run).catch((err) => err);
+  assert.equal(thrown, failure);
+  assert.equal(tries, 1);
+  assert.deepEqual(routes.active('api'), { base: 'https://localhost:8443/v1/api/v1.0', viaFallback: false });
 });
 
 test('a direct host listed in the fallbacks is not tried twice, and trailing slashes and repeats are dropped', async () => {
   const fallbacks = {
-    api: ['https://api-staging.hyros.com/v1/api/v1.0/', `${QA_CDN}/v1/api/v1.0`, `${QA_CDN}/v1/api/v1.0/`],
+    api: ['https://api-staging.hyros.com/v1/api/v1.0/', `${CDN}/v1/api/v1.0`, `${CDN}/v1/api/v1.0/`],
     auth: [],
   };
-  const routes = createRoutes({ env: 'qa', direct: directUrls('qa'), fallbacks });
-  const { tried, run } = hosts({ [`${QA_CDN}/v1/api/v1.0`]: 200 });
+  const routes = createRoutes({ direct: directUrls('qa'), fallbacks });
+  const { tried, run } = hosts({ [`${CDN}/v1/api/v1.0`]: 200 });
   await routes.withFallback('api', run);
-  assert.deepEqual(tried, ['https://api-staging.hyros.com/v1/api/v1.0', `${QA_CDN}/v1/api/v1.0`]);
-  assert.deepEqual(routes.bases('api'), ['https://api-staging.hyros.com/v1/api/v1.0', `${QA_CDN}/v1/api/v1.0`]);
+  assert.deepEqual(tried, ['https://api-staging.hyros.com/v1/api/v1.0', `${CDN}/v1/api/v1.0`]);
+  assert.deepEqual(routes.bases('api'), ['https://api-staging.hyros.com/v1/api/v1.0', `${CDN}/v1/api/v1.0`]);
   assert.deepEqual(routes.bases('auth'), ['https://mcp-qa.hyros.com']);
 });
 
@@ -68,9 +46,10 @@ function hosts(table) {
   return { tried, run };
 }
 
-const prodRoutes = (fallbacks) => createRoutes({ env: 'prod', direct: directUrls('prod'), fallbacks });
 const API = 'https://api.hyros.com/v1/api/v1.0';
-const CDN_API = `${PROD_CDN}/v1/api/v1.0`;
+const CDN_API = `${CDN}/v1/api/v1.0`;
+/** Prod routes whose api fallback is CDN_API unless `fallbacks` says otherwise. */
+const prodRoutes = (fallbacks = { api: [CDN_API], auth: [] }) => createRoutes({ direct: directUrls('prod'), fallbacks });
 
 test('withFallback moves on only on a network failure, and the fallback sticks', async () => {
   const routes = prodRoutes();
@@ -146,6 +125,15 @@ test('with a probe, a network failure moves on only when the probe fails at netw
   assert.deepEqual(await routes.withFallback('api', run, { probe: blocked }), { base: CDN_API, status: 200 });
   assert.deepEqual(tried, [API, API, CDN_API]);
   assert.equal(routes.active('api').viaFallback, true);
+});
+
+test('the probe never runs without a fallback host to move on to', async () => {
+  const routes = createRoutes({ direct: directUrls('prod') });
+  const { tried, run } = hosts({ [API]: 'down' });
+  let probed = 0;
+  await assert.rejects(routes.withFallback('api', run, { probe: async () => { probed += 1; } }), TypeError);
+  assert.deepEqual(tried, [API]);
+  assert.equal(probed, 0);
 });
 
 test('the probe never runs when the host answers', async () => {

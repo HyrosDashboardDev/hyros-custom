@@ -27,8 +27,8 @@ HYROS page ──iframe──> dashboard (static files)
                             │  Authorization: Bearer <token>
                             └────────────────────> HYROS API
                                no answer at all (ad blocker)? the same call
-                               on a CloudFront host built into
-                               src/core/config.js
+                               on the fallback host HYROS set on the Vercel
+                               project
 
 dashboard at its own url
      │  "Sign in with HYROS": register once (client id in localStorage),
@@ -130,11 +130,17 @@ it provisions the dashboard, and `npm run build` copies the site into
 without the variable. The data comes from the customer API of the same
 environment (`api.hyros.com` for `mcp.hyros.com`, `api-staging.hyros.com`
 for `mcp-qa.hyros.com`). An optional `HYROS_API_URL` is baked as
-`<meta name="hyros-api-url">`. When both urls name the same known
-environment, by its direct or its CloudFront hosts, they only pick that
-environment and the page starts on its direct hosts; `HYROS_API_URL` sets
-the API only when they do not, and is required when `HYROS_MCP_URL` is no
-known environment (a local server).
+`<meta name="hyros-api-url">`. When both urls are on the direct hosts of the
+same known environment, they only pick that environment and the page starts
+on its direct hosts; `HYROS_API_URL` sets the API only when they do not, and
+is required when `HYROS_MCP_URL` is no known environment (a local server, or
+any host other than the direct ones).
+An optional `HYROS_FALLBACK_API_URL` is the fallback host of the customer
+API, with its `/v1/api/v1.0` path, baked as
+`<meta name="hyros-fallback-api-url">`. An optional `HYROS_FALLBACK_AUTH_URL`
+is the fallback origin of the sign-in server, baked as
+`<meta name="hyros-fallback-auth-url">`. Each one is the only fallback of its
+channel; without it the page has no fallback for that channel.
 `?mcp=qa|prod` only matters for the local harness and
 for manual deploys built without it.
 
@@ -151,9 +157,10 @@ agent files (`.claude/`, `.cursor/`, `.githooks/`) and the `*.md` docs.
   (EasyList `||hyros.com^$third-party`). Every page load starts on the
   direct hosts (`api.hyros.com` and `mcp.hyros.com`, or their QA ones); a
   call whose fetch never gets an HTTP answer is retried on the next
-  fallback host: the HYROS CloudFront distributions in front of the same
-  API and sign-in, built into `src/core/config.js` (`CONFIG.fallback`).
-  Changing them means updating the template. The first host that answers
+  fallback host: the hosts HYROS sets on the Vercel project
+  (`HYROS_FALLBACK_API_URL`, `HYROS_FALLBACK_AUTH_URL`), in front of the
+  same API and sign-in. Without them the page has no fallback and a call
+  that gets no answer fails at once. The first host that answers
   anything, an error status included, serves the rest of the page load;
   an HTTP status never moves to another host. When no host answers, the page says HYROS could not be
   reached and suggests allowing `hyros.com` in the ad blocker. The sign-in

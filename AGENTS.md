@@ -6,13 +6,15 @@ the HYROS account through the MCP OAuth server (authorization code with PKCE,
 scope `mcp:read`). Either way the browser calls the HYROS customer API
 (`/api/v1.0`) with `Authorization: Bearer <token>` and the credential is
 read-only. Every page load starts on the direct HYROS hosts; a call that
-gets no answer at all (an ad blocker, a firewall) is retried on the HYROS
-CloudFront hosts in `src/core/config.js` (`src/core/routes.js`). HYROS sets `HYROS_MCP_URL` on the Vercel project
+gets no answer at all (an ad blocker, a firewall) is retried on the fallback
+hosts HYROS sets on the Vercel project at provisioning
+(`HYROS_FALLBACK_API_URL`, `HYROS_FALLBACK_AUTH_URL`; `src/core/routes.js`);
+without them the page has no fallback. HYROS sets `HYROS_MCP_URL` on the Vercel project
 when it provisions the dashboard, and `npm run build` bakes it into the page
 as a meta tag; it picks the sign-in server and the API of that environment.
-For a known environment the page always starts on its direct hosts, whatever
-host the urls name; `HYROS_API_URL` sets the API only when the urls name no
-known environment (a local server). `?mcp=qa|prod` is only for local runs
+An environment is known by its direct hosts, and the page then starts on
+them; `HYROS_API_URL` sets the API only when the urls name no known
+environment (a local server, or any other host). `?mcp=qa|prod` is only for local runs
 and manual deploys without the variable.
 Static files, no API key, no secret: the only credential is the token.
 Inside HYROS the page also follows the HYROS theme (dark or white), posted

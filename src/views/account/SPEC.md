@@ -60,8 +60,9 @@ The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
 - Connection: the API host the dashboard is using now, the one the next
   call goes to, which is not necessarily the host that served the numbers
   on screen. "Connection: direct" on the direct HYROS API host (or when the
-  client cannot say), "Connection: via CDN (<host>)" on a fallback host,
-  used because the direct one could not be reached.
+  client cannot say), "Connection: via CDN (<host>)" on a fallback host
+  (one HYROS set on the Vercel project), used because the direct one could
+  not be reached.
 - A list cut short: the Sources tile says "more exist, list cut short" and
   the ad accounts count says "list cut short".
 - No ad accounts: "No ad accounts connected" (`.empty`).

@@ -13,6 +13,8 @@ function build(env) {
   const base = { ...process.env };
   delete base.HYROS_MCP_URL;
   delete base.HYROS_API_URL;
+  delete base.HYROS_FALLBACK_API_URL;
+  delete base.HYROS_FALLBACK_AUTH_URL;
   return spawnSync(process.execPath, ['build.mjs'], { cwd: ROOT, env: { ...base, ...env }, encoding: 'utf8' });
 }
 
@@ -61,4 +63,32 @@ test('build fails without HYROS_API_URL when the MCP url is no known environment
 
   assert.notEqual(run.status, 0);
   assert.match(run.stderr, /HYROS_API_URL/);
+});
+
+test('build bakes the fallback urls as metas after the MCP and API ones, and fails on a malformed one', (t) => {
+  const out = mkdtempSync(join(tmpdir(), 'hyros-build-'));
+  t.after(() => rmSync(out, { recursive: true, force: true }));
+
+  const run = build({
+    HYROS_MCP_URL: 'https://localhost:8046/mcp',
+    HYROS_API_URL: 'https://localhost:8443/v1/api/v1.0',
+    HYROS_FALLBACK_API_URL: 'https://cdn.example/v1/api/v1.0',
+    HYROS_FALLBACK_AUTH_URL: 'https://cdn.example',
+    OUT_DIR: out,
+  });
+
+  assert.equal(run.status, 0, run.stderr);
+  const html = readFileSync(join(out, 'index.html'), 'utf8');
+  const metas = [...html.matchAll(/<meta name="(hyros-[^"]+)" content="([^"]*)">/g)].map(([, name, content]) => [name, content]);
+  assert.deepEqual(metas, [
+    ['hyros-mcp-url', 'https://localhost:8046/mcp'],
+    ['hyros-api-url', 'https://localhost:8443/v1/api/v1.0'],
+    ['hyros-fallback-api-url', 'https://cdn.example/v1/api/v1.0'],
+    ['hyros-fallback-auth-url', 'https://cdn.example'],
+  ]);
+
+  const malformed = build({ HYROS_MCP_URL: 'https://mcp-qa.hyros.com/mcp', HYROS_FALLBACK_API_URL: 'not a url', OUT_DIR: out });
+
+  assert.notEqual(malformed.status, 0);
+  assert.match(malformed.stderr, /HYROS_FALLBACK_API_URL/);
 });

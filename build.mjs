@@ -8,12 +8,18 @@
  * index.html as <meta name="hyros-mcp-url">, which src/core/config.js reads.
  * HYROS_API_URL is optional: when set it is baked as <meta name="hyros-api-url">;
  * without it the page uses the customer API of the environment of the MCP url.
- * When both urls name the same known environment (its direct or CloudFront
- * hosts), the metas only pick that environment and the page starts on its
- * direct hosts; HYROS_API_URL is used as given only when they do not (a local
- * server).
+ * When both urls are on the direct hosts of the same known environment, the
+ * metas only pick that environment and the page starts on its direct hosts;
+ * HYROS_API_URL is used as given only when they do not (a local server).
+ * HYROS_FALLBACK_API_URL and HYROS_FALLBACK_AUTH_URL are optional too: the
+ * fallback host of the customer API (with its /v1/api/v1.0 path) and of the
+ * OAuth server, baked as <meta name="hyros-fallback-api-url"> and
+ * <meta name="hyros-fallback-auth-url">. Each one, when set, is the only
+ * fallback of its channel; without it the page has no fallback for that
+ * channel.
  *
- * Usage: HYROS_MCP_URL=<url> [HYROS_API_URL=<url>] node build.mjs   (OUT_DIR defaults to public/)
+ * Usage: HYROS_MCP_URL=<url> [HYROS_API_URL=<url>] [HYROS_FALLBACK_API_URL=<url>]
+ *        [HYROS_FALLBACK_AUTH_URL=<url>] node build.mjs   (OUT_DIR defaults to public/)
  */
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -58,6 +64,8 @@ function escapeAttribute(value) {
 
 const mcpUrl = readUrl('HYROS_MCP_URL', 'MCP server url');
 const apiUrl = readUrl('HYROS_API_URL', 'customer API url', { optional: true });
+const fallbackApiUrl = readUrl('HYROS_FALLBACK_API_URL', 'fallback customer API url', { optional: true });
+const fallbackAuthUrl = readUrl('HYROS_FALLBACK_AUTH_URL', 'fallback OAuth server origin', { optional: true });
 // The same rule the page applies: without the variable the MCP url must name a known environment.
 if (!resolveApiUrl(mcpUrl, { metaUrl: apiUrl })) {
   console.error(`HYROS_API_URL must be set: ${mcpUrl} is not the MCP of a known HYROS environment`);
@@ -80,7 +88,15 @@ if (!viewport) {
 const indent = viewport[0].match(/^\s*/)[0];
 let meta = `${indent}<meta name="hyros-mcp-url" content="${escapeAttribute(mcpUrl)}">`;
 if (apiUrl) meta += `\n${indent}<meta name="hyros-api-url" content="${escapeAttribute(apiUrl)}">`;
+if (fallbackApiUrl) meta += `\n${indent}<meta name="hyros-fallback-api-url" content="${escapeAttribute(fallbackApiUrl)}">`;
+if (fallbackAuthUrl) meta += `\n${indent}<meta name="hyros-fallback-auth-url" content="${escapeAttribute(fallbackAuthUrl)}">`;
 const at = viewport.index + viewport[0].length;
 await writeFile(indexPath, `${html.slice(0, at)}\n${meta}${html.slice(at)}`);
 
-console.log(`Built ${OUT} with HYROS_MCP_URL=${mcpUrl}${apiUrl ? ` HYROS_API_URL=${apiUrl}` : ''}`);
+const baked = [
+  ['HYROS_MCP_URL', mcpUrl],
+  ['HYROS_API_URL', apiUrl],
+  ['HYROS_FALLBACK_API_URL', fallbackApiUrl],
+  ['HYROS_FALLBACK_AUTH_URL', fallbackAuthUrl],
+].filter(([, value]) => value).map(([name, value]) => `${name}=${value}`);
+console.log(`Built ${OUT} with ${baked.join(' ')}`);

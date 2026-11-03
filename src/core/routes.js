@@ -3,8 +3,10 @@
  * (`api.hyros.com`, `mcp.hyros.com`) first. Ad blockers cut browser calls to
  * `hyros.com` from another site, so when a call fails at network level (fetch
  * rejects with a TypeError, no HTTP status) the same call is retried on the
- * next fallback host: the HYROS CloudFront distributions of CONFIG.fallback,
- * which proxy the same backends.
+ * next fallback host: the hosts HYROS sets on the Vercel project at
+ * provisioning (resolveFallback), which proxy the same backends. A channel
+ * without fallback hosts has only its direct host, and a network failure there
+ * ends the call.
  *
  *   createRoutes()   per channel ('api', 'auth'):
  *     bases(channel)               the direct base, then the fallbacks of that channel
@@ -27,8 +29,6 @@
  * the original error is thrown and nothing is replayed elsewhere; only a probe
  * that fails at network level too moves the request to the next base.
  */
-import { CONFIG } from './config.js';
-
 /** A fetch that never got an HTTP response. An AbortError (a timeout) is not one. */
 export function isNetworkError(err) {
   return err instanceof TypeError;
@@ -39,10 +39,10 @@ const trimSlash = (url) => String(url ?? '').replace(/\/+$/, '');
 /**
  * The hosts of one environment. `direct` is `{ api, auth }` (directUrls) and
  * always comes first; `fallbacks` is `{ api, auth }` with the hosts tried after
- * it, in order, CONFIG.fallback[env] unless given (none for an unknown env).
- * `api` and `auth` keep their own active host.
+ * it, in order (resolveFallback), none unless given. `api` and `auth` keep
+ * their own active host.
  */
-export function createRoutes({ env, direct, fallbacks = CONFIG.fallback[env] }) {
+export function createRoutes({ direct, fallbacks = { api: [], auth: [] } }) {
   const activeIndex = { api: 0, auth: 0 };
 
   function bases(channel) {
@@ -58,6 +58,7 @@ export function createRoutes({ env, direct, fallbacks = CONFIG.fallback[env] }) 
    * a result or an error, makes that base the active one. With `probe`, a
    * network failure moves on only when probe(base) fails at network level
    * too; any other probe outcome throws the original error from that base.
+   * The probe only runs when there is another base to move on to.
    */
   async function withFallback(channel, run, { probe } = {}) {
     const list = bases(channel);
@@ -74,7 +75,7 @@ export function createRoutes({ env, direct, fallbacks = CONFIG.fallback[env] }) 
           activeIndex[channel] = index;
           throw err;
         }
-        if (probe && !(await blocked(probe, list[index]))) {
+        if (probe && list.length > 1 && !(await blocked(probe, list[index]))) {
           activeIndex[channel] = index;
           throw err;
         }
