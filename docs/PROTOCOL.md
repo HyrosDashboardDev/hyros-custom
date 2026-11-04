@@ -7,8 +7,8 @@ Two ways, picked when the page loads (`src/app.js`):
 - **At its own url**: the HYROS sign-in, at the end of this document.
 
 Either way the credential is the same kind: read-only, accepted at the
-customer API (`/api/v1.0`, GET only, the read roles of the login) and at
-`/mcp`, held in memory. The dashboard uses the API. Inside HYROS the same contract also carries the theme
+customer API (`/api/v1.0`, GET only plus POST `/reports/generate`, the
+read roles of the login) and at `/mcp`, held in memory. The dashboard uses the API. Inside HYROS the same contract also carries the theme
 of the HYROS user; at its own url the page starts in its default theme and
 the user can switch it.
 
@@ -145,7 +145,8 @@ client (no secret). `src/core/auth.js`, `createOAuthProvider`.
 - Grants `mcp:read` to every dynamically registered client. A token granted
   it is issued as a custom dashboard credential: read-only and accepted at
   `/mcp` and, since HMCP-401, at the customer API `/api/v1.0` (GET only,
-  with the read roles the login holds), on refresh too.
+  plus POST `/reports/generate`, with the read roles the login holds), on
+  refresh too.
 - CORS on the OAuth endpoints for any origin, without credentials.
 - `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
   `X-RateLimit-Reset` exposed to the browser. The dashboard waits what
@@ -163,7 +164,7 @@ Where the data comes from, with either credential. `src/core/api.js`.
 |---|---|
 | Base url | `https://api.hyros.com/v1/api/v1.0` (QA `https://api-staging.hyros.com/v1/api/v1.0`), picked from the MCP url or `<meta name="hyros-api-url">`; a url on any other host is used as given. A call whose fetch gets no HTTP answer is retried on the `api` fallback host, `<meta name="hyros-fallback-api-url">`, which the build writes from `HYROS_FALLBACK_API_URL` that HYROS sets on the Vercel project at provisioning; without it there is no fallback. The first host that answers serves the rest of the page load; an HTTP status never switches hosts, and no host answering is the `network` error |
 | Auth | `Authorization: Bearer <token>`, never an `API-Key` header (it would win over the bearer) |
-| Methods | GET only. Anything else from this credential answers 403 `This credential can only read.` |
+| Methods | GET only, plus POST `/reports/generate`: it starts a report and changes no data (role `API_REPORT_GENERATE`; its poll, GET `/reports/poll/{id}`, needs `API_REPORT_GET`). `ctx.data.report` is the only caller (`runReport` in `src/core/api.js`). Any other non-GET from this credential answers 403 `This credential can only read.` |
 | Roles | the read roles of the login that signed in (`ApiKeyRole.getCustomDashboardReadRoles`); a path outside them answers 403 naming the missing role |
 | 401 | plain text `Unauthorized`: expired, revoked or not accepted at this path. The dashboard asks for a new token once, then shows the sign-in. `{result:'ERROR', message:['This HYROS account is not active.']}` when the account is blocked: shown as a refusal |
 | 429 | the dashboard's own bucket per account and endpoint, apart from the account's API keys, with `Retry-After` and `X-RateLimit-*` |

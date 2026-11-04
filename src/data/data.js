@@ -12,6 +12,9 @@
  *   stages()      raw stage rows
  *   call / paged / pagedInfo   passthrough to the API client for any other read path:
  *                 call(path, params) is the body as sent, paged/pagedInfo walk `pageId`
+ *   report(configuration, { signal })  generate a report and poll it every 3 s, at most ~2 min:
+ *                 the report `{ rows, totals, totalRows }`, or a rejection carrying FAILED or
+ *                 EXPIRED and the server's message
  *   cached(key, loader)        a view's own memo: `loader()` once per key until invalidate()
  *   peek(key)                  the promise cached() holds for `key`, or undefined; never loads
  *   invalidate(key?)           drop one cached getter, or all of them (memos included)
@@ -88,6 +91,8 @@ export function createData({ api, now = () => new Date() }) {
     call: (path, params, opts) => api.get(path, params, opts),
     paged: (path, params, opts) => api.getPaged(path, params, opts),
     pagedInfo: (path, params, opts) => api.getPagedInfo(path, params, opts),
+    // POST /reports/generate, then GET /reports/poll/<id> until it is done (api.js runReport).
+    report: (configuration, opts) => api.runReport(configuration, opts),
 
     // Prefixed so a view key can never shadow a getter.
     cached: (key, loader) => once(`view:${key}`, loader),

@@ -87,7 +87,7 @@ test('a path outside READ_PATHS fails not_allowed before touching the network', 
 });
 
 test('READ_PATHS holds the reads the dashboard uses, the CRM aggregations included', () => {
-  for (const path of READ_PATHS) assert.match(path, /^\/[a-z-]+(\/[a-z-]+)?$/, path);
+  for (const path of READ_PATHS) assert.match(path, /^\/[a-z-]+(\/[a-z-]+)?(\/\{id\})?$/, path);
   for (const path of ['/leads/aggregation', '/sales/aggregation', '/calls/aggregation']) {
     assert.ok(READ_PATHS.includes(path), path);
   }
