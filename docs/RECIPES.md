@@ -19,7 +19,9 @@ disagree, the docs win.
   "showing newest N rows" instead of presenting the table as complete. With
   `call`, send `pageSize` yourself.
 - Only paths in `READ_PATHS` (`src/core/api.js`) can be called; anything
-  else fails with `not_allowed` before a request is made.
+  else fails with `not_allowed` before a request is made. The one exception
+  is `ctx.data.report` (see "Report by groupBy"): it POSTs to
+  `/reports/generate` and no other path.
 - Parameters are flat (`{ fromDate, emails }`), sent in the query string. An
   array goes as one comma-separated parameter; `null` and `undefined` are
   left out. Enum casing is per path and matched exactly: `/attribution`
@@ -67,10 +69,14 @@ starts with `custom-` (in the template itself: no prefix, and the id goes to
 ## Report (Performance Report)
 
 One GET `/attribution` call per ad account, per level, per date range,
-then rollups in the browser. The HYROS report screen's Campaign, Traffic
-and Account tabs are not report levels: they are built by joining ad-set
-rows to GET `/sources` and grouping. `src/views/report/` is this recipe
-built (its `SPEC.md` has the cache keys other tabs can read).
+then rollups in the browser. GET `/attribution` has no level for the HYROS
+report screen's Campaign (the source category) or Traffic source, so this
+recipe builds those tabs, and Account, by joining ad-set rows to GET
+`/sources` and grouping. `facebook_campaign` is the Meta campaign, not the
+HYROS Campaign. The report API groups by them directly (`ctx.data.report`,
+"Report by groupBy" below); this tab still uses the join.
+`src/views/report/` is this recipe built (its `SPEC.md` has the cache keys
+other tabs can read).
 
 ### 1. Date ranges
 
@@ -360,6 +366,59 @@ show and add columns client side.
 A sensible default column set: `clicks`, `cost`, `totalRevenue`, `revenue`,
 `profit`, `reported`, `reportedVsRevenue`, `sales`, `roi`, `roas`, `calls`,
 `leads`, `costPerLead`, `impressions`, `ctr`, `cpm`.
+
+## Report by groupBy
+
+`ctx.data.report(configuration, opts)` runs the HYROS report API: POST
+`/reports/generate` with `{ configuration }`, then GET
+`/reports/poll/{id}` every 3 s for up to about 2 minutes. It answers the
+report (`{ rows, totals, totalRows }`) or throws: `report_failed` and
+`report_expired` carry HYROS's message, `report_timeout` means it never
+finished. `opts.onProgress({ status, polls, elapsedMs })` reports each
+step (`GENERATED` after the POST, then each poll's status); `opts.signal`
+cancels it. A 403 is thrown as `forbidden` like any other call.
+
+```js
+const report = await ctx.data.report({
+  groupBy: 'SOURCE_CATEGORY',              // see the table below
+  startDate: '2026-09-01',                 // YYYY-MM-DD, checked before the POST
+  endDate: '2026-09-30',
+  reportAttribution: { attributionModel: 'LAST_CLICK' },
+  fields: ['COST', 'LEADS', 'CALLS'],
+}, { onProgress: ({ status, elapsedMs }) => { /* show it while it runs */ } });
+```
+
+`groupBy` is uppercase (`^[A-Z_]{1,40}$`, checked before the POST). The
+HYROS report screen's tabs:
+
+| Tab | `groupBy` | Extra |
+|---|---|---|
+| Traffic source | `TRAFFIC_SOURCE` | |
+| Ad account | `AD_ACCOUNT` | |
+| Campaign | `SOURCE_CATEGORY` | |
+| Ad set | `SOURCE` | |
+| Ad | `AD` | |
+| Ad name | `CREATIVE` | `options: { creativeGroupType: 'AD_NAME', creativeViewType: 'TABLE' }` |
+
+Ad name merges the ads that share a name on HYROS's side, so its numbers
+come computed over the merged group; do not re-derive them from the ads.
+
+Each row and the totals carry `customMetrics`, the account's lead stages
+and custom formulas: `[{ metricDTO: { id, name, type, values }, result }]`,
+`type` being `LEAD_STAGE` or `CUSTOM_FORMULA`. Only the `FIRST_CLICK`,
+`LAST_CLICK` and `SCIENTIFIC` models calculate them; with any other model
+the report answers no custom metrics, without an error. Match a column across
+rows by `metricDTO.id`, not by name. `values` is a string: read a formula's
+display format with `JSON.parse(values).format`. A metric missing from a row
+is 0. A `LEAD_STAGE` count (`Stage: MQL`) is the stage entries dated
+inside the range, credited to the row by the attribution model, not the
+leads in that stage now. A lead enters a stage through the account's lead stage rules
+(GET `/rules?type=LEAD_STAGE` in the API; not in `READ_PATHS`).
+
+The report takes one call however many ad accounts the account has, and it
+covers the sources GET `/attribution` has no level for. Its numbers have
+not been compared with the HYROS report screen yet: check them against it
+before replacing the join in the Performance Report.
 
 ## CRM
 

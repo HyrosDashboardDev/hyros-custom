@@ -1,7 +1,9 @@
 /**
  * Minimal browser client for the HYROS customer API (`/api/v1.0`).
  *
- * Every call is a GET with its arguments in the query string. Auth is
+ * Every call is a GET with its arguments in the query string, except one:
+ * runReport POSTs /reports/generate (starts a report, changes no data) and
+ * reads it with GET /reports/poll/{id}, a read path like the others. Auth is
  * `Authorization: Bearer <token>`, the short-lived token from auth.js (handed
  * over by HYROS or from the HYROS sign-in); never an `API-Key`. The token
  * defines the account; nothing else selects it.
@@ -61,8 +63,19 @@ export const READ_PATHS = Object.freeze([
   '/calls',
   '/calls/aggregation',
   '/subscriptions',
+  '/reports/poll/{id}',
 ]);
 const READ_PATH_SET = new Set(READ_PATHS);
+
+/**
+ * A read path with `{id}` takes the id from `params.id`, never from the path a
+ * caller writes: it must match PATH_ID (no '/', '?', '#', '%' or '.'), so it can
+ * only fill that one segment, and it is not sent in the query.
+ */
+const PATH_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** The only POST: runReport starts a report with it. Not a read path, so get() refuses it. */
+const REPORT_GENERATE = '/reports/generate';
 
 /** Waits before the first and second retry of a 429 that carries no Retry-After. */
 export const RATE_LIMIT_WAITS_MS = Object.freeze([1000, 2000]);
@@ -165,15 +178,15 @@ function messageOnly(body) {
  * One HTTP round trip. Returns `{ body }`, `{ unauthorized }` for a 401 or
  * `{ rateLimited, message, retryAfterMs }` for a 429; anything else that failed throws.
  */
-async function attempt(href, token, timeoutMs) {
+async function attempt(href, token, timeoutMs, payload) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const headers = { accept: 'application/json', authorization: `Bearer ${token}` };
+  const init = payload === undefined
+    ? { method: 'GET', headers }
+    : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(payload) };
   try {
-    const res = await fetch(href, {
-      method: 'GET',
-      headers: { accept: 'application/json', authorization: `Bearer ${token}` },
-      signal: ctrl.signal,
-    });
+    const res = await fetch(href, { ...init, signal: ctrl.signal });
 
     if (res.status === 401) {
       const text = await res.text();
@@ -219,11 +232,11 @@ async function tokenFor(reason) {
  * One round trip of `rel` (path and query): on the configured url, or through
  * the routes, which retry it on the next base after a network failure.
  */
-function attemptOn(rel, token, started, timeoutMs) {
+function attemptOn(rel, token, started, timeoutMs, payload) {
   const at = async (base) => {
     const left = timeoutMs - (Date.now() - started);
     if (left <= 0) throw new ApiError(`HYROS call timed out after ${timeoutMs}ms`, null, 'timeout');
-    return attempt(`${base}${rel}`, token, left);
+    return attempt(`${base}${rel}`, token, left, payload);
   };
   if (!cfg.routes) return at(cfg.url);
   return cfg.routes.withFallback('api', at).catch((err) => {
@@ -232,13 +245,13 @@ function attemptOn(rel, token, started, timeoutMs) {
   });
 }
 
-/** A GET of `rel` (path and query) with the 401 and 429 policies above. */
-async function send(rel, timeoutMs) {
+/** A GET of `rel` (path and query), or a POST of `payload`, with the 401 and 429 policies above. */
+async function send(rel, timeoutMs, payload) {
   const started = Date.now();
   let token = await tokenFor();
   let reauthed = false;
   for (let limited = 0; ;) {
-    const out = await attemptOn(rel, token, started, timeoutMs);
+    const out = await attemptOn(rel, token, started, timeoutMs, payload);
 
     if (out.unauthorized) {
       if (reauthed) {
@@ -274,9 +287,19 @@ export function get(path, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) 
   if (!READ_PATH_SET.has(path)) {
     return Promise.reject(new ApiError(`${path} is not a read path this dashboard may call`, null, 'not_allowed'));
   }
+  let target = path;
+  let rest = params;
+  if (path.includes('{id}')) {
+    const { id, ...others } = params || {};
+    if (typeof id !== 'string' || !PATH_ID.test(id)) {
+      return Promise.reject(new ApiError(`${path} needs a valid id`, null, 'bad_request'));
+    }
+    target = path.replace('{id}', id);
+    rest = others;
+  }
   let query;
-  try { query = toQuery(params); } catch (err) { return Promise.reject(err); }
-  const rel = `${path}${query ? `?${query}` : ''}`;
+  try { query = toQuery(rest); } catch (err) { return Promise.reject(err); }
+  const rel = `${target}${query ? `?${query}` : ''}`;
   const running = inFlight.get(rel);
   if (running) return running;
   const call = send(rel, timeoutMs).then((body) => {
@@ -330,4 +353,80 @@ export async function getPagedInfo(path, params = {}, { maxPages = 20, pageSize 
 /** Rows only: the same walk for callers that do not need the truncation signal. */
 export async function getPaged(path, params = {}, opts = {}) {
   return (await getPagedInfo(path, params, opts)).rows;
+}
+
+/** A body that answered 200 with only a message is a failure (see messageOnly). */
+function bodyOf(path) {
+  return (body) => {
+    const msg = messageOnly(body);
+    if (msg) throw new ApiError(`${path}: ${msg}`, body);
+    return body;
+  };
+}
+
+/**
+ * The checks a report configuration passes before it is sent: a plain object
+ * with a groupBy name and YYYY-MM-DD dates. HYROS validates the rest.
+ */
+function checkConfiguration(configuration) {
+  const c = configuration;
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return 'configuration must be an object';
+  if (typeof c.groupBy !== 'string' || !/^[A-Z_]{1,40}$/.test(c.groupBy)) return 'configuration.groupBy is missing or invalid';
+  if (!day.test(String(c.startDate)) || !day.test(String(c.endDate))) return 'configuration.startDate and endDate must be YYYY-MM-DD';
+  return null;
+}
+
+/** How often runReport asks for the report, and how long it waits for it in all (under the view's 2 minutes). */
+export const REPORT_POLL_MS = 3000;
+export const REPORT_MAX_MS = 115000;
+
+/** The `message` of a poll answer, whether HYROS puts it on the result or on the envelope. */
+function reportMessage(body) {
+  const msg = body?.result?.message ?? body?.message;
+  return Array.isArray(msg) ? msg.filter(Boolean).join(' ') : (msg ? String(msg) : '');
+}
+
+/**
+ * Start a report (POST /reports/generate with `{ configuration }`) and poll
+ * GET /reports/poll/<id> every `pollMs` until it is SUCCESSFUL; answers the
+ * `report` (`{ rows, totals, totalRows }`). Fails with code:
+ *   'report_failed' / 'report_expired'  the status, with the server's message
+ *   'report_timeout'                    still IN_PROGRESS after `maxMs`
+ *   'cancelled'                         `signal` aborted between polls
+ * `onProgress({ status, polls, elapsedMs })` is called after each step, so a
+ * view can show the report is still being built.
+ * Transport errors (403, 429, ...) come through as they are.
+ */
+export async function runReport(configuration, { pollMs = REPORT_POLL_MS, maxMs = REPORT_MAX_MS, signal = null, timeoutMs, onProgress = null } = {}) {
+  const opts = timeoutMs ? { timeoutMs } : {};
+  const started = Date.now();
+  let polls = 0;
+  const progress = (status) => { try { onProgress?.({ status, polls, elapsedMs: Date.now() - started }); } catch { /* a view's callback never stops the report */ } };
+  const cancelled = () => new ApiError('The report was cancelled', null, 'cancelled');
+  if (!cfg) throw new ApiError('The HYROS API client is not configured', null, 'NO_TOKEN');
+  const bad = checkConfiguration(configuration);
+  if (bad) throw new ApiError(bad, null, 'bad_request');
+  const generated = await send(REPORT_GENERATE, opts.timeoutMs || DEFAULT_TIMEOUT_MS, { configuration }).then(bodyOf(REPORT_GENERATE));
+  const id = generated?.result;
+  if (typeof id !== 'string' || !PATH_ID.test(id)) throw new ApiError('HYROS did not answer a valid report id', null);
+  progress('GENERATED');
+  for (;;) {
+    if (signal?.aborted) throw cancelled();
+    if (Date.now() - started + pollMs > maxMs) {
+      throw new ApiError(`The report was not ready after ${Math.round(maxMs / 1000)} s`, null, 'report_timeout');
+    }
+    if (pollMs > 0) await sleep(pollMs);
+    if (signal?.aborted) throw cancelled();
+    const body = await get('/reports/poll/{id}', { id }, opts);
+    const status = body?.result?.status;
+    polls += 1;
+    progress(status ?? 'UNKNOWN');
+    if (status === 'SUCCESSFUL') return body.result.report || { rows: [], totals: null, totalRows: 0 };
+    if (status === 'FAILED' || status === 'EXPIRED') {
+      const msg = reportMessage(body);
+      throw new ApiError(`Report ${status}${msg ? `: ${msg}` : ''}`, msg || null, `report_${status.toLowerCase()}`);
+    }
+    if (status !== 'IN_PROGRESS') throw new ApiError(`Unexpected report status: ${status ?? 'none'}`, body);
+  }
 }
