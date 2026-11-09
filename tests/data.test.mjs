@@ -14,8 +14,8 @@ function fakeApi({ adAccountPages = 1 } = {}) {
   const calls = [];
   return {
     calls,
-    get: async (name, args) => {
-      calls.push({ name, args });
+    get: async (name, args, opts) => {
+      calls.push({ name, args, opts });
       if (name === '/user-info') return { result: USER };
       throw new Error(`unexpected ${name}`);
     },
@@ -32,6 +32,10 @@ function fakeApi({ adAccountPages = 1 } = {}) {
     getPaged: async (name, args, opts) => {
       calls.push({ name, args, opts });
       return [{ name: 'Lead' }];
+    },
+    runReport: async (configuration, opts) => {
+      calls.push({ name: 'report', args: configuration, opts });
+      return { rows: [], totals: null, totalRows: 0 };
     },
   };
 }
@@ -199,4 +203,29 @@ test('connection() is what the API client reports, and null when it cannot say',
   const link = { base: 'https://cdn.example/v1/api/v1.0', viaFallback: true };
   assert.deepEqual(createData({ api: { ...fakeApi(), connection: () => link } }).connection(), link);
   assert.equal(createData({ api: fakeApi() }).connection(), null);
+});
+
+test('with accountId every call, getters and passthroughs alike, reads that client account', async () => {
+  const api = fakeApi();
+  const data = createData({ api, accountId: 'client-1' });
+  assert.equal(data.accountId, 'client-1');
+  await data.account();
+  await data.adAccounts();
+  await data.sources();
+  await data.stages();
+  await data.paged('/leads', {}, { maxPages: 1 });
+  await data.report({ groupBy: 'TRAFFIC_SOURCE' }, { pollMs: 0 });
+  assert.ok(api.calls.length >= 6);
+  for (const call of api.calls) assert.equal(call.opts?.account, 'client-1', call.name);
+  // The caller's own options survive next to the account.
+  assert.equal(api.calls.find((c) => c.name === '/ad-accounts').opts.maxPages, 4);
+});
+
+test('without accountId no call names an account', async () => {
+  const api = fakeApi();
+  const data = createData({ api });
+  assert.equal(data.accountId, null);
+  await data.account();
+  await data.adAccounts();
+  for (const call of api.calls) assert.equal(call.opts?.account, undefined, call.name);
 });

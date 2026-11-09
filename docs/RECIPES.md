@@ -52,6 +52,12 @@ disagree, the docs win.
   cached for the life of the page; three views asking cost one call. Any
   other load a view wants to keep goes through `ctx.data.cached(key, loader)`,
   which Refresh clears too.
+- An agency account can read its client accounts. When `account().clients`
+  has an `APPROVED` entry, the shell shows an account switcher where the
+  email was; picking an account gives the next render a `ctx.data` bound to
+  it (`ctx.data.accountId`), whose every call carries
+  `Accessible-Account-Id`. A view does nothing for this: it reads `ctx.data`
+  as always, and money and dates already follow the account being read.
 - `src/data/metrics.js` is the metric engine (`CATALOG`, `derive`,
   `aggregate`, `rollup`) and `src/data/report-levels.js` the report's level
   model (`REPORT_FIELDS`, `LEVELS_BY_TYPE`, `normalizeRow`, `buildLevels`,

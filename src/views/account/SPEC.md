@@ -91,4 +91,4 @@ its `ctx` has `fmt`, `esc` and `kpis`.
 - The ad accounts list stops at 4 pages of 250, and sources at 40 pages of
   250; past that the view says the list was cut short.
 - The agency relationships (`managedBy`, `clients`) are loaded but not
-  shown.
+  shown here; the shell's account switcher lists the `APPROVED` clients.

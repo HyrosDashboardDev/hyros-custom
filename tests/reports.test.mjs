@@ -46,6 +46,12 @@ test('runReport POSTs the configuration as JSON with the Bearer token', async ()
   assert.equal(seen[1].init.body, undefined);
 });
 
+test('runReport with an account generates and polls the report on that account', async () => {
+  const seen = serve([{ result: 'r1' }, { result: { status: 'IN_PROGRESS' } }, { result: { status: 'SUCCESSFUL', report: { rows: [] } } }]);
+  await runReport(CFG, { pollMs: 0, account: 'client-1' });
+  assert.deepEqual(seen.map((s) => s.init.headers['Accessible-Account-Id']), ['client-1', 'client-1', 'client-1']);
+});
+
 test('runReport refuses a bad configuration before any request', async () => {
   const seen = serve([{ result: 'r1' }]);
   for (const bad of [null, [], {}, { ...CFG, groupBy: 'x/../y' }, { ...CFG, startDate: '2026-09-01T00:00' }]) {

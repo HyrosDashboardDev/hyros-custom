@@ -1,7 +1,9 @@
 /**
  * The shell: wires auth, the API client and the data API, decides between the
  * sign-in card, the connecting/failed gate and the app, and runs the tabs
- * listed in views/registry.js.
+ * listed in views/registry.js. When the token's account can read other
+ * accounts (an agency and its clients), the account email becomes a switcher
+ * that swaps the data API for one bound to the chosen account.
  */
 import { createAuth, createHostProvider, createOAuthProvider } from './core/auth.js';
 import * as api from './core/api.js';
@@ -46,6 +48,10 @@ const linkedStyles = new Set();
 let active = null;
 /** Bumped on every render so a slow render never repaints the header state of a newer one. */
 let generation = 0;
+/** The token's own account, as first read: its client accounts are what the switcher lists. */
+let home = null;
+/** Bumped on every account switch so a slower switch never lands after a newer one. */
+let switching = 0;
 
 function showGate({ title, text = '', retry = false, signIn = false }) {
   $('#app').hidden = true;
@@ -142,10 +148,84 @@ async function show(id) {
   }
 }
 
-async function enterApp(account) {
+/** Money and dates follow the account being read. */
+function applyAccount(account) {
   fmt.currency = fmt.currencyCode(account.currency);
   fmt.timezone = account.timezone;
-  $('#acctLabel').textContent = account.email || '';
+}
+
+/** The client accounts the switcher lists: the APPROVED ones, the only ones HYROS lets the token read. */
+function switchable(account) {
+  return (account?.clients || []).filter((c) => c.accountId && c.status === 'APPROVED');
+}
+
+/** The email of the account being read, or a switcher between the token's own account and its clients. */
+function renderAccountLabel(account) {
+  const label = $('#acctLabel');
+  const clients = switchable(home);
+  if (!clients.length) {
+    label.textContent = account.email || '';
+    return;
+  }
+  const current = data.accountId || '';
+  const options = [
+    { id: '', text: home.email || 'My account', title: 'Your account' },
+    ...clients.map((c) => ({ id: c.accountId, text: c.email || c.company || c.accountId, title: c.company || '' })),
+  ];
+  label.innerHTML = `<select id="acctSwitch" aria-label="Account to show">${options.map((o) => `
+    <option value="${esc(o.id)}" title="${esc(o.title)}"${o.id === current ? ' selected' : ''}>${esc(o.text)}</option>`).join('')}</select>`;
+}
+
+/** Views that keep state between renders (filters, drill paths) drop it: it belonged to the other account. */
+async function resetViews() {
+  await Promise.all([...modules.values()].map((loading) => loading.then((view) => {
+    try { view?.reset?.(); } catch { /* a view that fails to reset still renders */ }
+  }, () => {})));
+}
+
+/** Read `accountId` (null for the token's own account) from now on: a new data API, the same tab. */
+async function switchAccount(accountId) {
+  const seq = ++switching;
+  const next = createData({ api, accountId });
+  const select = $('#acctSwitch');
+  if (select) select.disabled = true;
+  try {
+    const account = await next.account();
+    if (seq !== switching) return;
+    data = next;
+    applyAccount(account);
+    await resetViews();
+    if (select) select.disabled = false;
+    await show(active);
+  } catch (err) {
+    if (seq !== switching) return;
+    if (select) {
+      select.disabled = false;
+      select.value = data.accountId || '';
+    }
+    if (err?.refusal) {
+      showRefusal(err);
+      return;
+    }
+    if (needsSignIn(err)) {
+      showSignIn(err);
+      return;
+    }
+    // A 403 here is HYROS saying this login may not read that account (not approved, or not active): its own words say which.
+    const text = err?.code === 'forbidden' && err.detail ? err.detail : failureCopy(err);
+    const root = document.createElement('div');
+    root.className = 'view';
+    root.innerHTML = `${card({ title: 'Could not switch to that account.', body: esc(text), kind: 'err' })}
+      <button type="button" data-retry>Back</button>`;
+    root.querySelector('[data-retry]').addEventListener('click', () => show(active));
+    $('#view').replaceChildren(root);
+  }
+}
+
+async function enterApp(account) {
+  if (!data.accountId) home = account;
+  applyAccount(account);
+  renderAccountLabel(account);
 
   const views = await Promise.all(VIEWS.map((id) => loadView(id).catch(() => null)));
   $('#tabs').innerHTML = VIEWS.map((id, i) => {
@@ -231,6 +311,9 @@ function boot() {
   $('#gateRetry').addEventListener('click', () => connect('retry'));
   $('#gateSignIn').addEventListener('click', signIn);
   $('#refreshBtn').addEventListener('click', refresh);
+  $('#acctLabel').addEventListener('change', (event) => {
+    if (event.target.id === 'acctSwitch') switchAccount(event.target.value || null);
+  });
   $('#tabs').addEventListener('click', (event) => {
     const tab = event.target.closest('.tab');
     if (tab && tab.dataset.id !== active) show(tab.dataset.id);

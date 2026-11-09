@@ -30,6 +30,12 @@ function retire(base, part) {
 /** What each loaded list counted, by its cache key, for the sub-tab chips. */
 const known = new Map();
 
+/** Drop the counts and generations: the cache keys of another account name other lists. */
+export function forgetLoads() {
+  generations.clear();
+  known.clear();
+}
+
 const message = (err) => String(err?.message || err || 'HYROS did not answer.');
 
 /** The figure a sub-tab's chip shows: the aggregation total, else the rows loaded. */
