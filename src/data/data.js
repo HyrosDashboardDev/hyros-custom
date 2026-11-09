@@ -6,6 +6,11 @@
  * for the account cost one call. A failed promise is dropped from the cache
  * so the next ask tries again. Nothing is stored outside memory.
  *
+ * One instance reads one account: the token's own, or with `accountId` one of
+ * the client accounts an agency can read (`account().clients`). Every call it
+ * makes carries that id, so a render that started before the user switched
+ * accounts keeps reading the account it started on.
+ *
  *   account()     GET /user-info, normalized, with the offset of the newest lead's date (GET /leads)
  *   adAccounts()  { rows: [{ id, name, type }], truncated }
  *   sources()     { rows, truncated } with the raw source rows
@@ -20,10 +25,12 @@
  *   invalidate(key?)           drop one cached getter, or all of them (memos included)
  *   connection()               { base, viaFallback }: the API host the next call goes to and
  *                              whether it is a fallback (CDN) host; null when the client cannot say
+ *   accountId                  the client account this instance reads, null for the token's own
  *   now()                      the clock views should use
  */
-export function createData({ api, now = () => new Date() }) {
+export function createData({ api: client, accountId = null, now = () => new Date() }) {
   const cache = new Map();
+  const api = accountId ? scoped(client, accountId) : client;
 
   function once(key, load) {
     if (!cache.has(key)) {
@@ -106,7 +113,22 @@ export function createData({ api, now = () => new Date() }) {
 
     connection: () => (typeof api.connection === 'function' ? api.connection() : null),
 
+    /** The client account this instance reads, or null for the token's own. */
+    accountId,
+
     now,
+  };
+}
+
+/** The API client with `account` added to the options of every call. */
+function scoped(api, account) {
+  const opts = (o) => ({ ...o, account });
+  return {
+    get: (path, params, o) => api.get(path, params, opts(o)),
+    getPaged: (path, params, o) => api.getPaged(path, params, opts(o)),
+    getPagedInfo: (path, params, o) => api.getPagedInfo(path, params, opts(o)),
+    runReport: (configuration, o) => api.runReport(configuration, opts(o)),
+    connection: () => (typeof api.connection === 'function' ? api.connection() : null),
   };
 }
 

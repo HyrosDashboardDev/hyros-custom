@@ -350,4 +350,10 @@ export const view = {
       .finally(() => firstIn());
     await first;
   },
+
+  /** Another account: its ad accounts are not this one's. The end date stays. */
+  reset() {
+    renderSeq += 1;
+    state.selected = null;
+  },
 };

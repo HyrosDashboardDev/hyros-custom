@@ -37,6 +37,8 @@ export const list = (value) => (value ? String(value).split(',') : []);
  *   mock.latencyMs = 4000         delay every call (number) or per path ({ '/leads': ms })
  *   mock.adAccounts = []          replace the ad-account list
  *   mock.timezone = 'America/New_York'   userProfile.timezone
+ *   mock.clients = ['client-1']   the client account ids the token may read with
+ *       Accessible-Account-Id; any other id is a 403, as HYROS answers it
  *   mock.now = Date.parse('2026-09-14T12:00:00Z')   the mock's clock for the
  *       report's "cannot be in the future" check (null = the real clock);
  *       kept across reset() so a test sets it once next to its build `now`
@@ -48,13 +50,14 @@ export const mock = {
   latencyMs: 0,
   adAccounts: null,
   timezone: null,
+  clients: ['client-1'],
   now: null,
   failNext(spec) { this.failures.push({ times: 1, ...spec }); },
   pages(path, n, size = 250) { this.paged[path] = { n, size }; },
   expireCursorOn(path) { this.expiredCursors.add(path); },
   reset() {
     this.failures = []; this.paged = {}; this.expiredCursors = new Set();
-    this.latencyMs = 0; this.adAccounts = null; this.timezone = null;
+    this.latencyMs = 0; this.adAccounts = null; this.timezone = null; this.clients = ['client-1'];
   },
 };
 
@@ -358,7 +361,11 @@ export function startMock(port = PORT) {
       if (url.searchParams.getAll(name).length > 1) return json(res, 400, { result: 'ERROR', message: [`Parameter ${name} is repeated`] });
       q[name] = url.searchParams.get(name);
     }
-    calls.push({ path, params: q, token });
+    const account = req.headers['accessible-account-id'] ?? null;
+    calls.push({ path, params: q, token, account });
+    if (account !== null && !mock.clients.includes(account)) {
+      return json(res, 403, { result: 'ERROR', message: [`Not authorized: account ${account} is not one of your connected client accounts.`] });
+    }
 
     const failure = takeFailure(path);
     if (failure) {

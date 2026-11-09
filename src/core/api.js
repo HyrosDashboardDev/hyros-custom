@@ -6,7 +6,9 @@
  * reads it with GET /reports/poll/{id}, a read path like the others. Auth is
  * `Authorization: Bearer <token>`, the short-lived token from auth.js (handed
  * over by HYROS or from the HYROS sign-in); never an `API-Key`. The token
- * defines the account; nothing else selects it.
+ * defines the account. An agency reads one of its client accounts by passing
+ * that account's id as `account`, sent as `Accessible-Account-Id`; HYROS
+ * answers 403 when the token's login may not read it.
  *
  * Transport errors, as ApiError codes:
  *   401  token rejected        -> drop it, ask auth.js for a new one, retry once; then 'auth',
@@ -25,7 +27,7 @@
  * With `routes` (src/core/routes.js) every request starts on the direct API
  * and moves to a fallback host only when the fetch never got an HTTP answer.
  *
- * Two identical calls in flight share one request.
+ * Two identical calls in flight, for the same account, share one request.
  *
  * No SDK on purpose: plain fetch, zero dependencies.
  */
@@ -73,6 +75,17 @@ const READ_PATH_SET = new Set(READ_PATHS);
  * only fill that one segment, and it is not sent in the query.
  */
 const PATH_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** The id of the client account an agency reads instead of its own. */
+const ACCOUNT_HEADER = 'Accessible-Account-Id';
+
+/** A client account id as `/user-info` lists it: anything else is refused before a request. */
+const ACCOUNT_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+function checkAccount(account) {
+  if (account === undefined || account === null) return null;
+  return typeof account === 'string' && ACCOUNT_ID.test(account) ? null : new ApiError('Invalid account id', null, 'bad_request');
+}
 
 /** The only POST: runReport starts a report with it. Not a read path, so get() refuses it. */
 const REPORT_GENERATE = '/reports/generate';
@@ -178,10 +191,11 @@ function messageOnly(body) {
  * One HTTP round trip. Returns `{ body }`, `{ unauthorized }` for a 401 or
  * `{ rateLimited, message, retryAfterMs }` for a 429; anything else that failed throws.
  */
-async function attempt(href, token, timeoutMs, payload) {
+async function attempt(href, token, timeoutMs, payload, account) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const headers = { accept: 'application/json', authorization: `Bearer ${token}` };
+  if (account) headers[ACCOUNT_HEADER] = account;
   const init = payload === undefined
     ? { method: 'GET', headers }
     : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(payload) };
@@ -232,11 +246,11 @@ async function tokenFor(reason) {
  * One round trip of `rel` (path and query): on the configured url, or through
  * the routes, which retry it on the next base after a network failure.
  */
-function attemptOn(rel, token, started, timeoutMs, payload) {
+function attemptOn(rel, token, started, timeoutMs, payload, account) {
   const at = async (base) => {
     const left = timeoutMs - (Date.now() - started);
     if (left <= 0) throw new ApiError(`HYROS call timed out after ${timeoutMs}ms`, null, 'timeout');
-    return attempt(`${base}${rel}`, token, left, payload);
+    return attempt(`${base}${rel}`, token, left, payload, account);
   };
   if (!cfg.routes) return at(cfg.url);
   return cfg.routes.withFallback('api', at).catch((err) => {
@@ -246,12 +260,12 @@ function attemptOn(rel, token, started, timeoutMs, payload) {
 }
 
 /** A GET of `rel` (path and query), or a POST of `payload`, with the 401 and 429 policies above. */
-async function send(rel, timeoutMs, payload) {
+async function send(rel, timeoutMs, payload, account) {
   const started = Date.now();
   let token = await tokenFor();
   let reauthed = false;
   for (let limited = 0; ;) {
-    const out = await attemptOn(rel, token, started, timeoutMs, payload);
+    const out = await attemptOn(rel, token, started, timeoutMs, payload, account);
 
     if (out.unauthorized) {
       if (reauthed) {
@@ -280,13 +294,17 @@ async function send(rel, timeoutMs, payload) {
 /**
  * GET one read path and return the parsed body as the API sends it: usually
  * the envelope `{ result, nextPageId?, message?, request_id? }`. In-flight
- * dedup on the path and query, whichever host serves it.
+ * dedup on the account, path and query, whichever host serves it.
+ * `account`: a client account's id (`accessibleAccounts[].accountId` of
+ * GET /user-info) to read instead of the token's own account.
  */
-export function get(path, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export function get(path, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS, account = null } = {}) {
   if (!cfg) return Promise.reject(new ApiError('The HYROS API client is not configured', null, 'NO_TOKEN'));
   if (!READ_PATH_SET.has(path)) {
     return Promise.reject(new ApiError(`${path} is not a read path this dashboard may call`, null, 'not_allowed'));
   }
+  const badAccount = checkAccount(account);
+  if (badAccount) return Promise.reject(badAccount);
   let target = path;
   let rest = params;
   if (path.includes('{id}')) {
@@ -300,16 +318,17 @@ export function get(path, params = {}, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) 
   let query;
   try { query = toQuery(rest); } catch (err) { return Promise.reject(err); }
   const rel = `${target}${query ? `?${query}` : ''}`;
-  const running = inFlight.get(rel);
+  const key = `${account || ''} ${rel}`;
+  const running = inFlight.get(key);
   if (running) return running;
-  const call = send(rel, timeoutMs).then((body) => {
+  const call = send(rel, timeoutMs, undefined, account).then((body) => {
     const msg = messageOnly(body);
     if (msg) throw new ApiError(`${path}: ${msg}`, body);
     return body;
   }).finally(() => {
-    if (inFlight.get(rel) === call) inFlight.delete(rel);
+    if (inFlight.get(key) === call) inFlight.delete(key);
   });
-  inFlight.set(rel, call);
+  inFlight.set(key, call);
   return call;
 }
 
@@ -326,9 +345,9 @@ const CURSOR_ERROR = /page ?id|cursor|pagination/i;
  * In that last case the rows fetched so far are returned instead of thrown
  * away. Any other failure still throws (rate limit, auth, bad request).
  */
-export async function getPagedInfo(path, params = {}, { maxPages = 20, pageSize = 250, deadline = null, timeoutMs } = {}) {
+export async function getPagedInfo(path, params = {}, { maxPages = 20, pageSize = 250, deadline = null, timeoutMs, account = null } = {}) {
   const rows = [];
-  const opts = timeoutMs ? { timeoutMs } : {};
+  const opts = { ...(timeoutMs ? { timeoutMs } : {}), ...(account ? { account } : {}) };
   let pageId;
   let pages = 0;
   for (let page = 0; page < maxPages; page += 1) {
@@ -397,9 +416,10 @@ function reportMessage(body) {
  * `onProgress({ status, polls, elapsedMs })` is called after each step, so a
  * view can show the report is still being built.
  * Transport errors (403, 429, ...) come through as they are.
+ * `account` reads a client account, as in get(); the report and its polls go to the same one.
  */
-export async function runReport(configuration, { pollMs = REPORT_POLL_MS, maxMs = REPORT_MAX_MS, signal = null, timeoutMs, onProgress = null } = {}) {
-  const opts = timeoutMs ? { timeoutMs } : {};
+export async function runReport(configuration, { pollMs = REPORT_POLL_MS, maxMs = REPORT_MAX_MS, signal = null, timeoutMs, onProgress = null, account = null } = {}) {
+  const opts = { ...(timeoutMs ? { timeoutMs } : {}), ...(account ? { account } : {}) };
   const started = Date.now();
   let polls = 0;
   const progress = (status) => { try { onProgress?.({ status, polls, elapsedMs: Date.now() - started }); } catch { /* a view's callback never stops the report */ } };
@@ -407,7 +427,9 @@ export async function runReport(configuration, { pollMs = REPORT_POLL_MS, maxMs 
   if (!cfg) throw new ApiError('The HYROS API client is not configured', null, 'NO_TOKEN');
   const bad = checkConfiguration(configuration);
   if (bad) throw new ApiError(bad, null, 'bad_request');
-  const generated = await send(REPORT_GENERATE, opts.timeoutMs || DEFAULT_TIMEOUT_MS, { configuration }).then(bodyOf(REPORT_GENERATE));
+  const badAccount = checkAccount(account);
+  if (badAccount) throw badAccount;
+  const generated = await send(REPORT_GENERATE, opts.timeoutMs || DEFAULT_TIMEOUT_MS, { configuration }, account).then(bodyOf(REPORT_GENERATE));
   const id = generated?.result;
   if (typeof id !== 'string' || !PATH_ID.test(id)) throw new ApiError('HYROS did not answer a valid report id', null);
   progress('GENERATED');

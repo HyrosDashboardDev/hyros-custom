@@ -48,6 +48,7 @@ and are never registered.
 | `style` | boolean | `true` when the folder has a `style.css`; the shell links it once, before the first render |
 | `tools` | string[] | the API paths the view reads through `ctx.data` (getters included, e.g. `'/leads'`), so a reader knows what one render costs |
 | `author` | string | who to ask |
+| `reset` | `() => void` | drops what the view keeps between renders (filters, a drill path, picked ids) when the user switches to another account; called before the next render. Needed only by a view with module state that belongs to one account |
 
 `id`, `title` and `render` are checked by `npm run check`
 (`tests/boundaries.test.mjs`); `id` must equal the folder name.
@@ -84,7 +85,7 @@ Partial states are the view's job:
 | key | what |
 |---|---|
 | `root` | the element the view renders into (a fresh `<div class="view">` per render) |
-| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `report` (POST `/reports/generate` plus its poll), `cached`, `invalidate`, `connection`, `now`. Which paths to call and how to shape the rows: `docs/RECIPES.md` |
+| `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `report` (POST `/reports/generate` plus its poll), `cached`, `invalidate`, `connection`, `accountId`, `now`. Bound to one account: the token's own, or the client account an agency picked in the switcher (`accountId`). Which paths to call and how to shape the rows: `docs/RECIPES.md` |
 | `fmt` | `src/ui/fmt.js`: `money(v)`, `moneyIn(v, code)`, `money0(v)`, `int(v)`, `pct(v)`, `ratio(v)`, `date(iso)`, `datetime(iso)`, `currencyCode(code)`. Money is in the account currency, dates in the account timezone; a missing value prints `-` |
 | `esc(s)` | HTML-escape; use it on every string that came from HYROS |
 | `kpis(list)` | KPI tiles HTML, already wrapped in `<div class="kpis">`: `[{ label, value, sub?, cls? }]`. `label`, `value` and `sub` are rendered as **escaped text** (no HTML inside them; pass values already formatted with `fmt`). `cls: 'hy'` goes on the tile and makes it the one highlight tile of the screen; `cls: 'good'` or `'bad'` goes on the figure (`.kpi-value`), the money tone; any other `cls` is ignored |

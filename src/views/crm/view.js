@@ -16,7 +16,7 @@ import {
   TABS, TAB_BY_KEY, RANGE_KEYS, RECURRING, REFUNDED, QUALIFIED, SUBSCRIPTION_STATES,
   defaultFilters, emailParam, filterParams, resolveRange, droppedTags, MAX_VALUES,
 } from './filters.js';
-import { loadTab, headline, knownCount } from './load.js';
+import { loadTab, headline, knownCount, forgetLoads } from './load.js';
 import { tableHtml, tabsHtml, tilesHtml, countText, DEFAULT_SORT } from './markup.js';
 
 /** Margin kept before the shell's own limit, so a slow list never turns into the shell's error card. */
@@ -317,5 +317,16 @@ export const view = {
 
   render(ctx) {
     return run(ctx);
+  },
+
+  /** Another account: its stages, tags and leads are not this one's. The range, sub-tab and sort stay. */
+  reset() {
+    renderSeq += 1;
+    clearTimeout(searchTimer);
+    state.search = '';
+    state.filters = defaultFilters();
+    state.qualStages = [];
+    last = null;
+    forgetLoads();
   },
 };

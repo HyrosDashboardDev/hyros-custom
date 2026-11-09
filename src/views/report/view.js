@@ -520,4 +520,16 @@ export const view = {
   tools: ['/user-info', '/leads', '/ad-accounts', '/attribution', '/sources'],
   author: 'HYROS',
   render,
+
+  /** Another account: its ad accounts, drill path and loads are not this one's. The range, model and columns stay. */
+  reset() {
+    renderSeq += 1;
+    state.selected = null;
+    // Back to the level the drill started from: the path's ids belong to the other account.
+    if (state.path.length) state.level = state.path[0].level;
+    state.path = [];
+    state.search = '';
+    sourceMemo.clear();
+    current = null;
+  },
 };

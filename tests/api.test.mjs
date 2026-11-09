@@ -103,6 +103,34 @@ test('two identical calls in flight share one request', async () => {
   assert.equal(calls.length, 2, 'a finished call is not cached');
 });
 
+test('account: a client account id travels as Accessible-Account-Id on every page, and only then', async () => {
+  wire();
+  mock.pages('/leads', 2, 1);
+  await getPagedInfo('/leads', {}, { pageSize: 1, account: 'client-1' });
+  await get('/stages');
+  assert.deepEqual(calls.map((c) => [c.path, c.account]), [['/leads', 'client-1'], ['/leads', 'client-1'], ['/stages', null]]);
+});
+
+test('account: the same call for two accounts is two requests, never one shared answer', async () => {
+  wire();
+  mock.latencyMs = 30;
+  await Promise.all([get('/stages'), get('/stages', {}, { account: 'client-1' }), get('/stages', {}, { account: 'client-1' })]);
+  assert.deepEqual(calls.map((c) => c.account).sort(), ['client-1', null]);
+});
+
+test('account: an id that is not a plain account id fails bad_request before any request', async () => {
+  wire();
+  for (const account of ['a b', 'x\ny', '../1', 42, '']) {
+    await assert.rejects(get('/stages', {}, { account }), (err) => err.code === 'bad_request', String(account));
+  }
+  assert.equal(calls.length, 0);
+});
+
+test('account: an account the token may not read is forbidden, with the server text', async () => {
+  wire();
+  await assert.rejects(get('/user-info', {}, { account: 'client-2' }), (err) => err.code === 'forbidden' && /client-2/.test(err.detail));
+});
+
 test('a 401 drops the token, asks for a new one and retries once', async () => {
   wire();
   mock.failNext({ status: 401, body: 'Unauthorized' });
