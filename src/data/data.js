@@ -49,6 +49,9 @@ export function createData({ api: client, accountId = null, now = () => new Date
     company: a.companyName || null,
     status: a.status || null,
   }));
+  // `active` is false for a client account HYROS will not let the token read (blocked, unpaid, onboarding);
+  // null when HYROS did not say, which older servers do not.
+  const clients = (list) => summary(list).map((c, i) => ({ ...c, active: typeof list[i].active === 'boolean' ? list[i].active : null }));
 
   return {
     account: () => once('account', async () => {
@@ -72,7 +75,7 @@ export function createData({ api: client, accountId = null, now = () => new Date
         attributionWindowDefault: Number(user?.trueTrackingData?.LEAD_ATTRIBUTION_TIMEFRAME) || null,
         // Agency relationships: who manages this account, and which client accounts it can operate on.
         managedBy: summary(user?.allowedAccounts),
-        clients: summary(user?.accessibleAccounts),
+        clients: clients(user?.accessibleAccounts),
         raw: user,
       };
     }),

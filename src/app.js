@@ -154,9 +154,9 @@ function applyAccount(account) {
   fmt.timezone = account.timezone;
 }
 
-/** The client accounts the switcher lists: the APPROVED ones, the only ones HYROS lets the token read. */
+/** The client accounts the switcher lists: the APPROVED, active ones, the only ones HYROS lets the token read. */
 function switchable(account) {
-  return (account?.clients || []).filter((c) => c.accountId && c.status === 'APPROVED');
+  return (account?.clients || []).filter((c) => c.accountId && c.status === 'APPROVED' && c.active !== false);
 }
 
 /** The email of the account being read, or a switcher between the token's own account and its clients. */

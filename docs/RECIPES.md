@@ -53,7 +53,7 @@ disagree, the docs win.
   other load a view wants to keep goes through `ctx.data.cached(key, loader)`,
   which Refresh clears too.
 - An agency account can read its client accounts. When `account().clients`
-  has an `APPROVED` entry, the shell shows an account switcher where the
+  has an `APPROVED` entry that is not `active: false`, the shell shows an account switcher where the
   email was; picking an account gives the next render a `ctx.data` bound to
   it (`ctx.data.accountId`), whose every call carries
   `Accessible-Account-Id`. A view does nothing for this: it reads `ctx.data`
