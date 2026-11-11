@@ -252,3 +252,20 @@ test('a zero on the totals bar dims its text, never the cell: the ink bar stays 
   }
   assert.match(css, /tfoot td\.zero, tfoot td\.hy\.zero \{[^}]*color: var\(--term-quiet\)[^}]*opacity: 1/);
 });
+
+test('a table scrolls sideways on the rail: the shell mounts it, the browser bar is off, the old proxy is gone', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const app = readFileSync(join(SRC, 'app.js'), 'utf8');
+  assert.match(app, /import \{ watchRails \} from '\.\/ui\/rail\.js';/);
+  assert.match(app, /watchRails\(\$\('#view'\)\);/, 'every table of every view gets its rail');
+  assert.match(css, /\.table-wrap\.has-rail::-webkit-scrollbar \{ height: 0; \}/, 'no browser bar under a table that has its rail');
+  assert.match(css, /\.hrail\[hidden\] \{ display: none; \}/, 'a table that fits has no lane');
+  assert.equal(/hproxy/.test(css), false, 'the unused scroll proxy is gone');
+  assert.equal(/--glass/.test(css), false, 'and its token with it');
+  for (const dir of readdirSync(join(SRC, 'views'), { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const file of readdirSync(join(SRC, 'views', dir.name)).filter((name) => name.endsWith('.css'))) {
+      const own = readFileSync(join(SRC, 'views', dir.name, file), 'utf8');
+      assert.equal(/scrollbar/.test(own), false, `${dir.name}/${file}: a view never styles a scrollbar`);
+    }
+  }
+});

@@ -133,6 +133,12 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
   `.cohort-row`; a journey `.timeline` / `.tl-item` / `.tl-icon`; clicks
   `.clicks` / `.click-row` / `.click-page`.
 
+A table wider than its place scrolls sideways on the rail
+(`src/ui/rail.js`): the shell gives every `.table-wrap` a bar of the
+dashboard's own in a lane under the table, with the count of the columns on
+screen. A view does nothing for it: put the table in a `.table-wrap` and never
+style a scrollbar.
+
 Two shared modules build on the kit; import them from `view.js`:
 
 - `src/ui/table.js`: `sortRows(rows, { col, dir })` (a sorted copy, missing

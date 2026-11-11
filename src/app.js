@@ -14,6 +14,7 @@ import { VIEW_LOAD_MS } from './core/budget.js';
 import { createData } from './data/data.js';
 import { $, esc, card, kpis } from './ui/dom.js';
 import { fmt } from './ui/fmt.js';
+import { watchRails } from './ui/rail.js';
 import { VIEWS } from './views/registry.js';
 
 const COPY = {
@@ -340,6 +341,7 @@ function boot() {
   data = createData({ api });
 
   wireSidebar();
+  watchRails($('#view'));
   $('#gateRetry').addEventListener('click', () => connect('retry'));
   $('#gateSignIn').addEventListener('click', signIn);
   $('#refreshBtn').addEventListener('click', refresh);

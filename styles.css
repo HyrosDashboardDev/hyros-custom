@@ -53,7 +53,6 @@
   --rule:      rgba(31,30,29,.06);  /* row dividers inside a window */
   --chip-hover: rgba(255,255,255,.55);  /* a segmented-control chip under the pointer */
   --count-fill: rgba(31,30,29,.06);     /* the count inside a chip */
-  --glass:     rgba(255,255,255,.88);   /* the sticky horizontal scrollbar */
   --scrim:     rgba(31,30,29,.32);      /* behind the drawer */
 
   /* ink + text */
@@ -126,7 +125,6 @@
   --rule:      rgba(255,255,255,.06);
   --chip-hover: rgba(255,255,255,.06);
   --count-fill: rgba(255,255,255,.08);
-  --glass:     rgba(24,24,24,.88);
   --scrim:     rgba(0,0,0,.55);
 
   --ink:       #EDEFF8;
@@ -682,7 +680,7 @@ td:not(.txt):not(.hy) button.drill:hover { color: var(--brand); text-decoration-
   .drawer-scrim:not([hidden]) { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .drawer, .drawer-scrim, .col-panel, .chip, .tabs .tab, .side, .side .side-item, button, .btn { transition: none; }
+  .drawer, .drawer-scrim, .col-panel, .chip, .tabs .tab, .side, .side .side-item, .hrail-thumb, button, .btn { transition: none; }
 }
 .drawer-head {
   display: flex; align-items: center; gap: 10px;
@@ -777,18 +775,41 @@ button.name-drill {
 }
 button.name-drill:hover { color: var(--brand); text-decoration: underline dotted; text-underline-offset: 3px; background: none; border: 0; }
 
-/* ---------- sticky horizontal scroll proxy ---------- */
-.hproxy {
-  position: fixed; bottom: 0; z-index: 45; height: 14px;
-  overflow-x: auto; overflow-y: hidden;
-  background: var(--glass);
-  border-top: 1px solid var(--border);
+/* ---------- the rail: a table's own sideways scrollbar (src/ui/rail.js) ---------- */
+/* A table's bars are drawn by the dashboard, not by the computer: a quiet thin
+   bar for the rows and, for the columns, the rail in a lane under the table.
+   The browser's own sideways bar is off once a table has its rail. */
+.table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 6px; }
+.table-wrap::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+.table-wrap::-webkit-scrollbar-track, .table-wrap::-webkit-scrollbar-corner { background: transparent; }
+.table-wrap.has-rail::-webkit-scrollbar { height: 0; }
+@supports not selector(::-webkit-scrollbar) {
+  .table-wrap { scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
+  .table-wrap.has-rail { scrollbar-width: none; }
 }
-.hproxy > div { height: 1px; }
-.hproxy::-webkit-scrollbar { height: 10px; }
-.hproxy::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 6px; }
-.hproxy::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
-.hproxy::-webkit-scrollbar-track { background: transparent; }
+/* the lane: air under the totals bar, then the bar and the count, on the page gutter */
+.hrail {
+  order: 99; grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 18px; padding: 6px 0 2px;
+  background: var(--surface);
+}
+.hrail[hidden] { display: none; }
+.table-wrap.bleed + .hrail { margin-inline: calc(-1 * var(--gut)); padding-inline: var(--gut); }
+/* while its table is in sight the lane follows the bottom of the window, so the bar is always in reach */
+.hrail.is-near { position: sticky; bottom: -1px; z-index: 6; }
+.hrail.is-stuck { box-shadow: 0 -1px 0 var(--border); }
+/* the track: 28px of target around an 8px bar */
+.hrail-track { position: relative; flex: 1; min-width: 0; height: 28px; cursor: pointer; touch-action: none; }
+.hrail-track::before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 8px; border-radius: 99px; background: var(--surface-4); }
+.hrail-thumb { position: absolute; top: 10px; height: 8px; border-radius: 99px; background: var(--lav); cursor: grab; transition: background .13s; }
+.hrail-thumb::after { content: ""; position: absolute; inset: -10px 0; }
+.hrail-track:hover .hrail-thumb, .hrail.is-drag .hrail-thumb { background: var(--brand); }
+.hrail.is-drag .hrail-thumb { cursor: grabbing; }
+.hrail-track:focus-visible { outline: 0; }
+.hrail-track:focus-visible::before { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand); }
+.hrail-note { flex: none; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.hrail-note b { font-weight: 500; color: var(--ink); }
 
 /* ---------- header drag & drop ---------- */
 thead th { -webkit-user-drag: element; }

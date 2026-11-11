@@ -99,7 +99,6 @@ radii and fonts are the same.
 | `--rule` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.06)` | row dividers: table rows, the cells of the stats strip |
 | `--chip-hover` | `rgba(255,255,255,.55)` | `rgba(255,255,255,.06)` | a segmented-control chip under the pointer |
 | `--count-fill` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.08)` | the count inside a chip |
-| `--glass` | `rgba(255,255,255,.88)` | `rgba(24,24,24,.88)` | the sticky horizontal scrollbar |
 | `--scrim` | `rgba(31,30,29,.32)` | `rgba(0,0,0,.55)` | behind the drawer |
 | `--ink` | `#1F1E1D` | `#EDEFF8` | text, the primary button, the console |
 | `--ink-2` | `#55534E` | `#B7B7B7` | secondary text |
@@ -289,6 +288,23 @@ colourways (lavender here).
   its cell. Four cells in a row, two under 1180px. A view asks for it with
   `minor: true` on those items of `ctx.kpis`. At most four headline tiles
   per view; the rest are minor.
+- **Rail** `.hrail` (`src/ui/rail.js`): how a table wider than its place
+  scrolls sideways. The dashboard draws its own bar and switches the
+  browser's sideways bar off, so it looks the same on every computer. It
+  sits in a lane of its own under the table, never glued to the totals
+  bar: 16px of air, then an 8px rounded bar (`--lav` on a `--surface-4`
+  track, `--brand` under the pointer and while dragged) from gutter to
+  gutter, and on the right a mono count of the columns that are whole on
+  screen ("13 of 17 columns"). The whole 28px track is the target: drag
+  the bar, press anywhere on the track to bring the bar there, or focus
+  it and use the arrow keys, Page Up, Page Down, Home and End. While its
+  table is in sight the lane follows the bottom of the window
+  (`.is-near`), with a hairline above it while it floats over the rows
+  (`.is-stuck`), so the bar is always in reach. A table that fits has no
+  lane. The shell gives every `.table-wrap` its rail (`watchRails`): a
+  view writes its table and nothing else, and never styles a scrollbar.
+  The rows' own bar, when a table is taller than its place, is a quiet
+  10px `--border-2` bar.
 - **Tables**: the table a view ends on is `.table-wrap.bleed`: it steps
   out of the page gutter and runs from edge to edge with a hairline above
   and below, no side borders, no radius and no shadow, and its first and
