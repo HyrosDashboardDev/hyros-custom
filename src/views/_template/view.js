@@ -10,8 +10,13 @@
  *          sources(), stages(), call, paged, pagedInfo, invalidate
  *   fmt    money, moneyIn, money0, int, pct, ratio, date, datetime, currencyCode
  *   esc    HTML-escape: every string that came from HYROS goes through it
- *   kpis   [{ label, value, sub?, cls? }] -> tiles HTML, values rendered as escaped text;
- *          cls 'hy' marks the one highlight tile, 'good' or 'bad' tones the figure
+ *   kpis   [{ label, value, sub?, meter?, minor?, cls? }] -> tiles HTML, values rendered as
+ *          escaped text; sub is the context line under the figure (give every tile one),
+ *          meter a 0..1 share drawn beside it, minor moves a count into the strip under
+ *          the tiles; cls 'hy' marks the one highlight tile, 'good' or 'bad' tones the figure
+ *
+ * Layout (UI-STYLE-GUIDE.md): the view is ONE window (.win) made of bands (.band):
+ * notes and tiles, then the content. A table goes last, flush, in a .table-wrap.
  *
  * Rules: no fetch and no imports from src/core/api.js, auth.js or config.js;
  * render is idempotent and builds everything into ctx.root.innerHTML; one
@@ -66,9 +71,10 @@ export const view = {
     const groups = byTrafficSource(result.rows);
     const top = groups[0]?.count || 0;
 
+    // Every tile says one more thing than its figure, from what the view already holds.
     const tiles = kpis([
-      { label: 'Sources', value: result.error ? '-' : fmt.int(result.rows.length), sub: result.truncated ? 'list cut short' : '' },
-      { label: 'Traffic sources', value: result.error ? '-' : fmt.int(groups.length) },
+      { label: 'Sources', value: result.error ? '-' : fmt.int(result.rows.length), sub: result.truncated ? 'list cut short' : 'every source link on the account' },
+      { label: 'Traffic sources', value: result.error ? '-' : fmt.int(groups.length), sub: groups.length ? `largest: ${groups[0].name}` : '' },
     ]);
 
     const bars = groups.slice(0, TOP).map((g) => `
@@ -82,12 +88,15 @@ export const view = {
       : `<div class="empty">${result.error ? 'Nothing to show until sources load.' : 'No sources on this account.'}</div>`;
 
     root.innerHTML = `
-      ${statusLine(result, fmt, esc)}
-      ${tiles}
-      <div class="fpanel my-view-panel">
-        <h3>Sources by traffic source</h3>
-        <div class="fhint">Top ${TOP}, counted from GET /sources.</div>
-        ${body}
+      <div class="win">
+        <div class="band">
+          ${statusLine(result, fmt, esc)}
+          ${tiles}
+        </div>
+        <div class="band my-view-panel">
+          <h2 class="section">Sources by traffic source <span class="rowcount">top ${TOP}, counted from GET /sources</span></h2>
+          ${body}
+        </div>
       </div>`;
   },
 };

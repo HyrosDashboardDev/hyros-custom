@@ -47,6 +47,7 @@
   --lavbg:     #EEEEFB;  /* the HYROS band: attributed columns, the active tab, highlight tile */
   --lavbg-2:   #F4F4FD;  /* the HYROS band at rest: attributed table cells */
   --lav:       #A5A4FA;  /* lavender data: bars, sparkline fills, Sven */
+  --bar-rest:  rgba(165,164,250,.5);  /* the pale part of a meter */
   --border:    rgba(31,30,29,.11);  /* every hairline */
   --border-2:  rgba(31,30,29,.18);  /* control borders */
   --rule:      rgba(31,30,29,.06);  /* row dividers inside a window */
@@ -80,16 +81,18 @@
   --warn-fill: rgba(176,120,30,.14);
   --warn-line: rgba(176,120,30,.3);
 
-  /* the console */
+  /* the console, and the totals bar that closes a table */
   --term:      #1F1E1D;
   --term-text: rgba(245,244,239,.86);
+  --term-bad:  #EE786C;  /* a loss printed on the ink bar */
 
   --r-btn:   7px;   /* buttons, inputs, selects */
   --r-tile:  10px;  /* KPI tiles, notes */
   --r-win:   12px;  /* windows, cards, panels */
   --radius:  var(--r-win);
   --shadow-card: 0 12px 34px -26px rgba(31,30,29,.35);
-  --shadow-win:  0 26px 60px -34px rgba(31,30,29,.35);
+  --shadow-win:  0 2px 4px -2px rgba(31,30,29,.06), 0 34px 64px -38px rgba(31,30,29,.42);
+  --shadow-tile: 0 1px 2px rgba(31,30,29,.05), 0 10px 22px -16px rgba(31,30,29,.28);  /* a KPI tile on the page ground */
   --shadow-pop:  0 24px 50px -30px rgba(31,30,29,.4);
   --shadow-chip: 0 1px 2px rgba(31,30,29,.08);
   --shadow-drawer: -24px 0 60px -18px rgba(31,30,29,.28);
@@ -113,6 +116,7 @@
   --lavbg:     #24233F;
   --lavbg-2:   #1F1E33;
   --lav:       #A5A4FA;
+  --bar-rest:  rgba(165,164,250,.3);
   --border:    rgba(255,255,255,.10);
   --border-2:  rgba(255,255,255,.17);
   --rule:      rgba(255,255,255,.06);
@@ -145,9 +149,11 @@
 
   --term:      #101010;
   --term-text: rgba(237,239,248,.86);
+  --term-bad:  #EE786C;
 
   /* on dark a shadow barely shows: the borders carry the edges */
   --shadow-card: none;
+  --shadow-tile: none;
   --shadow-win:  0 26px 60px -34px rgba(0,0,0,.7);
   --shadow-pop:  0 24px 50px -30px rgba(0,0,0,.8);
   --shadow-chip: none;
@@ -214,6 +220,12 @@ button.drill:active, button.name-drill:active, .cohort-row:active { transform: n
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;
 }
 
+/* a band of a window: a padded strip. A view stacks bands (controls, tiles, a
+   chart) and ends on its table; a rule separates each from the next. */
+.win > .band { padding: 14px 16px 16px; }
+.win > .band + .band, .win > .band + .table-wrap { border-top: 1px solid var(--rule); }
+.win > .band > :last-child { margin-bottom: 0; }
+
 /* ---------- gate ---------- */
 .gate {
   min-height: 100vh; display: grid; place-items: center; padding: 24px; position: relative;
@@ -231,16 +243,17 @@ button.drill:active, button.name-drill:active, .cohort-row:active { transform: n
 .gate-card p { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
 
 /* ---------- chrome ---------- */
+/* one bar: the logo, the tabs, then the account and the action */
 .topbar {
-  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
-  min-height: 56px; padding: 10px 20px; background: var(--surface);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  min-height: 52px; padding: 8px 20px; background: var(--surface);
   border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
 }
 .brand { display: flex; align-items: center; }
 .brand-logo { height: 20px; width: auto; display: block; }
 .brand-mark { height: 26px; width: auto; display: block; }
-/* the product word next to the logo */
-.brand-sub { font-weight: 400; color: var(--ink-2); font-size: 13px; margin-left: 8px; }
+/* the product word next to the logo, behind a hairline */
+.brand-sub { font-weight: 400; color: var(--ink-2); font-size: 13px; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border); }
 .updated { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); white-space: nowrap; margin-right: 4px; }
 .brand-dot { display: none; }
 .meta { color: var(--ink-2); font-size: 12.5px; display: flex; align-items: center; flex-wrap: wrap; }
@@ -307,12 +320,11 @@ button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color
 .theme-toggle .i-sun, :root[data-theme="dark"] .theme-toggle .i-moon { display: none; }
 :root[data-theme="dark"] .theme-toggle .i-sun { display: block; }
 
-/* ---------- tabs: the app nav (the site's .mcp-dnav) ---------- */
+/* ---------- tabs: the app nav (the site's .mcp-dnav), inside the topbar ---------- */
 /* NOTE: selectors carry `.tabs button` specificity so the generic
    `button:hover:not(:disabled)` fill can never repaint a tab. */
 .tabs {
-  display: flex; align-items: center; gap: 4px; padding: 8px 16px;
-  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 4px; min-width: 0; margin-left: 8px; overflow-x: auto;
 }
 .tabs .tab {
   border: 0; background: none; color: var(--ink-2); padding: 5px 10px;
@@ -322,7 +334,7 @@ button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color
 .tabs button.tab:hover:not(:disabled) { background: var(--surface-3); border-color: transparent; color: var(--ink); }
 .tabs button.tab.active, .tabs button.tab.active:hover:not(:disabled) { color: var(--brand); background: var(--lavbg); font-weight: 500; }
 
-.panel { padding: 20px; }
+.panel { padding: 20px 20px 56px; }
 .panel[hidden] { display: none; }
 /* a section heading inside a view: a mono label with room for a count beside it */
 .section { margin: 22px 2px 10px; display: flex; gap: 10px; align-items: baseline; }
@@ -358,25 +370,67 @@ input::placeholder { color: var(--ink-3); }
 .kpis {
   display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
 }
-/* the range and note lines take a row of their own */
+/* the range and note lines, and the strip of minor counts, take a row of their own */
 .kpis > :not(.kpi) { flex: 0 0 100%; }
-/* the date range prints ONCE above the tiles, never per card */
-.kpi-range { margin: 0 2px -2px; }
-/* each tile is as wide as its figure; one that does not fit moves to the next row */
+/* the date range prints ONCE above the tiles, never per card; its dot is purple because the range is what HYROS read */
+.kpi-range { display: flex; align-items: center; gap: 7px; margin: 0 2px -2px; }
+.kpi-range::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--brand); }
+/* tiles share the row evenly up to a comfortable width, so a row of three and a row of eight both look placed */
 .kpi {
-  flex: 0 0 auto; min-width: 120px; max-width: 100%;
-  background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: var(--r-tile); padding: 10px 22px; position: relative;
+  flex: 1 1 160px; min-width: 0; max-width: 300px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 10px 14px 9px; position: relative;
+  box-shadow: var(--shadow-tile);
 }
-.kpi-label { margin-bottom: 7px; }
+/* inside a window the tile is the quiet cream card: the window is the lit surface */
+.win .kpi, .win .stats { background: var(--surface-2); box-shadow: none; }
+.kpi-label { margin-bottom: 5px; }
 .kpi-value {
-  font-family: var(--serif); font-weight: 400; font-size: 22px; line-height: 1.05; white-space: nowrap;
+  font-family: var(--serif); font-weight: 400; font-size: 23px; line-height: 1.05; white-space: nowrap;
   letter-spacing: -0.012em; font-variant-numeric: tabular-nums; color: var(--ink);
 }
-.kpi-sub { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-3); margin-top: 5px; }
+/* the line under a figure: context the view already holds (a share, a rate, a unit cost) */
+.kpi-sub {
+  display: flex; align-items: center; gap: 8px; margin-top: 5px; white-space: nowrap;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-3);
+}
+.kpi-sub > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* the meter beside it: the whole bar is the figure above, the pale part the share the line names */
+/* it gives up its width before the text beside it is cut */
+.kpi-meter { flex: 1 1 24px; min-width: 24px; max-width: 54px; height: 5px; border-radius: 3px; background: var(--brand); overflow: hidden; }
+.kpi-meter i { display: block; height: 100%; background: var(--bar-rest); box-shadow: 2px 0 0 var(--lavbg); }
 /* the HYROS-attributed figure: the highlight tile (the site's .eo-kpi.is-ltv) */
-.kpi.hy { background: var(--lavbg); border-color: var(--brand-line); }
-.kpi.hy .kpi-value { color: var(--brand); }
+.kpi.hy, .win .kpi.hy { background: var(--lavbg); border-color: var(--brand-line); }
+.kpi.hy .kpi-value, .kpi.hy .kpi-sub { color: var(--brand); }
+/* the strip under the tiles: the counts that support the headline figures, one line each */
+.stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-tile);
+  box-shadow: var(--shadow-tile);
+}
+.stat { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 9px 14px 8px; border-left: 1px solid var(--rule); }
+.stat:first-child { border-left: 0; }
+.stat .kpi-label { margin: 0; }
+.stat b {
+  font-family: var(--serif); font-weight: 400; font-size: 17px; line-height: 1.1; white-space: nowrap;
+  letter-spacing: -0.012em; font-variant-numeric: tabular-nums;
+}
+.stat .kpi-sub { margin: 0 0 0 auto; min-width: 0; }
+@media (max-width: 1180px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat:nth-child(odd) { border-left: 0; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--rule); }
+}
+/* the entrance: one soft beat when a view paints fresh data. A view opts in by
+   putting .is-fresh on the painted container for that paint only, so a re-sort
+   or a filter never replays it. */
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.is-fresh .kpi, .is-fresh .stats { animation: rise .42s cubic-bezier(.2, .7, .2, 1) both; }
+.is-fresh .kpi:nth-child(2) { animation-delay: .04s; }
+.is-fresh .kpi:nth-child(3) { animation-delay: .08s; }
+.is-fresh .kpi:nth-child(4) { animation-delay: .12s; }
+.is-fresh .stats { animation-delay: .16s; }
+@media (prefers-reduced-motion: reduce) { .is-fresh .kpi, .is-fresh .stats { animation: none; } }
 .good { color: var(--good); }
 .bad  { color: var(--bad); }
 
@@ -388,7 +442,7 @@ input::placeholder { color: var(--ink-3); }
   box-shadow: var(--shadow-card);
 }
 table { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
-th, td { padding: 9px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); font-size: 13px; }
+th, td { padding: 10px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); font-size: 13px; }
 th:first-child, td:first-child { text-align: left; }
 th.txt, td.txt { text-align: left; }
 
@@ -410,18 +464,30 @@ tbody tr:hover td { background: var(--surface-2); }
 tbody tr:hover td:first-child { background: var(--surface-3); }
 tbody tr:last-child td { border-bottom: 0; }
 
-/* the HYROS band: attributed columns read purple on lavender, like the site's HYROS column */
+/* the HYROS band: attributed columns read purple on lavender from the header down, like the site's HYROS column */
 th.hy { color: var(--brand); }
+thead th.hy { background: var(--lavbg); }
 td.hy { background: var(--lavbg-2); color: var(--brand); }
 tbody tr:hover td.hy { background: var(--lavbg); }
-tfoot td.hy { background: var(--lavbg); color: var(--brand); }
 td.hy button.drill { color: var(--brand); }
 
-tfoot td {
-  position: sticky; bottom: 0; background: var(--surface-2);
-  font-weight: 500; border-top: 1px solid var(--border); z-index: 3;
+/* a table is ink by default, so the colors left mean something: purple is what
+   HYROS attributed, terracotta is a loss. A gain reads as ink. */
+tbody td.good { color: inherit; }
+/* zero and missing values step back, and so do the cents of a money value */
+td.zero { color: var(--ink-3); }
+td.hy.zero { color: var(--brand); opacity: .45; }
+.cents { opacity: .5; }
+
+/* the totals row is the ink bar that closes a table, the way the console closes the site's window */
+tfoot td, tfoot td.good {
+  position: sticky; bottom: 0; background: var(--term); color: var(--term-text);
+  font-weight: 500; border-bottom: 0; z-index: 3;
 }
-tfoot td:first-child { z-index: 4; background: var(--surface-2); }
+tfoot td:first-child { z-index: 4; background: var(--term); }
+tfoot td.hy, tfoot td.hy.zero { background: var(--term); color: var(--lav); }
+tfoot td.bad { color: var(--term-bad); }
+tfoot td.zero { color: var(--term-text); opacity: .5; }
 
 .name-cell { display: flex; align-items: center; gap: 8px; }
 .sub { color: var(--ink-3); font-size: 11.5px; }
@@ -483,6 +549,10 @@ button.drill {
   font-variant-numeric: tabular-nums; font-weight: 400;
 }
 button.drill:hover { color: var(--brand-2); background: none; border: 0; }
+/* a number that opens detail reads as ink with a quiet dotted rule, purple under the pointer;
+   a name or an email that opens detail (a text cell) keeps the purple */
+td:not(.txt):not(.hy) button.drill { color: inherit; text-decoration-color: var(--border-2); }
+td:not(.txt):not(.hy) button.drill:hover { color: var(--brand); text-decoration-color: currentColor; }
 
 /* ---------- drawer ---------- */
 .drawer-scrim {
@@ -682,7 +752,8 @@ table.dense .pill { font-size: 9.5px; padding: 2px 5px; }
 .set-stages .empty { padding: 0; font-size: 12px; text-align: left; }
 
 @media (max-width: 640px) {
-  .panel { padding: 14px; }
-  .topbar { padding: 10px 14px; }
-  .tabs { padding: 8px; overflow-x: auto; }
+  .panel { padding: 14px 14px 40px; }
+  .topbar { padding: 8px 14px; }
+  /* the tabs take a row of their own under the logo */
+  .tabs { order: 9; flex-basis: 100%; margin-left: 0; }
 }

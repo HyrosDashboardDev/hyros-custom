@@ -15,7 +15,7 @@
 }
 
 /* under the KPI range line: what the tiles cover, in sentence case */
-.kpis .report-coverage { grid-column: 1 / -1; margin: -4px 2px 0; font-size: 12px; color: var(--ink-3); }
+.report-coverage { font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
 
 /* pushes the two panel buttons to the right of the row */
 .report-spacer { flex: 1 1 auto; }
@@ -24,4 +24,68 @@
 .report-acct-list { columns: 1; }
 .report-acct-list .col-opt span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.report-win { margin-bottom: 18px; }
+
+/* The report is one window. It is a grid, and the body it repaints lays its
+   children straight into that grid (display: contents), so the tools row, which
+   is never repainted and keeps the focus of its search box, can sit on the
+   table, between the tiles and the rows. `order` places each piece. */
+.report-app { display: grid; grid-template-columns: auto minmax(0, 1fr); overflow: visible; }
+.report-app > *, .report-app [data-report-body] > * { grid-column: 1 / -1; min-width: 0; }
+.report-app [data-report-body] { display: contents; }
+.report-app .controls { margin: 0; }
+.report-bar { order: 0; padding: 9px 14px; border-bottom: 1px solid var(--rule); }
+.report-app .note { order: 1; margin: 12px 16px 0; }
+.report-app [data-report-retry] { order: 1; justify-self: start; margin: 10px 16px 14px; }
+.report-top { order: 2; }
+.report-app .crumbs { order: 3; margin: 12px 16px 0; }
+.report-app .section { order: 4; grid-column: 1; margin: 0; padding: 0 4px 0 18px; align-self: center; white-space: nowrap; }
+.report-app .report-tools { order: 5; grid-column: 2; padding: 7px 14px; justify-content: flex-end; }
+.report-tools .report-spacer { display: none; }
+.report-app .controls input[type="search"] { flex: 0 1 230px; }
+/* the window lets its column and account panels hang past its edge, so the table rounds the bottom corners itself */
+.report-app .table-wrap { order: 6; border-top: 1px solid var(--border); border-radius: 0 0 var(--r-win) var(--r-win); }
+.report-app .empty { order: 6; }
+.report-app th:first-child, .report-app td:first-child { padding-left: 18px; }
+@media (max-width: 760px) {
+  .report-app .section { grid-column: 1 / -1; padding: 12px 16px 0; }
+  .report-app .report-tools { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* the controls of the window run one step smaller than the page's */
+.report-app .chip { padding: 4px 9px; font-size: 12px; }
+.report-app select, .report-app input[type="search"], .report-app input[type="number"], .report-app input[type="date"] { padding: 5px 10px; font-size: 12.5px; }
+.report-app .controls button:not(.chip):not(.linkish) { padding: 5px 11px; font-size: 12.5px; }
+.report-app .report-toggle { font-size: 12.5px; }
+.report-app .report-window input[type="number"] { width: 64px; }
+
+/* the top band: what the numbers cover, then the tiles on the left and the rows as bars on the right */
+.report-top { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(260px, 1fr); gap: 14px 20px; padding: 14px 16px 16px; border-bottom: 1px solid var(--border); }
+@media (max-width: 980px) { .report-top { grid-template-columns: minmax(0, 1fr); } }
+.report-ctx { grid-column: 1 / -1; min-width: 0; }
+.report-ctx .kpi-range { margin: 0 0 5px; }
+.report-kcol { min-width: 0; }
+.report-top .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
+.report-top .kpis > :not(.kpi) { grid-column: 1 / -1; }
+.report-top .kpi { max-width: none; }
+@media (max-width: 640px) { .report-top .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* the rows as bars: lavender is what HYROS attributed, the ink mark what the platform reported */
+.report-chart { display: flex; flex-direction: column; min-width: 0; }
+.report-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; min-height: 13px; }
+.report-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+.report-leg i { width: 10px; height: 8px; border-radius: 2px; background: var(--lav); }
+.report-leg i.is-mark { width: 14px; height: 0; border-radius: 0; background: none; border-top: 1.6px solid var(--ink); margin-left: 8px; }
+.report-bars {
+  flex: 1; min-height: 96px; display: flex; align-items: flex-end; gap: clamp(4px, 1.6%, 12px); padding: 0 2px;
+  border-bottom: 1px solid var(--border-2);
+  background: linear-gradient(var(--rule), var(--rule)) 0 0 / 100% 1px no-repeat, linear-gradient(var(--rule), var(--rule)) 0 50% / 100% 1px no-repeat;
+}
+/* a bar never grows wider than a bar: a report of one row draws one bar, not a block */
+.report-barcol { flex: 1; min-width: 0; max-width: 72px; height: 100%; position: relative; display: flex; align-items: flex-end; }
+.report-barv { width: 100%; min-height: 1px; background: var(--lav); border-radius: 3px 3px 0 0; transition: background .13s; }
+.report-barm { position: absolute; left: -2px; right: -2px; height: 0; border-top: 1.6px solid var(--ink); }
+.report-barcol:hover .report-barv { background: var(--brand); }
+/* the bars grow once, on the first paint of a load */
+@keyframes report-grow { from { transform: scaleY(0); } to { transform: none; } }
+.is-fresh .report-barv { transform-origin: 50% 100%; animation: report-grow .6s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i) * 30ms + 120ms); }
+@media (prefers-reduced-motion: reduce) { .is-fresh .report-barv { animation: none; } .report-barv { transition: none; } }

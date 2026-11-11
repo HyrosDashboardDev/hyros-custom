@@ -24,15 +24,16 @@ export const loadKindOf = (level) => (level === 'ad' ? 'ad' : 'adset');
 /** HYROS-attributed columns wear the lavender band. */
 export const HY = new Set(['totalRevenue', 'revenue', 'roas']);
 
+/** The headline figures are tiles; `minor` ones print in the slim strip under them. */
 export const KPIS = [
   { key: 'cost', label: 'Cost', t: 'money' },
   { key: 'totalRevenue', label: 'Total Revenue', t: 'money', hy: true },
   { key: 'profit', label: 'Profit', t: 'money', tone: true },
   { key: 'roas', label: 'ROAS', t: 'ratio' },
-  { key: 'sales', label: 'Sales', t: 'int' },
-  { key: 'leads', label: 'Leads', t: 'int' },
-  { key: 'calls', label: 'Calls', t: 'int' },
-  { key: 'clicks', label: 'Clicks', t: 'int' },
+  { key: 'sales', label: 'Sales', t: 'int', minor: true },
+  { key: 'leads', label: 'Leads', t: 'int', minor: true },
+  { key: 'calls', label: 'Calls', t: 'int', minor: true },
+  { key: 'clicks', label: 'Clicks', t: 'int', minor: true },
 ];
 
 /** Which drill a cell opens: a key of DRILL_METRICS in src/ui/drill.js. */

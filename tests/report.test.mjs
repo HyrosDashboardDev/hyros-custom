@@ -14,7 +14,7 @@ import {
   levelRows, enrichAds, filterRows, rowDrillTags, drillTags, readCols, writeCols, usableCols, colPanelHtml, COLS_KEY, toneClass,
   DRILL_METRIC,
 } from '../src/views/report/columns.js';
-import { notesHtml, tableHtml, kpiHtml } from '../src/views/report/view.js';
+import { notesHtml, tableHtml, kpiHtml, chartHtml, cellText } from '../src/views/report/view.js';
 import { DRILL_METRICS } from '../src/ui/drill.js';
 
 const NOW = new Date('2026-10-14T15:30:00Z');
@@ -477,4 +477,73 @@ test('a Qualified Calls cell opens the qualified calls drill, a Calls cell the p
   const html = tableHtml(ctx, [{ id: '1', name: 'AVDP', calls: 6, qualifiedCalls: 5, tag: '@x' }], cols);
   assert.match(html, /data-metric="calls" data-key="calls"/);
   assert.match(html, /data-metric="qualifiedCalls" data-key="qualifiedCalls"/);
+});
+
+test('a tile carries a context line, the HYROS tile its meter, and the minor counts sit in one strip', () => {
+  const html = kpis([
+    { label: 'Total Revenue', value: '$10', sub: '+42% vs <reported>', meter: 0.704, cls: 'hy' },
+    { label: 'Cost', value: '$4', sub: '21% of revenue' },
+    { label: 'ROAS', value: '2.50×' },
+    { label: 'Sales', value: '12', sub: '$238 AOV', minor: true },
+    { label: 'Leads', value: '40', minor: true },
+  ]);
+  assert.equal((html.match(/class="kpi( hy)?"/g) || []).length, 3, 'three tiles');
+  assert.equal((html.match(/class="stat"/g) || []).length, 2, 'two counts in the strip');
+  assert.ok(html.indexOf('class="stats"') > html.lastIndexOf('class="kpi"'), 'the strip follows the tiles, inside .kpis');
+  assert.match(html, /<span class="kpi-meter"><i style="width:70\.4%"><\/i><\/span><span>\+42% vs &lt;reported&gt;<\/span>/);
+  assert.equal((html.match(/class="kpi-sub"/g) || []).length, 3, 'a tile with nothing to say has no line');
+  assert.match(kpis([{ label: 'A', value: '1', meter: 7 }]), /width:100\.0%/);
+  assert.equal(kpis([{ label: 'A', value: '1' }]).includes('class="stats"'), false);
+});
+
+test('the report tiles: four headline figures with context from the same totals, four minor counts, the rows as bars', () => {
+  const rows = [
+    aggregate([{ cost: 300, revenue: 1800, totalRevenue: 1800, reported: 1260, sales: 15, leads: 30, calls: 2, clicks: 400, impressions: 16000 }], { id: 'b', name: 'Retarget <b>' }),
+    aggregate([{ cost: 1550, revenue: 4900, totalRevenue: 4900, reported: 2590, sales: 36, leads: 122, calls: 0, clicks: 1750, impressions: 62000 }], { id: 'a', name: 'Prospecting' }),
+  ];
+  const html = kpiHtml({ ...ctx, kpis }, rows, { model: 'LAST_CLICK', range: RANGE, window: 0 });
+  assert.equal((html.match(/class="kpi( hy)?"/g) || []).length, 4);
+  assert.equal((html.match(/class="stat"/g) || []).length, 4);
+  assert.match(html, /class="kpi-value">\$1,850<\/div>/, 'whole units from 1,000 up');
+  assert.match(html, /class="kpi-value">3\.62×<\/div>/);
+  assert.match(html, /<span>28% of revenue<\/span>/);
+  assert.match(html, /<span class="kpi-meter"><i style="width:57\.5%"><\/i><\/span><span>\+74% vs reported<\/span>/, 'reported is 3,850 of 6,700');
+  assert.match(html, /<span>72% margin<\/span>/);
+  assert.match(html, /<span>ROI 262%<\/span>/);
+  assert.match(html, /<span>\$131 AOV<\/span>/);
+  assert.match(html, /<span>\$12\.17 CPL<\/span>/);
+  assert.match(html, /<span>\$925 \/ call<\/span>/);
+  assert.match(html, /<span>2\.76% CTR<\/span>/);
+
+  const chart = chartHtml(ctx, rows);
+  assert.equal((chart.match(/class="report-barcol"/g) || []).length, 2);
+  assert.ok(chart.indexOf('Retarget') < chart.indexOf('Prospecting'), 'bars keep the order of the rows');
+  assert.equal(chart.includes('<b>'), false, 'row names are escaped');
+  assert.match(chart, /class="report-barv" style="height:36\.7%"/, '1,800 of the top 4,900');
+  assert.match(chart, /class="report-barm" style="bottom:52\.9%"/, 'the mark sits at what the platform reported');
+  assert.match(chart, /Revenue by campaign/);
+  assert.equal(chartHtml(ctx, [aggregate([{ cost: 5 }], { id: 'z', name: 'Z' })]), '', 'no revenue anywhere: no chart');
+  const many = Array.from({ length: 30 }, (_, i) => aggregate([{ revenue: i + 1, totalRevenue: i + 1 }], { id: String(i), name: `R${i}` }));
+  const cut = chartHtml(ctx, many);
+  assert.equal((cut.match(/class="report-barcol"/g) || []).length, 24);
+  assert.match(cut, /· first 24/);
+});
+
+test('a table cell steps back when it has nothing to say, and so do the cents that are noise', () => {
+  assert.equal(cellText(esc, fmt, 104600, 'money'), '$104,600<span class="cents">.00</span>');
+  assert.equal(cellText(esc, fmt, 890, 'money'), '$890<span class="cents">.00</span>');
+  assert.equal(cellText(esc, fmt, 1140.37, 'money'), '$1,140<span class="cents">.37</span>');
+  assert.equal(cellText(esc, fmt, 11.29, 'money'), '$11.29', 'a unit cost keeps its cents');
+  assert.equal(cellText(esc, fmt, -1260, 'money'), '-$1,260<span class="cents">.00</span>');
+  assert.equal(cellText(esc, fmt, null, 'money'), '-');
+  assert.equal(cellText(esc, fmt, 2, 'ratio'), '2.00');
+
+  const cols = [{ k: 'cost', l: 'Cost', t: 'money' }, { k: 'totalRevenue', l: 'Total Revenue', t: 'money' }, { k: 'profit', l: 'Profit', t: 'money', tone: true }, { k: 'roas', l: 'ROAS', t: 'ratio' }];
+  const html = tableHtml(ctx, [{ id: '1', name: 'Test', cost: 1140, totalRevenue: 0, profit: -1140, roas: null }], cols);
+  assert.match(html, /<td>\$1,140<span class="cents">\.00<\/span><\/td>/);
+  assert.match(html, /<td class="hy zero">\$0<span class="cents">\.00<\/span><\/td>/);
+  assert.match(html, /<td class="bad">-\$1,140<span class="cents">\.00<\/span><\/td>/);
+  assert.match(html, /<td class="hy zero">-<\/td>/);
+  assert.equal(html.includes('winbar'), false, 'the table carries no window bar of its own');
+  assert.match(html, /^<div class="table-wrap">/);
 });
