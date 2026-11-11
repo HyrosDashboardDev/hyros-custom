@@ -61,6 +61,17 @@ test('account() reads email, timezone, currency, attribution window and agency l
   assert.equal(account.raw, USER);
 });
 
+test('account() says which client accounts are active, null when HYROS does not say', async () => {
+  const accessibleAccounts = [
+    { accountId: 'c1', email: 'on@example.test', status: 'APPROVED', active: true },
+    { accountId: 'c2', email: 'off@example.test', status: 'APPROVED', active: false },
+    { accountId: 'c3', email: 'old@example.test', status: 'APPROVED' },
+  ];
+  const api = { get: async (path) => (path === '/user-info' ? { result: { ...USER, accessibleAccounts } } : null) };
+  const { clients } = await createData({ api }).account();
+  assert.deepEqual(clients.map((c) => [c.accountId, c.active]), [['c1', true], ['c2', false], ['c3', null]]);
+});
+
 /** account() over a /user-info that saves `saved` as timezone and a /leads that answers `leads` (a function, to fail or vary). */
 async function accountWith(saved, leads) {
   const calls = [];

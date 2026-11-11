@@ -36,7 +36,7 @@ share the account's rate limit.
     "currency": "USD",
     "attributionWindowDefault": 30,
     "managedBy": [{ "accountId": "", "email": "", "company": "", "status": "" }],
-    "clients": [{ "accountId": "", "email": "", "company": "", "status": "" }]
+    "clients": [{ "accountId": "", "email": "", "company": "", "status": "", "active": true }]
   },
   "adAccounts": { "rows": [{ "id": "123", "name": "Main", "type": "FACEBOOK" }], "truncated": false },
   "sources": { "rows": ["raw GET /sources rows"], "truncated": false }
@@ -91,4 +91,5 @@ its `ctx` has `fmt`, `esc` and `kpis`.
 - The ad accounts list stops at 4 pages of 250, and sources at 40 pages of
   250; past that the view says the list was cut short.
 - The agency relationships (`managedBy`, `clients`) are loaded but not
-  shown here; the shell's account switcher lists the `APPROVED` clients.
+  shown here; the shell's account switcher lists the `APPROVED` clients
+  that are not `active: false`.
