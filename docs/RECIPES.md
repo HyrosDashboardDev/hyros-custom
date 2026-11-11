@@ -598,3 +598,29 @@ tab can say why it is empty. `src/views/scale/` is this recipe built.
 - Render the curve as inline SVG with markers for the efficient and saturated
   spend and a line for the ceiling; a thin curve (few spend levels, levels
   with no customers) deserves a warning even when `notes` is empty.
+
+## Custom costs
+
+The costs the account entered by hand in HYROS (agency fees, tools,
+salaries), on top of ad spend. No template tab reads them yet.
+
+- Request: `ctx.data.pagedInfo('/custom-costs', { fromDate, toDate }, { pageSize: 250 })`.
+  The endpoint is strict: a parameter other than `ids` (at most 50),
+  `fromDate`, `toDate`, `pageSize` (1 to 250, default 50) or `pageId` is a
+  400. `fromDate` and `toDate` cannot be in a future month, and `fromDate`
+  cannot be later than `toDate`.
+- A cost matches when its active range (`startDate` to `endDate`, open
+  ended when `endDate` is null) overlaps the window, so a cost that started
+  months ago and is still running comes back. The window is read in the
+  account timezone; widen it by a day on each side and filter the rows
+  yourself, or a cost can fall outside the window covering its own day.
+- Row: `{ id, name, cost, frequency, startDate, endDate, tags }`.
+  `frequency` is `DAILY`, `ONE_TIME` or `MONTHLY`. `startDate` and
+  `endDate` are local date-times with no offset (`2024-12-25T00:00`): read
+  them as wall-clock dates in the account timezone, never through `new Date`
+  as UTC.
+- The cost of a range is not `cost` summed. HYROS reports apply costs day
+  by day, in the account timezone: a `DAILY` cost counts `cost` on every
+  active day inside the range, a `ONE_TIME` cost once, on the day of its
+  `startDate`, and a `MONTHLY` cost never (the API still lists it). Use the
+  same rule, or the view disagrees with the HYROS Report.

@@ -65,6 +65,7 @@ export const READ_PATHS = Object.freeze([
   '/calls',
   '/calls/aggregation',
   '/subscriptions',
+  '/custom-costs',
   '/reports/poll/{id}',
 ]);
 const READ_PATH_SET = new Set(READ_PATHS);

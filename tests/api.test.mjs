@@ -93,6 +93,11 @@ test('READ_PATHS holds the reads the dashboard uses, the CRM aggregations includ
   }
 });
 
+test('READ_PATHS holds /custom-costs, read-only like every other path', () => {
+  assert.ok(READ_PATHS.includes('/custom-costs'));
+  assert.ok(!READ_PATHS.includes('/custom-costs/{id}'));
+});
+
 test('two identical calls in flight share one request', async () => {
   wire();
   mock.latencyMs = 30;
