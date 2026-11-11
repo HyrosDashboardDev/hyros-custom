@@ -7,7 +7,7 @@
 export const view = {
   id: 'account',
   title: 'Account',
-  version: '0.1.2',
+  version: '0.2.0',
   description: 'The account the dashboard is looking at: owner, timezone, currency, attribution timeframe, sources and ad accounts.',
   style: false,
   tools: ['/user-info', '/leads', '/ad-accounts', '/sources'],
@@ -34,7 +34,7 @@ export const view = {
       </tr>`).join('');
 
     const table = adAccounts.rows.length
-      ? `<div class="table-wrap"><table>
+      ? `<div class="table-wrap bleed"><table>
           <thead><tr><th class="txt">ID</th><th class="txt">Name</th><th class="txt">Type</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>`
@@ -45,7 +45,7 @@ export const view = {
     const connection = link?.viaFallback ? `via CDN (${new URL(link.base).host})` : 'direct';
 
     root.innerHTML = `
-      ${tiles}
+      <div class="kpi-stage">${tiles}</div>
       <div class="meta">Connection: ${esc(connection)}</div>
       <h2 class="section">Ad accounts <span class="rowcount">${fmt.int(adAccounts.rows.length)}${adAccounts.truncated ? ', list cut short' : ''}</span></h2>
       ${table}`;

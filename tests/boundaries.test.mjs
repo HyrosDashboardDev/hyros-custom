@@ -187,6 +187,24 @@ function tokensOf(css, selector) {
   return new Map([...block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 }
 
+test('every file styles.css loads exists: the fonts and the stage print', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const urls = [...new Set([...css.matchAll(/url\("([^"]+)"\)/g)].map((m) => m[1]))];
+  assert.ok(urls.includes('assets/brand/zebra-print.svg'), 'the stage print');
+  for (const url of urls) assert.ok(existsSync(join(ROOT, url)), `${url} is missing`);
+});
+
+test('the page draws no ground and no outer box: body is the surface, the cream is the gate\'s only', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const uses = [...css.matchAll(/([^{}]+)\{[^{}]*var\(--bg\)[^{}]*\}/g)].map((m) => m[1].trim());
+  assert.deepEqual(uses, ['.gate']);
+  assert.match(css, /body \{[^}]*background: var\(--surface\)/);
+  for (const dir of readdirSync(join(SRC, 'views'), { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    const js = readFileSync(join(SRC, 'views', dir.name, 'view.js'), 'utf8');
+    assert.equal(/class="win[ "]/.test(js), false, `${dir.name}: a view is never wrapped in a window`);
+  }
+});
+
 test('every color token of the white theme has a value in the dark theme too', () => {
   const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   const white = tokensOf(css, ':root');
@@ -196,4 +214,73 @@ test('every color token of the white theme has a value in the dark theme too', (
     if (isColor(value)) assert.ok(dark.has(name), `${name} has no value in :root[data-theme="dark"]; a color without one does not follow the theme`);
   }
   for (const name of dark.keys()) assert.ok(white.has(name), `${name} is only in the dark theme`);
+});
+
+test('the menu: the logo, Dashboard, and at the very bottom Return, a rule, then Add Feature', () => {
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const side = html.slice(html.indexOf('<aside class="side"'), html.indexOf('</aside>'));
+  assert.ok(side.length > 0, 'index.html has the menu');
+  const order = ['class="side-head"', 'id="sideHome"', 'class="side-foot"', 'side-return', 'class="side-rule"', 'id="sideAdd"'].map((part) => side.indexOf(part));
+  assert.ok(order.every((at) => at >= 0), 'every part of the menu is there');
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'the parts come in the designed order');
+  assert.match(side, /<a class="side-item side-return" href="https:\/\/app\.hyros\.com\/custom"/, 'Return goes back to the HYROS app');
+  assert.match(side, />Dashboard<\/span>/);
+  assert.match(side, /<span>Add Feature<\/span><i class="side-plus">/, 'the plus sits right of the words');
+  assert.ok(html.indexOf('<aside class="side"') < html.indexOf('<header class="topbar">'), 'the menu comes before the top bar: it is on the left');
+  const topbar = html.slice(html.indexOf('<header class="topbar">'), html.indexOf('</header>'));
+  assert.equal(/logo/.test(topbar), false, 'the logo lives in the menu, not in the top bar');
+});
+
+test('a minimized menu is remembered under one key, read before the first paint', () => {
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const app = readFileSync(join(SRC, 'app.js'), 'utf8');
+  const key = app.match(/const SIDE_STORAGE_KEY = '([^']+)';/)?.[1];
+  assert.ok(key, 'src/app.js names the key');
+  assert.ok(html.includes(`localStorage.getItem('${key}') === 'min'`), 'index.html reads the same key');
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /:root\[data-side="min"\] \.side \{/);
+  assert.match(css, /:root\[data-embedded\] \.side-return \{ display: none; \}/, 'inside HYROS the Return row is off');
+});
+
+test('a zero on the totals bar dims its text, never the cell: the ink bar stays solid', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}]*tfoot[^{}]*)\{([^{}]*)\}/g)];
+  assert.ok(rules.length > 0);
+  for (const [, selector, body] of rules) {
+    const opacity = body.match(/opacity:\s*([\d.]+)/);
+    if (opacity) assert.equal(Number(opacity[1]), 1, `${selector.trim()} fades a cell of the totals bar`);
+  }
+  assert.match(css, /tfoot td\.zero, tfoot td\.hy\.zero \{[^}]*color: var\(--term-quiet\)[^}]*opacity: 1/);
+});
+
+test('an explainer lives in the info bubble: the shell owns the one bubble, a view only writes the button', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const app = readFileSync(join(SRC, 'app.js'), 'utf8');
+  assert.match(app, /import \{ watchInfo \} from '\.\/ui\/info\.js';/);
+  assert.match(app, /watchInfo\(\);/, 'one bubble for every info button');
+  assert.match(css, /\.info-pop\[hidden\] \{ display: none; \}/, 'a closed bubble takes no place');
+  assert.match(css, /\.info-pop \{[^}]*position: fixed/, 'the bubble is laid over the page, so no box can clip it');
+  for (const dir of readdirSync(join(SRC, 'views'), { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const file of readdirSync(join(SRC, 'views', dir.name)).filter((name) => name.endsWith('.css'))) {
+      const own = readFileSync(join(SRC, 'views', dir.name, file), 'utf8');
+      assert.equal(/\.info-(btn|pop)/.test(own), false, `${dir.name}/${file}: a view never restyles the info bubble`);
+    }
+  }
+});
+
+test('a table scrolls sideways on the rail: the shell mounts it, the browser bar is off, the old proxy is gone', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const app = readFileSync(join(SRC, 'app.js'), 'utf8');
+  assert.match(app, /import \{ watchRails \} from '\.\/ui\/rail\.js';/);
+  assert.match(app, /watchRails\(\$\('#view'\)\);/, 'every table of every view gets its rail');
+  assert.match(css, /\.table-wrap\.has-rail::-webkit-scrollbar \{ height: 0; \}/, 'no browser bar under a table that has its rail');
+  assert.match(css, /\.hrail\[hidden\] \{ display: none; \}/, 'a table that fits has no lane');
+  assert.equal(/hproxy/.test(css), false, 'the unused scroll proxy is gone');
+  assert.equal(/--glass/.test(css), false, 'and its token with it');
+  for (const dir of readdirSync(join(SRC, 'views'), { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const file of readdirSync(join(SRC, 'views', dir.name)).filter((name) => name.endsWith('.css'))) {
+      const own = readFileSync(join(SRC, 'views', dir.name, file), 'utf8');
+      assert.equal(/scrollbar/.test(own), false, `${dir.name}/${file}: a view never styles a scrollbar`);
+    }
+  }
 });

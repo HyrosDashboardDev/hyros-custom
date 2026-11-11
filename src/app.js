@@ -1,7 +1,7 @@
 /**
  * The shell: wires auth, the API client and the data API, decides between the
- * sign-in card, the connecting/failed gate and the app, and runs the tabs
- * listed in views/registry.js. When the token's account can read other
+ * sign-in card, the connecting/failed gate and the app, and runs the menu and
+ * the tabs listed in views/registry.js. When the token's account can read other
  * accounts (an agency and its clients), the account email becomes a switcher
  * that swaps the data API for one bound to the chosen account.
  */
@@ -14,6 +14,8 @@ import { VIEW_LOAD_MS } from './core/budget.js';
 import { createData } from './data/data.js';
 import { $, esc, card, kpis } from './ui/dom.js';
 import { fmt } from './ui/fmt.js';
+import { watchRails } from './ui/rail.js';
+import { watchInfo } from './ui/info.js';
 import { VIEWS } from './views/registry.js';
 
 const COPY = {
@@ -263,6 +265,37 @@ function refresh() {
   show(active);
 }
 
+/** Where a minimized menu is remembered. index.html reads the same key before the first paint. */
+const SIDE_STORAGE_KEY = 'hyros-dashboard-side';
+
+/**
+ * The menu on the left. The handle minimizes it to the icons and the choice is
+ * remembered; Dashboard opens the first view. Return is a plain link, and Add
+ * Feature has no action yet.
+ */
+function wireSidebar() {
+  const root = document.documentElement;
+  const handle = $('#sideToggle');
+  const isMin = () => root.getAttribute('data-side') === 'min';
+  const sync = () => {
+    handle.setAttribute('aria-expanded', String(!isMin()));
+    handle.setAttribute('aria-label', isMin() ? 'Open the menu' : 'Minimize the menu');
+  };
+  handle.addEventListener('click', () => {
+    const min = !isMin();
+    if (min) root.setAttribute('data-side', 'min');
+    else root.removeAttribute('data-side');
+    try {
+      localStorage.setItem(SIDE_STORAGE_KEY, min ? 'min' : 'open');
+    } catch { /* storage blocked: the choice lasts until the page reloads */ }
+    sync();
+  });
+  $('#sideHome').addEventListener('click', () => {
+    if (active && active !== VIEWS[0]) show(VIEWS[0]);
+  });
+  sync();
+}
+
 /** The theme switch exists only at the dashboard's own url: inside HYROS the theme is HYROS's. */
 function wireThemeSwitch(theme) {
   if (theme.isEmbedded()) return;
@@ -308,6 +341,9 @@ function boot() {
   api.configure({ url: apiBase, routes, getToken: auth.getToken, markInvalid: auth.markInvalid });
   data = createData({ api });
 
+  wireSidebar();
+  watchRails($('#view'));
+  watchInfo();
   $('#gateRetry').addEventListener('click', () => connect('retry'));
   $('#gateSignIn').addEventListener('click', signIn);
   $('#refreshBtn').addEventListener('click', refresh);

@@ -88,7 +88,7 @@ Partial states are the view's job:
 | `data` | the data API (`src/data/data.js`): `account()`, `adAccounts()`, `sources()`, `stages()`, `call`, `paged`, `pagedInfo`, `report` (POST `/reports/generate` plus its poll), `cached`, `invalidate`, `connection`, `accountId`, `now`. Bound to one account: the token's own, or the client account an agency picked in the switcher (`accountId`). Which paths to call and how to shape the rows: `docs/RECIPES.md` |
 | `fmt` | `src/ui/fmt.js`: `money(v)`, `moneyIn(v, code)`, `money0(v)`, `int(v)`, `pct(v)`, `ratio(v)`, `date(iso)`, `datetime(iso)`, `currencyCode(code)`. Money is in the account currency, dates in the account timezone; a missing value prints `-` |
 | `esc(s)` | HTML-escape; use it on every string that came from HYROS |
-| `kpis(list)` | KPI tiles HTML, already wrapped in `<div class="kpis">`: `[{ label, value, sub?, cls? }]`. `label`, `value` and `sub` are rendered as **escaped text** (no HTML inside them; pass values already formatted with `fmt`). `cls: 'hy'` goes on the tile and makes it the one highlight tile of the screen; `cls: 'good'` or `'bad'` goes on the figure (`.kpi-value`), the money tone; any other `cls` is ignored |
+| `kpis(list)` | KPI tiles HTML, already wrapped in `<div class="kpis">`: `[{ label, value, sub?, meter?, minor?, cls? }]`. `label`, `value` and `sub` are rendered as **escaped text** (no HTML inside them; pass values already formatted with `fmt`). `sub` is the context line under the figure (a share, a rate, a unit cost the view already holds): give every tile one. `meter` is a share from 0 to 1 drawn as a small bar beside the sub line. `minor: true` moves the item out of the tiles into one slim strip under them: keep at most four headline tiles and make the supporting counts minor. `cls: 'hy'` goes on the tile and makes it the one highlight tile of the screen; `cls: 'good'` or `'bad'` goes on the figure (`.kpi-value`), the money tone; any other `cls` is ignored |
 | `now` | the clock views should use (a function returning a `Date`) |
 
 ## 3. Shared markup kit (already styled in `styles.css`)
@@ -97,12 +97,24 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
 
 - Notes: `.note`, `.note.err`.
 - KPI tiles: `.kpis` / `.kpi` (`.kpi.hy`), `.kpi-label`, `.kpi-value`,
-  `.kpi-sub`, and `.kpi-range` for the date range printed once above them.
+  `.kpi-sub` (with `.kpi-meter`), the strip of minor counts `.stats` /
+  `.stat`, and `.kpi-range` for the date range printed once above them.
+  `.is-fresh` on the container a view paints after a load plays their
+  entrance once (leave it off a repaint that only re-sorts or filters).
 - Section titles: `h2.section`, with `.rowcount` beside the title.
-- Windows: `.win` + `.winbar` (three `<i></i>` dots and a `<span>` address).
-- Tables: `.table-wrap` around a `<table>`; `th.txt`/`td.txt` for text
+- The stage: `.kpi-stage` around the tiles (`<div class="kpi-stage">${tiles}</div>`),
+  one per view. The page is white and a view has no outer box: controls
+  and notes first, the stage, then the content straight on the page.
+  `.stage-card` is a white card on the stage for a picture that belongs
+  with the numbers (`src/views/_template/` is the recipe, the Performance
+  Report's `.report-app` the full reference). `.win` and `.winbar` (three
+  `<i></i>` dots and a `<span>` address) are for the gate only.
+- Tables: `.table-wrap` around a `<table>`, with `.bleed` on the table a
+  view ends on so it runs from edge to edge; `th.txt`/`td.txt` for text
   columns; `th.hy`/`td.hy` for the HYROS-attributed columns; `tfoot` for the
-  totals row; `.sorted` and `.arrow` on sorted headers; `table.dense` for the
+  totals row (the ink bar); `td.zero` on a zero or missing value and
+  `<span class="cents">` around the cents of a money value, so both print
+  quieter; `td.bad` on a loss (a gain stays ink); `.sorted` and `.arrow` on sorted headers; `table.dense` for the
   denser CRM table; `.name-cell` for a name plus pill; `.col-wrap` /
   `.col-panel` for a column picker.
 - Pills: `.pill` (`.ok`, `.bad`, `.stage`, `.warn`, `.fb`, `.hy`).
@@ -121,11 +133,22 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
   `.cohort-row`; a journey `.timeline` / `.tl-item` / `.tl-icon`; clicks
   `.clicks` / `.click-row` / `.click-page`.
 
-Two shared modules build on the kit; import them from `view.js`:
+A table wider than its place scrolls sideways on the rail
+(`src/ui/rail.js`): the shell gives every `.table-wrap` a bar of the
+dashboard's own in a lane under the table, with the count of the columns on
+screen. A view does nothing for it: put the table in a `.table-wrap` and never
+style a scrollbar.
+
+Three shared modules build on the kit; import them from `view.js`:
 
 - `src/ui/table.js`: `sortRows(rows, { col, dir })` (a sorted copy, missing
   values last), `nextSort(sort, col, firstDir)` for a header click, and
   `sortHeader({ col, label, cls }, sort)` for the `<th>`.
+- `src/ui/info.js`: `infoButton(text, label)` returns the small round "i"
+  that opens `text` in a bubble; `label` is what a screen reader calls the
+  button. Put it right after the word it explains, inside a
+  `<span class="info-hold">` with that word so the two stay on one line.
+  The shell opens and closes the bubble; a view writes the button only.
 - `src/ui/drill.js`: the drawer and the drill behind a number.
   `openCohortDrill(ctx, { title, tags, metric, label, note })` opens the
   leads that touched the row's source tags (`metric: 'leads'`) or their

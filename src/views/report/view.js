@@ -10,6 +10,7 @@ import { aggregate } from '../../data/metrics.js';
 import { buildLevels } from '../../data/report-levels.js';
 import { sortRows, nextSort, sortHeader } from '../../ui/table.js';
 import { openCohortDrill } from '../../ui/drill.js';
+import { infoButton } from '../../ui/info.js';
 import {
   LEVELS, LEVEL_LABEL, CHILD_LEVEL, HY, KPIS, DRILL_METRIC, SELECTABLE, loadKindOf,
   readCols, writeCols, activeCols, colPanelHtml, formatCell, toneClass, rowDrillTags, drillTags,
@@ -67,7 +68,8 @@ function controlsHtml(ctx, { supported }) {
     </label>`).join('');
 
   return `
-    <div class="controls">
+    <div class="report-app">
+    <div class="controls report-bar">
       <div class="chipset" role="tablist" aria-label="Level">${chips(LEVELS, state.level, 'level')}</div>
       <div class="chipset" aria-label="Range">${chips(RANGE_CHIPS, state.rangeKey, 'range')}</div>
       ${state.rangeKey === 'custom' ? `
@@ -86,7 +88,7 @@ function controlsHtml(ctx, { supported }) {
         <span class="sub">days</span>
       </label>
     </div>
-    <div class="controls">
+    <div class="controls report-tools">
       <input type="search" data-search placeholder="Search name or id" value="${esc(state.search)}" aria-label="Search">
       <label class="report-toggle"><input type="checkbox" data-hide-zero${state.hideZero ? ' checked' : ''}> Hide zero spend</label>
       <span class="report-spacer"></span>
@@ -112,7 +114,8 @@ function controlsHtml(ctx, { supported }) {
         </div>
       </div>
     </div>
-    <div data-report-body></div>`;
+    <div data-report-body></div>
+    </div>`;
 }
 
 function wireControls(ctx, { supported }) {
@@ -283,8 +286,8 @@ export function tableHtml(ctx, rows, cols) {
       const v = r[c.k];
       const metric = DRILL_METRIC[c.k];
       const drillable = metric && Number.isFinite(v) && v > 0 && rowDrillTags(r);
-      const text = esc(formatCell(fmt, v, c.t));
-      const cls = [toneClass(c, v), HY.has(c.k) ? 'hy' : ''].filter(Boolean).join(' ');
+      const text = cellText(esc, fmt, v, c.t);
+      const cls = [toneClass(c, v), HY.has(c.k) ? 'hy' : '', quiet(v) ? 'zero' : ''].filter(Boolean).join(' ');
       return `<td${cls ? ` class="${cls}"` : ''}>${drillable ? `<button type="button" class="drill" data-i="${i}" data-metric="${esc(metric)}" data-key="${esc(c.k)}">${text}</button>` : text}</td>`;
     }).join('');
     return `<tr><td class="txt"><div class="name-cell">${name}${sub}</div></td>${cells}</tr>`;
@@ -292,40 +295,104 @@ export function tableHtml(ctx, rows, cols) {
 
   const foot = `<tr><td class="txt">Total · ${esc(fmt.int(rows.length))} rows</td>${cols.map((c) => {
     const v = totals[c.k];
-    const cls = [toneClass(c, v), HY.has(c.k) ? 'hy' : ''].filter(Boolean).join(' ');
-    return `<td${cls ? ` class="${cls}"` : ''}>${esc(formatCell(fmt, v, c.t))}</td>`;
+    const cls = [toneClass(c, v), HY.has(c.k) ? 'hy' : '', quiet(v) ? 'zero' : ''].filter(Boolean).join(' ');
+    return `<td${cls ? ` class="${cls}"` : ''}>${cellText(esc, fmt, v, c.t)}</td>`;
   }).join('')}</tr>`;
 
-  return `<div class="win report-win">
-      <div class="winbar"><i></i><i></i><i></i><span>app.hyros.com · performance report</span></div>
-      <div class="table-wrap"><table>
+  return `<div class="table-wrap bleed"><table>
         <thead><tr>${head}</tr></thead><tbody>${body}</tbody><tfoot>${foot}</tfoot>
-      </table></div>
+      </table></div>`;
+}
+
+/** A value with nothing to say, zero or missing: it prints quieter. */
+const quiet = (v) => v === 0 || v === null || v === undefined || !Number.isFinite(v);
+
+/**
+ * A cell's text, escaped. The cents of a money value sit in their own span and
+ * print quieter where they are noise: a round amount, or one from 1,000 up. A
+ * unit cost such as 11.29 keeps them at full strength.
+ */
+export function cellText(esc, fmt, v, type) {
+  const text = esc(formatCell(fmt, v, type));
+  if (type !== 'money' || !Number.isFinite(v)) return text;
+  if (Math.abs(v) < 1000 && !text.endsWith('.00')) return text;
+  return text.replace(/(\.\d\d)$/, '<span class="cents">$1</span>');
+}
+
+/** A headline figure: whole units from 1,000 up, cents kept under it. */
+const headline = (fmt, v) => (Number.isFinite(v) && Math.abs(v) >= 1000 ? fmt.money0(v) : fmt.money(v));
+
+/** A unit figure in a context line: whole units from 100 up. */
+const whole = (fmt, v) => (Number.isFinite(v) && Math.abs(v) >= 100 ? fmt.money0(v) : fmt.money(v));
+
+/** The line under a figure: context the totals already hold, so it costs no call. Null when there is nothing to say. */
+function tileSub(fmt, key, t) {
+  const pct0 = (v) => `${Math.round(v)}%`;
+  if (key === 'totalRevenue') return t.reported > 0 && t.totalRevenue > t.reported ? `+${pct0((t.totalRevenue / t.reported - 1) * 100)} vs reported` : null;
+  if (key === 'cost') return t.totalRevenue > 0 && t.cost > 0 ? `${pct0(t.cost / t.totalRevenue * 100)} of revenue` : null;
+  if (key === 'profit') return t.totalRevenue > 0 ? `${pct0(t.profit / t.totalRevenue * 100)} margin` : null;
+  if (key === 'roas') return Number.isFinite(t.roi) ? `ROI ${pct0(t.roi)}` : null;
+  if (key === 'sales') return t.sales > 0 ? `${whole(fmt, t.revenue / t.sales)} AOV` : null;
+  if (key === 'leads') return t.leads > 0 && t.cost > 0 ? `${fmt.money(t.cost / t.leads)} CPL` : null;
+  if (key === 'calls') return t.calls > 0 && t.cost > 0 ? `${whole(fmt, t.cost / t.calls)} / call` : null;
+  if (key === 'clicks') return t.impressions > 0 && Number.isFinite(t.ctr) ? `${t.ctr.toFixed(2)}% CTR` : null;
+  return null;
+}
+
+/** How many rows the chart draws: past it the bars are too thin to read. */
+const CHART_ROWS = 24;
+
+/**
+ * The rows as bars, in the table's order: what HYROS attributed, with a mark
+ * at what the platform reported. Drawn from the rows already loaded.
+ */
+export function chartHtml(ctx, rows) {
+  const { esc, fmt } = ctx;
+  const shown = rows.slice(0, CHART_ROWS);
+  const top = Math.max(0, ...shown.map((r) => Math.max(r.totalRevenue || 0, r.reported || 0)));
+  if (!(top > 0)) return '';
+  const pct = (v) => `${(Math.max(0, v || 0) / top * 100).toFixed(1)}%`;
+  const bars = shown.map((r, i) => `
+      <div class="report-barcol" style="--i:${i}" title="${esc(r.name || r.id)}: HYROS ${esc(fmt.money0(r.totalRevenue))}, reported ${esc(fmt.money0(r.reported))}">
+        <div class="report-barv" style="height:${pct(r.totalRevenue)}"></div>
+        ${r.reported > 0 ? `<div class="report-barm" style="bottom:${pct(r.reported)}"></div>` : ''}
+      </div>`).join('');
+  return `<div class="report-chart stage-card">
+      <div class="report-chart-head">
+        <span class="k">Revenue by ${esc(LEVEL_LABEL[state.level].toLowerCase())}${rows.length > shown.length ? ` · first ${shown.length}` : ''}</span>
+        <span class="report-leg"><i></i>HYROS<i class="is-mark"></i>Platform reported</span>
+      </div>
+      <div class="report-bars">${bars}</div>
     </div>`;
 }
 
-/** Printed under the KPI range line: what the totals cover and what HYROS credits elsewhere. */
+/** In the info bubble on the KPI range line: what the totals cover and what HYROS credits elsewhere. */
 const COVERAGE_NOTE = 'Ad accounts with a report level only. What HYROS credits to sources without an ad account, such as organic, general or automatic, or to an ad platform without a report level, is not in these numbers.';
 
 export function kpiHtml(ctx, rows, m) {
   const { fmt, esc, kpis } = ctx;
   const totals = aggregate(rows);
+  const reportedShare = totals.totalRevenue > 0 && totals.reported > 0 ? totals.reported / totals.totalRevenue : undefined;
   const tiles = kpis(KPIS.map((k) => {
     const v = totals[k.key];
     const tone = k.tone ? toneClass({ tone: true }, v) : '';
-    return { label: k.label, value: formatCell(fmt, v, k.t), cls: k.hy ? 'hy' : tone };
+    const value = k.t === 'money' ? headline(fmt, v) : k.t === 'ratio' && Number.isFinite(v) ? `${fmt.ratio(v)}×` : formatCell(fmt, v, k.t);
+    return { label: k.label, value, sub: tileSub(fmt, k.key, totals), meter: k.hy ? reportedShare : undefined, minor: k.minor, cls: k.hy ? 'hy' : tone };
   }));
   const model = MODELS.find((x) => x.key === m.model)?.label || m.model;
-  const range = `<div class="kpi-range">${esc(rangeLabel(m.range))} · ${esc(model)}${m.window ? ` · ${esc(fmt.int(m.window))}-day window` : ''}</div>`;
-  const coverage = `<div class="report-coverage">${COVERAGE_NOTE}</div>`;
-  return tiles.replace('<div class="kpis">', `<div class="kpis">${range}${coverage}`);
+  // the range, the model and its window on one line; the info button stays with the last of them
+  const parts = [rangeLabel(m.range), model, ...(m.window ? [`${fmt.int(m.window)}-day window`] : [])].map(esc);
+  const last = parts.pop();
+  const range = `<div class="kpi-range"><span>${parts.join(' · ')} · <span class="info-hold">${last}${infoButton(COVERAGE_NOTE, 'What these numbers cover')}</span></span></div>`;
+  return `<div class="kpi-stage report-top"><div class="report-ctx">${range}</div><div class="report-kcol">${tiles}</div>${chartHtml(ctx, rows)}</div>`;
 }
 
-/** Paint the body from `current` (no calls). */
-function paintBody(ctx) {
+/** Paint the body from `current` (no calls). `fresh` marks the first paint of a load, the only one that plays the entrance. */
+function paintBody(ctx, fresh = false) {
   const { root, esc, fmt } = ctx;
   const el = root.querySelector('[data-report-body]');
   if (!el || !current || current.root !== root) return;
+  el.classList.toggle('is-fresh', fresh);
   if (current.kind !== loadKindOf(state.level)) { safeRender(ctx); return; }
   const m = current;
   const notes = notesHtml(ctx, m);
@@ -488,7 +555,7 @@ async function render(ctx) {
     noAdLevel: parts.noAdLevel,
     failed: out.failed, skipped: out.skipped, cut: out.cut, capped: out.capped, join: out.join,
   };
-  paintBody(ctx);
+  paintBody(ctx, true);
 }
 
 /**
@@ -514,7 +581,7 @@ function emptyModel() {
 export const view = {
   id: 'report',
   title: 'Performance Report',
-  version: '0.1.2',
+  version: '0.3.0',
   description: 'What each traffic source, ad account, campaign, ad set and ad cost and earned, under the attribution model you pick.',
   style: true,
   tools: ['/user-info', '/leads', '/ad-accounts', '/attribution', '/sources'],

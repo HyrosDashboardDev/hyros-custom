@@ -132,7 +132,8 @@ Tiles:
   the loaded rows with "+" when the list is cut.
 
 ## View states
-- Data: range line, tiles, controls, `table.dense` sorted newest first.
+- Data: controls, the stage (`.kpi-stage`: range line and tiles), `table.dense`
+  from edge to edge (`.table-wrap.bleed`), sorted newest first.
 - Cut list: "N+ leads, showing newest N" beside the title and "+" on the chip.
 - Time budget or cursor cut: same, plus the reason.
 - One aggregation failed: its tiles print `-` and a `.note.err` says which;

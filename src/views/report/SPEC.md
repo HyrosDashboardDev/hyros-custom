@@ -124,15 +124,39 @@ Money as plain numbers in the account currency; derived metrics re-derived by
 `derive` after every sum (`aggregate`, `rollup`); nothing pre-formatted.
 
 ## View states
-- Data: controls row, KPI strip (Cost, Total Revenue as the `hy` tile, Profit
-  toned, ROAS, Sales, Leads, Calls, Clicks) over the visible rows with the range
-  printed once above it (`.kpi-range`) and, under it, the coverage line
-  (`.report-coverage`, `COVERAGE_NOTE`: ad accounts with a report level only;
+- Data: the view has no outer box (`.report-app`, straight on the white
+  page). From the top: the scope bar (level, range, model, window); the
+  stage (`.kpi-stage.report-top`) with the range, the model and its window printed once on one line
+  (`.kpi-range`) and, at the end of that line, an info button whose bubble holds the coverage note
+  (`infoButton`, `COVERAGE_NOTE`: ad accounts with a report level only;
   what HYROS credits to sources without an ad account or to an ad platform
-  without a report level is not in the numbers), crumbs when the hierarchy is
-  drilled,
-  the table in a `.win` with a `tfoot` of totals (`aggregate` over the visible
-  rows). The HYROS band (`th.hy`, `td.hy`) on Total Revenue, Revenue and ROAS.
+  without a report level is not in the numbers), then four tiles over the
+  visible rows (Cost, Total Revenue as the `hy` tile, Profit toned, ROAS) with
+  a strip of four minor counts under them (Sales, Leads, Calls, Clicks) and,
+  beside them, the rows as bars in a `.stage-card` (`chartHtml`); crumbs when the hierarchy is
+  drilled; the row with the level title and the table tools (search, hide zero
+  spend, ad accounts, columns); the table from edge to edge (`.table-wrap.bleed`) with a `tfoot`
+  of totals (`aggregate` over the visible rows). The HYROS band (`th.hy`,
+  `td.hy`) on Total Revenue, Revenue and ROAS.
+- Tiles: a money figure prints in whole units from 1,000 up, ROAS with `×`.
+  Each tile has a context line computed from the same totals, so it costs no
+  call (`tileSub`): Cost as a share of revenue, Total Revenue against what the
+  platforms reported ("+42% vs reported", with the reported share as the
+  tile's meter), Profit as a margin, ROAS with ROI, Sales with AOV, Leads with
+  CPL, Calls with cost per call, Clicks with CTR. A line with nothing to say
+  (a zero denominator) is left out.
+- Chart: one bar per visible row, in the table's order, at most 24 (the title
+  says "first 24" past that): the bar is `totalRevenue`, the mark across it
+  `reported`. No chart when no visible row has revenue or a reported value.
+- Cells: a zero or missing value wears `zero`; the cents of a money value sit
+  in `<span class="cents">` when the amount is round or from 1,000 up
+  (`cellText`). Both print quieter; the figures themselves do not change.
+- Layout: the body is repainted on every re-sort and filter, the tools row
+  never is (it keeps the search box's focus). The window is a grid and the
+  body lays its children straight into it (`display: contents`), so `order`
+  in `style.css` places the tools row between the top band and the table.
+  The first paint of a load sets `.is-fresh` on the body and plays the
+  entrance; a repaint clears it.
 - Loading after a control change: the body shows "Loading..." while the controls
   stay usable; a newer control change stops the older load before its next call.
 - One ad account failing: `.note.err` with the account name and the message; the
@@ -228,7 +252,7 @@ require, the snake_case row keys read by `normalizeRow`, and the source join by
 - The report covers ad accounts with a report level only. GET /attribution has
   no level for sources without an ad account (organic, general, automatic) or
   for ad platforms without one (Whop Ads, Reddit, AppLovin), so what HYROS
-  credits to them is in no row and no total; the coverage line, the note on
+  credits to them is in no row and no total; the info bubble on the range line, the note on
   those ad accounts and the empty states say so. The HYROS Performance Report
   screen does list such sources (automatic, general, reddit and pinterest rows
   seen on a QA account).

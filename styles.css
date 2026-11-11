@@ -39,7 +39,7 @@
   color-scheme: light;
 
   /* grounds (hyros.com CL1 tokens) */
-  --bg:        #FAF9F5;  /* cream page ground */
+  --bg:        #FAF9F5;  /* warm cream: the ground of the sign-in screen only. The dashboard itself is white (--surface) */
   --surface:   #FFFFFF;  /* windows, cards, the chrome */
   --surface-2: #FCFBF8;  /* tiles, header rows, quiet cards */
   --surface-3: #F6F5F0;  /* panel ground, hovers */
@@ -47,12 +47,12 @@
   --lavbg:     #EEEEFB;  /* the HYROS band: attributed columns, the active tab, highlight tile */
   --lavbg-2:   #F4F4FD;  /* the HYROS band at rest: attributed table cells */
   --lav:       #A5A4FA;  /* lavender data: bars, sparkline fills, Sven */
+  --bar-rest:  rgba(165,164,250,.5);  /* the pale part of a meter */
   --border:    rgba(31,30,29,.11);  /* every hairline */
   --border-2:  rgba(31,30,29,.18);  /* control borders */
   --rule:      rgba(31,30,29,.06);  /* row dividers inside a window */
   --chip-hover: rgba(255,255,255,.55);  /* a segmented-control chip under the pointer */
   --count-fill: rgba(31,30,29,.06);     /* the count inside a chip */
-  --glass:     rgba(255,255,255,.88);   /* the sticky horizontal scrollbar */
   --scrim:     rgba(31,30,29,.32);      /* behind the drawer */
 
   /* ink + text */
@@ -61,6 +61,7 @@
   --ink-3:     #8B8984;  /* mono labels, quiet text */
   --ink-hover: #000000;  /* the primary button under the pointer */
   --on-ink:    #FFFFFF;  /* text on an ink fill (the primary button) */
+  --on-brand:  #FFFFFF;  /* text on a brand fill (the highlight tile on a stage) */
 
   /* THE accent */
   --brand:     #5150F6;  /* what HYROS attributed / changed / selected */
@@ -80,16 +81,21 @@
   --warn-fill: rgba(176,120,30,.14);
   --warn-line: rgba(176,120,30,.3);
 
-  /* the console */
+  /* the console, and the totals bar that closes a table */
   --term:      #1F1E1D;
   --term-text: rgba(245,244,239,.86);
+  --term-bad:  #EE786C;  /* a loss printed on the ink bar */
+  --term-quiet: rgba(245,244,239,.43);  /* a zero printed on the ink bar */
 
   --r-btn:   7px;   /* buttons, inputs, selects */
   --r-tile:  10px;  /* KPI tiles, notes */
   --r-win:   12px;  /* windows, cards, panels */
+  --r-stage: 14px;  /* the stage */
+  --gut:     20px;  /* the page gutter: the top bar and every view start and end on it */
   --radius:  var(--r-win);
   --shadow-card: 0 12px 34px -26px rgba(31,30,29,.35);
-  --shadow-win:  0 26px 60px -34px rgba(31,30,29,.35);
+  --shadow-win:  0 2px 4px -2px rgba(31,30,29,.06), 0 34px 64px -38px rgba(31,30,29,.42);
+  --shadow-tile: 0 1px 2px rgba(31,30,29,.05), 0 10px 22px -16px rgba(31,30,29,.28);  /* a KPI tile on the page ground */
   --shadow-pop:  0 24px 50px -30px rgba(31,30,29,.4);
   --shadow-chip: 0 1px 2px rgba(31,30,29,.08);
   --shadow-drawer: -24px 0 60px -18px rgba(31,30,29,.28);
@@ -113,12 +119,12 @@
   --lavbg:     #24233F;
   --lavbg-2:   #1F1E33;
   --lav:       #A5A4FA;
+  --bar-rest:  rgba(165,164,250,.3);
   --border:    rgba(255,255,255,.10);
   --border-2:  rgba(255,255,255,.17);
   --rule:      rgba(255,255,255,.06);
   --chip-hover: rgba(255,255,255,.06);
   --count-fill: rgba(255,255,255,.08);
-  --glass:     rgba(24,24,24,.88);
   --scrim:     rgba(0,0,0,.55);
 
   --ink:       #EDEFF8;
@@ -126,6 +132,7 @@
   --ink-3:     #8D8D8D;
   --ink-hover: #FFFFFF;
   --on-ink:    #181818;
+  --on-brand:  #181818;
 
   --brand:     #9796FB;
   --brand-2:   #B4B3FD;
@@ -145,9 +152,12 @@
 
   --term:      #101010;
   --term-text: rgba(237,239,248,.86);
+  --term-bad:  #EE786C;
+  --term-quiet: rgba(237,239,248,.43);
 
   /* on dark a shadow barely shows: the borders carry the edges */
   --shadow-card: none;
+  --shadow-tile: none;
   --shadow-win:  0 26px 60px -34px rgba(0,0,0,.7);
   --shadow-pop:  0 24px 50px -30px rgba(0,0,0,.8);
   --shadow-chip: none;
@@ -170,7 +180,7 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -214,9 +224,12 @@ button.drill:active, button.name-drill:active, .cohort-row:active { transform: n
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;
 }
 
+
 /* ---------- gate ---------- */
+/* the sign-in screen keeps the cream ground, so its one window reads as an object */
 .gate {
   min-height: 100vh; display: grid; place-items: center; padding: 24px; position: relative;
+  background: var(--bg);
 }
 .gate-theme { position: absolute; top: 16px; right: 16px; }
 .gate-card { width: min(420px, 100%); padding: 0; text-align: center; }
@@ -231,18 +244,86 @@ button.drill:active, button.name-drill:active, .cohort-row:active { transform: n
 .gate-card p { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
 
 /* ---------- chrome ---------- */
+/* the menu on the left, then one bar over the view: the tabs, the account and the action */
+#app:not([hidden]) { display: flex; align-items: flex-start; }
+.app-main { flex: 1 1 0; min-width: 0; }
+
+/* ---------- the menu: the logo, the sections, and at the very bottom Return, a rule, Add Feature ---------- */
+/* White and flush: one hairline marks the column. The head row is as tall as
+   the top bar, so the two hairlines meet in one corner and the handle sits on
+   it. `data-side="min"` on the root minimizes it to the icons. */
+.side {
+  --side-w: 228px; --side-pad: 14px;
+  position: sticky; top: 0; z-index: 25; flex: none;
+  width: var(--side-w); height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  background: var(--surface); border-right: 1px solid var(--border);
+  transition: width .18s ease;
+}
+:root[data-side="min"] .side { --side-w: 64px; --side-pad: 12px; }
+.side-head {
+  flex: none; height: 52px; display: flex; align-items: center;
+  padding: 0 18px; border-bottom: 1px solid var(--border);
+}
+/* the logo and the mark are masks over the brand color, so they follow the theme */
+.side-logo, .side-mark { flex: none; height: 22px; background: var(--brand); }
+.side-logo {
+  display: block; width: 78px;
+  -webkit-mask: url("assets/brand/hyros-logo-blue.svg") left center / contain no-repeat;
+  mask: url("assets/brand/hyros-logo-blue.svg") left center / contain no-repeat;
+}
+.side-mark {
+  display: none; width: 19px;
+  -webkit-mask: url("assets/brand/hyros-mark-blue.svg") center / contain no-repeat;
+  mask: url("assets/brand/hyros-mark-blue.svg") center / contain no-repeat;
+}
+.side-nav { display: grid; gap: 2px; padding: 12px var(--side-pad) 0; }
+/* NOTE: selectors carry `.side .side-item` specificity so the generic button
+   and link rules can never repaint a row of the menu. */
+.side .side-item {
+  display: flex; align-items: center; gap: 11px; width: 100%; height: 38px; padding: 0 11px;
+  border: 0; border-radius: 8px; background: none;
+  font-size: 13.5px; font-weight: 500; line-height: 1; color: var(--ink-2);
+  text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background .13s, color .13s;
+}
+.side .side-item:hover:not(:disabled) { background: var(--surface-3); border: 0; color: var(--ink); }
+.side .side-item.active, .side .side-item.active:hover:not(:disabled) { color: var(--brand); background: var(--lavbg); }
+.side-item svg { flex: none; width: 18px; height: 18px; display: block; }
+.side-item svg.i-back { width: 23px; }
+.side-foot { margin-top: auto; padding: 0 var(--side-pad) 14px; }
+.side-rule { height: 1px; margin: 10px 0; border: 0; background: var(--border); }
+.side .side-add { justify-content: space-between; padding-right: 7px; color: var(--ink); }
+.side-plus {
+  flex: none; width: 24px; height: 24px; display: grid; place-items: center;
+  border: 1px solid var(--border-2); border-radius: 7px;
+}
+.side-plus svg { width: 14px; height: 14px; }
+/* inside HYROS the frame cannot navigate the tab, and the user is already in HYROS */
+:root[data-embedded] .side-return { display: none; }
+/* the handle: on the corner where the menu's hairline meets the top bar's */
+.side .side-handle {
+  position: absolute; right: -11px; top: 41px; z-index: 1;
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--border-2); color: var(--ink-3);
+}
+.side .side-handle:hover:not(:disabled) { background: var(--surface); border-color: var(--border-2); color: var(--ink); }
+.side-handle svg { width: 12px; height: 12px; display: block; transform: rotate(180deg); }
+/* minimized: every row is its icon alone, the logo is the mark alone */
+:root[data-side="min"] .side-head { justify-content: center; padding: 0; }
+:root[data-side="min"] .side-logo { display: none; }
+:root[data-side="min"] .side-mark { display: block; }
+:root[data-side="min"] .side .side-item { justify-content: center; padding: 0; gap: 0; }
+:root[data-side="min"] .side-item > span { display: none; }
+:root[data-side="min"] .side-handle svg { transform: none; }
+
 .topbar {
-  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
-  min-height: 56px; padding: 10px 20px; background: var(--surface);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  min-height: 52px; padding: 8px var(--gut); background: var(--surface);
   border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
 }
-.brand { display: flex; align-items: center; }
-.brand-logo { height: 20px; width: auto; display: block; }
-.brand-mark { height: 26px; width: auto; display: block; }
-/* the product word next to the logo */
-.brand-sub { font-weight: 400; color: var(--ink-2); font-size: 13px; margin-left: 8px; }
 .updated { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); white-space: nowrap; margin-right: 4px; }
-.brand-dot { display: none; }
 .meta { color: var(--ink-2); font-size: 12.5px; display: flex; align-items: center; flex-wrap: wrap; }
 .meta b { color: var(--ink); font-weight: 500; }
 .meta .warn { color: var(--warn); }
@@ -307,12 +388,11 @@ button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color
 .theme-toggle .i-sun, :root[data-theme="dark"] .theme-toggle .i-moon { display: none; }
 :root[data-theme="dark"] .theme-toggle .i-sun { display: block; }
 
-/* ---------- tabs: the app nav (the site's .mcp-dnav) ---------- */
+/* ---------- tabs: the views of the dashboard (the site's .mcp-dnav), first in the topbar ---------- */
 /* NOTE: selectors carry `.tabs button` specificity so the generic
    `button:hover:not(:disabled)` fill can never repaint a tab. */
 .tabs {
-  display: flex; align-items: center; gap: 4px; padding: 8px 16px;
-  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto;
 }
 .tabs .tab {
   border: 0; background: none; color: var(--ink-2); padding: 5px 10px;
@@ -322,10 +402,11 @@ button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color
 .tabs button.tab:hover:not(:disabled) { background: var(--surface-3); border-color: transparent; color: var(--ink); }
 .tabs button.tab.active, .tabs button.tab.active:hover:not(:disabled) { color: var(--brand); background: var(--lavbg); font-weight: 500; }
 
-.panel { padding: 20px; }
+/* the page: white from edge to edge. A view has no outer box; it starts on the gutter. */
+.panel { padding: 12px var(--gut) 56px; }
 .panel[hidden] { display: none; }
 /* a section heading inside a view: a mono label with room for a count beside it */
-.section { margin: 22px 2px 10px; display: flex; gap: 10px; align-items: baseline; }
+.section { margin: 22px 0 10px; display: flex; gap: 10px; align-items: baseline; }
 
 /* ---------- controls ---------- */
 .controls {
@@ -358,25 +439,96 @@ input::placeholder { color: var(--ink-3); }
 .kpis {
   display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
 }
-/* the range and note lines take a row of their own */
+/* the range and note lines, and the strip of minor counts, take a row of their own */
 .kpis > :not(.kpi) { flex: 0 0 100%; }
-/* the date range prints ONCE above the tiles, never per card */
-.kpi-range { margin: 0 2px -2px; }
-/* each tile is as wide as its figure; one that does not fit moves to the next row */
+/* the date range prints ONCE above the tiles, never per card; its dot is purple because the range is what HYROS read */
+.kpi-range { display: flex; align-items: center; gap: 7px; margin: 0 2px -2px; }
+.kpi-range::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--brand); }
+/* tiles share the row evenly up to a comfortable width, so a row of three and a row of eight both look placed */
 .kpi {
-  flex: 0 0 auto; min-width: 120px; max-width: 100%;
-  background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: var(--r-tile); padding: 10px 22px; position: relative;
+  flex: 1 1 160px; min-width: 0; max-width: 300px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); padding: 10px 14px 9px; position: relative;
+  box-shadow: var(--shadow-tile);
 }
-.kpi-label { margin-bottom: 7px; }
+.kpi-label { margin-bottom: 5px; }
 .kpi-value {
-  font-family: var(--serif); font-weight: 400; font-size: 22px; line-height: 1.05; white-space: nowrap;
+  font-family: var(--serif); font-weight: 400; font-size: 23px; line-height: 1.05; white-space: nowrap;
   letter-spacing: -0.012em; font-variant-numeric: tabular-nums; color: var(--ink);
 }
-.kpi-sub { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-3); margin-top: 5px; }
+/* the line under a figure: context the view already holds (a share, a rate, a unit cost) */
+.kpi-sub {
+  display: flex; align-items: center; gap: 8px; margin-top: 5px; white-space: nowrap;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-3);
+}
+.kpi-sub > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* the meter beside it: the whole bar is the figure above, the pale part the share the line names */
+/* it gives up its width before the text beside it is cut */
+.kpi-meter { flex: 1 1 24px; min-width: 24px; max-width: 54px; height: 5px; border-radius: 3px; background: var(--brand); overflow: hidden; }
+.kpi-meter i { display: block; height: 100%; background: var(--bar-rest); box-shadow: 2px 0 0 var(--lavbg); }
 /* the HYROS-attributed figure: the highlight tile (the site's .eo-kpi.is-ltv) */
 .kpi.hy { background: var(--lavbg); border-color: var(--brand-line); }
-.kpi.hy .kpi-value { color: var(--brand); }
+.kpi.hy .kpi-value, .kpi.hy .kpi-sub { color: var(--brand); }
+/* the strip under the tiles: the counts that support the headline figures, one line each */
+.stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-tile);
+  box-shadow: var(--shadow-tile);
+}
+.stat { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 9px 14px 8px; border-left: 1px solid var(--rule); }
+.stat:first-child { border-left: 0; }
+.stat .kpi-label { margin: 0; }
+.stat b {
+  font-family: var(--serif); font-weight: 400; font-size: 17px; line-height: 1.1; white-space: nowrap;
+  letter-spacing: -0.012em; font-variant-numeric: tabular-nums;
+}
+.stat .kpi-sub { margin: 0 0 0 auto; min-width: 0; }
+@media (max-width: 1180px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat:nth-child(odd) { border-left: 0; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--rule); }
+}
+/* ---------- the stage (the site's lavender zebra panel) ---------- */
+/* A view's headline numbers sit on ONE stage: a lavender panel with the brand
+   print, the tiles white and lifted on it. A picture that belongs with them (a
+   chart) rides the stage in a .stage-card. Everything else in the view sits
+   straight on the white page. */
+.kpi-stage {
+  position: relative; isolation: isolate; overflow: hidden;
+  margin: 0 0 16px; padding: 16px 18px 18px;
+  border-radius: var(--r-stage); background: var(--lavbg);
+}
+/* the print: the brand zebra, cut out of the brand color by a mask, so it follows the theme */
+.kpi-stage::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--brand); opacity: .07;
+  -webkit-mask: url("assets/brand/zebra-print.svg") center / cover no-repeat;
+  mask: url("assets/brand/zebra-print.svg") center / cover no-repeat;
+}
+.kpi-stage > :last-child, .kpi-stage > .kpis:last-child { margin-bottom: 0; }
+.kpi-stage .kpi-range { color: var(--ink-2); }
+.kpi-stage .kpi, .kpi-stage .stats, .stage-card {
+  background: var(--surface); border-color: transparent; box-shadow: var(--shadow-tile);
+}
+.stage-card { min-width: 0; padding: 12px 14px 14px; border: 1px solid transparent; border-radius: var(--r-tile); }
+/* on a stage the HYROS-attributed figure is the solid brand block (the site's highlight) */
+.kpi-stage .kpi.hy { background: var(--brand); }
+.kpi-stage .kpi.hy .kpi-label, .kpi-stage .kpi.hy .kpi-value, .kpi-stage .kpi.hy .kpi-sub { color: var(--on-brand); }
+.kpi-stage .kpi.hy .kpi-label { opacity: .78; }
+.kpi-stage .kpi.hy .kpi-meter { background: var(--on-brand); }
+.kpi-stage .kpi.hy .kpi-meter i { background: var(--lav); box-shadow: 2px 0 0 var(--brand); }
+@media (max-width: 640px) { .kpi-stage { padding: 14px 14px 16px; } }
+
+/* the entrance: one soft beat when a view paints fresh data. A view opts in by
+   putting .is-fresh on the painted container for that paint only, so a re-sort
+   or a filter never replays it. */
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.is-fresh .kpi, .is-fresh .stats { animation: rise .42s cubic-bezier(.2, .7, .2, 1) both; }
+.is-fresh .kpi:nth-child(2) { animation-delay: .04s; }
+.is-fresh .kpi:nth-child(3) { animation-delay: .08s; }
+.is-fresh .kpi:nth-child(4) { animation-delay: .12s; }
+.is-fresh .stats { animation-delay: .16s; }
+@media (prefers-reduced-motion: reduce) { .is-fresh .kpi, .is-fresh .stats { animation: none; } }
 .good { color: var(--good); }
 .bad  { color: var(--bad); }
 
@@ -387,8 +539,15 @@ input::placeholder { color: var(--ink-3); }
   overflow: auto; background: var(--surface); max-height: 68vh;
   box-shadow: var(--shadow-card);
 }
+/* the table a view ends on runs from edge to edge: it steps out of the page gutter,
+   and its first and last cells keep the gutter so the text still lines up with the page */
+.table-wrap.bleed {
+  margin-inline: calc(-1 * var(--gut)); border-left: 0; border-right: 0; border-radius: 0; box-shadow: none;
+}
+.bleed th:first-child, .bleed td:first-child { padding-left: var(--gut); }
+.bleed th:last-child, .bleed td:last-child { padding-right: var(--gut); }
 table { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
-th, td { padding: 9px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); font-size: 13px; }
+th, td { padding: 10px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); font-size: 13px; }
 th:first-child, td:first-child { text-align: left; }
 th.txt, td.txt { text-align: left; }
 
@@ -410,18 +569,33 @@ tbody tr:hover td { background: var(--surface-2); }
 tbody tr:hover td:first-child { background: var(--surface-3); }
 tbody tr:last-child td { border-bottom: 0; }
 
-/* the HYROS band: attributed columns read purple on lavender, like the site's HYROS column */
+/* the HYROS band: attributed columns read purple on lavender from the header down, like the site's HYROS column */
 th.hy { color: var(--brand); }
+thead th.hy { background: var(--lavbg); }
 td.hy { background: var(--lavbg-2); color: var(--brand); }
 tbody tr:hover td.hy { background: var(--lavbg); }
-tfoot td.hy { background: var(--lavbg); color: var(--brand); }
 td.hy button.drill { color: var(--brand); }
 
-tfoot td {
-  position: sticky; bottom: 0; background: var(--surface-2);
-  font-weight: 500; border-top: 1px solid var(--border); z-index: 3;
+/* a table is ink by default, so the colors left mean something: purple is what
+   HYROS attributed, terracotta is a loss. A gain reads as ink. */
+tbody td.good { color: inherit; }
+/* zero and missing values step back, and so do the cents of a money value */
+td.zero { color: var(--ink-3); }
+td.hy.zero { color: var(--brand); opacity: .45; }
+.cents { opacity: .5; }
+
+/* the totals row is the ink bar that closes a table, the way the console closes the site's window */
+tfoot td, tfoot td.good {
+  position: sticky; bottom: 0; background: var(--term); color: var(--term-text);
+  font-weight: 500; border-bottom: 0; z-index: 3;
 }
-tfoot td:first-child { z-index: 4; background: var(--surface-2); }
+tfoot td:first-child { z-index: 4; background: var(--term); }
+tfoot td.hy { background: var(--term); color: var(--lav); }
+tfoot td.bad { color: var(--term-bad); }
+/* a zero on the ink bar is quieter by its text color only: fading the cell would fade the bar under it to grey */
+tfoot td.zero, tfoot td.hy.zero { background: var(--term); color: var(--term-quiet); opacity: 1; }
+/* two sticky cells with fractional widths can leave a hairline seam between them: one ink pixel closes it */
+tfoot td { box-shadow: 1px 0 0 var(--term); }
 
 .name-cell { display: flex; align-items: center; gap: 8px; }
 .sub { color: var(--ink-3); font-size: 11.5px; }
@@ -445,6 +619,39 @@ tfoot td:first-child { z-index: 4; background: var(--surface-2); }
 .note.err b { color: var(--bad); }
 
 .rowcount { font-family: var(--mono); color: var(--ink-3); font-size: 11px; letter-spacing: .04em; text-transform: none; }
+
+/* ---------- info bubble ---------- */
+/* a small round "i" beside a label; its sentence opens in ONE bubble the shell owns (src/ui/info.js).
+   The button is 22px to press and 14px to look at, and takes no height from its line. */
+button.info-btn {
+  flex: none; display: inline-grid; place-items: center; vertical-align: middle;
+  width: 22px; height: 22px; margin: -6px -4px -6px 3px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--ink-2);
+  cursor: help; transition: color .13s;
+}
+button.info-btn:hover:not(:disabled), button.info-btn[aria-expanded="true"] { background: none; color: var(--brand); }
+button.info-btn:active:not(:disabled) { transform: none; }
+.info-btn svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; }
+.info-btn .info-dot { fill: currentColor; stroke-width: .9; }
+/* keeps the button on the line of the word it explains */
+.info-hold { white-space: nowrap; }
+.info-pop {
+  position: fixed; left: 0; top: 0; z-index: 70;
+  width: max-content; max-width: min(330px, calc(100vw - 20px));
+  padding: 10px 13px 11px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); box-shadow: var(--shadow-pop);
+  font-size: 12.5px; line-height: 1.5; color: var(--ink-2);
+  transition: opacity .14s ease, transform .14s ease;
+}
+.info-pop[hidden] { display: none; }
+@starting-style { .info-pop:not([hidden]) { opacity: 0; transform: translateY(-4px); } }
+/* the pointer, kept on the button wherever the bubble had to slide */
+.info-pop::before {
+  content: ""; position: absolute; left: var(--caret, 50%); top: -5px;
+  width: 9px; height: 9px; margin-left: -5px; transform: rotate(45deg);
+  background: var(--surface); border: solid var(--border); border-width: 1px 0 0 1px;
+}
+.info-pop.is-up::before { top: auto; bottom: -5px; border-width: 0 1px 1px 0; }
 
 /* ---------- column selector ---------- */
 .col-wrap { position: relative; }
@@ -483,6 +690,10 @@ button.drill {
   font-variant-numeric: tabular-nums; font-weight: 400;
 }
 button.drill:hover { color: var(--brand-2); background: none; border: 0; }
+/* a number that opens detail reads as ink with a quiet dotted rule, purple under the pointer;
+   a name or an email that opens detail (a text cell) keeps the purple */
+td:not(.txt):not(.hy) button.drill { color: inherit; text-decoration-color: var(--border-2); }
+td:not(.txt):not(.hy) button.drill:hover { color: var(--brand); text-decoration-color: currentColor; }
 
 /* ---------- drawer ---------- */
 .drawer-scrim {
@@ -502,7 +713,7 @@ button.drill:hover { color: var(--brand-2); background: none; border: 0; }
   .drawer-scrim:not([hidden]) { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .drawer, .drawer-scrim, .col-panel, .chip, .tabs .tab, button, .btn { transition: none; }
+  .drawer, .drawer-scrim, .col-panel, .info-pop, .chip, .tabs .tab, .side, .side .side-item, .hrail-thumb, button, .btn { transition: none; }
 }
 .drawer-head {
   display: flex; align-items: center; gap: 10px;
@@ -597,18 +808,41 @@ button.name-drill {
 }
 button.name-drill:hover { color: var(--brand); text-decoration: underline dotted; text-underline-offset: 3px; background: none; border: 0; }
 
-/* ---------- sticky horizontal scroll proxy ---------- */
-.hproxy {
-  position: fixed; bottom: 0; z-index: 45; height: 14px;
-  overflow-x: auto; overflow-y: hidden;
-  background: var(--glass);
-  border-top: 1px solid var(--border);
+/* ---------- the rail: a table's own sideways scrollbar (src/ui/rail.js) ---------- */
+/* A table's bars are drawn by the dashboard, not by the computer: a quiet thin
+   bar for the rows and, for the columns, the rail in a lane under the table.
+   The browser's own sideways bar is off once a table has its rail. */
+.table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 6px; }
+.table-wrap::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+.table-wrap::-webkit-scrollbar-track, .table-wrap::-webkit-scrollbar-corner { background: transparent; }
+.table-wrap.has-rail::-webkit-scrollbar { height: 0; }
+@supports not selector(::-webkit-scrollbar) {
+  .table-wrap { scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
+  .table-wrap.has-rail { scrollbar-width: none; }
 }
-.hproxy > div { height: 1px; }
-.hproxy::-webkit-scrollbar { height: 10px; }
-.hproxy::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 6px; }
-.hproxy::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
-.hproxy::-webkit-scrollbar-track { background: transparent; }
+/* the lane: air under the totals bar, then the bar and the count, on the page gutter */
+.hrail {
+  order: 99; grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 18px; padding: 6px 0 2px;
+  background: var(--surface);
+}
+.hrail[hidden] { display: none; }
+.table-wrap.bleed + .hrail { margin-inline: calc(-1 * var(--gut)); padding-inline: var(--gut); }
+/* while its table is in sight the lane follows the bottom of the window, so the bar is always in reach */
+.hrail.is-near { position: sticky; bottom: -1px; z-index: 6; }
+.hrail.is-stuck { box-shadow: 0 -1px 0 var(--border); }
+/* the track: 28px of target around an 8px bar */
+.hrail-track { position: relative; flex: 1; min-width: 0; height: 28px; cursor: pointer; touch-action: none; }
+.hrail-track::before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 8px; border-radius: 99px; background: var(--surface-4); }
+.hrail-thumb { position: absolute; top: 10px; height: 8px; border-radius: 99px; background: var(--lav); cursor: grab; transition: background .13s; }
+.hrail-thumb::after { content: ""; position: absolute; inset: -10px 0; }
+.hrail-track:hover .hrail-thumb, .hrail.is-drag .hrail-thumb { background: var(--brand); }
+.hrail.is-drag .hrail-thumb { cursor: grabbing; }
+.hrail-track:focus-visible { outline: 0; }
+.hrail-track:focus-visible::before { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand); }
+.hrail-note { flex: none; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.hrail-note b { font-weight: 500; color: var(--ink); }
 
 /* ---------- header drag & drop ---------- */
 thead th { -webkit-user-drag: element; }
@@ -682,7 +916,23 @@ table.dense .pill { font-size: 9.5px; padding: 2px 5px; }
 .set-stages .empty { padding: 0; font-size: 12px; text-align: left; }
 
 @media (max-width: 640px) {
-  .panel { padding: 14px; }
-  .topbar { padding: 10px 14px; }
-  .tabs { padding: 8px; overflow-x: auto; }
+  body { --gut: 14px; }
+  .panel { padding-bottom: 40px; }
+  /* the tabs take a row of their own under the account and Refresh */
+  .tabs { order: 9; flex-basis: 100%; }
+  /* the menu lies down: one row of icons above the top bar, whatever its state, and no handle */
+  #app:not([hidden]) { display: block; }
+  .side, :root[data-side="min"] .side {
+    position: static; width: auto; height: auto; flex-direction: row; align-items: center; gap: 4px;
+    padding: 6px var(--gut); border-right: 0; border-bottom: 1px solid var(--border);
+  }
+  .side-head, :root[data-side="min"] .side-head { height: auto; padding: 0 8px 0 0; border-bottom: 0; }
+  .side-logo { display: none; }
+  .side-mark { display: block; }
+  .side-nav { padding: 0; }
+  .side-foot { display: flex; align-items: center; gap: 4px; margin: 0 0 0 auto; padding: 0; }
+  .side-rule { width: 1px; height: 20px; margin: 0 6px; }
+  .side .side-item { width: 38px; justify-content: center; padding: 0; gap: 0; }
+  .side-item > span { display: none; }
+  .side .side-handle { display: none; }
 }

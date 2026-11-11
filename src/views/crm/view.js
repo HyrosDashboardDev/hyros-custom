@@ -302,7 +302,7 @@ async function run(ctx) {
 export const view = {
   id: 'crm',
   title: 'CRM',
-  version: '0.1.0',
+  version: '0.2.0',
   description: 'Who joined, bought, booked or subscribed in a date range, where they came from, and each lead\'s journey.',
   style: true,
   tools: [

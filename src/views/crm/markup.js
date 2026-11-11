@@ -88,7 +88,7 @@ export function tableHtml(ctx, tab, rows, sort) {
   const cols = COLUMNS[tab];
   const head = cols.map((c) => sortHeader({ col: c.col, label: c.label, cls: c.cls || '', title: c.title || '' }, sort)).join('');
   const body = rows.map((r) => `<tr>${cols.map((c) => c.cell(r, ctx)).join('')}</tr>`).join('');
-  return `<div class="table-wrap"><table class="dense crm-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="table-wrap bleed"><table class="dense crm-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 /** The sub-tab chips; `counts[tab] = { count, plus } | null` ("?" when not loaded). */
@@ -171,7 +171,7 @@ export function tilesHtml(ctx, tab, model, { range, filters } = {}) {
 
   const html = ctx.kpis(items);
   const line = range ? `<div class="kpi-range">${ctx.esc(range.label)}: ${ctx.esc(fmt.date(range.start))} to ${ctx.esc(fmt.date(range.end))}</div>` : '';
-  return html.replace('<div class="kpis">', `<div class="kpis">${line}`);
+  return `<div class="kpi-stage">${html.replace('<div class="kpis">', `<div class="kpis">${line}`)}</div>`;
 }
 
 /** "1,200 leads, showing newest 2,000" style text for the section title. */

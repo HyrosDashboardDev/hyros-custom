@@ -79,7 +79,7 @@ Money as plain numbers in the account currency.
 - Controls: one chip per ad account (toggle), an end date input (max today
   in the account zone). A future or malformed date is refused with a
   `.note.err` and the previous date stays.
-- Data: five KPI tiles (Entities analyzed, With spend history, Saturation
+- Data: five KPI tiles on the stage (Entities analyzed, With spend history, Saturation
   found, Room to scale, Not judged) and one card per target with the SVG chart (average
   CAC in INK, marginal CAC dashed purple, ceiling dotted terracotta,
   saturation green) and three stats (ceiling, saturation spend, marginal CAC
