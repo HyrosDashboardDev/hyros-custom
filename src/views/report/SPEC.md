@@ -126,8 +126,9 @@ Money as plain numbers in the account currency; derived metrics re-derived by
 ## View states
 - Data: the view has no outer box (`.report-app`, straight on the white
   page). From the top: the scope bar (level, range, model, window); the
-  stage (`.kpi-stage.report-top`) with the range printed once (`.kpi-range`) and, under it, the coverage line
-  (`.report-coverage`, `COVERAGE_NOTE`: ad accounts with a report level only;
+  stage (`.kpi-stage.report-top`) with the range, the model and its window printed once on one line
+  (`.kpi-range`) and, at the end of that line, an info button whose bubble holds the coverage note
+  (`infoButton`, `COVERAGE_NOTE`: ad accounts with a report level only;
   what HYROS credits to sources without an ad account or to an ad platform
   without a report level is not in the numbers), then four tiles over the
   visible rows (Cost, Total Revenue as the `hy` tile, Profit toned, ROAS) with
@@ -251,7 +252,7 @@ require, the snake_case row keys read by `normalizeRow`, and the source join by
 - The report covers ad accounts with a report level only. GET /attribution has
   no level for sources without an ad account (organic, general, automatic) or
   for ad platforms without one (Whop Ads, Reddit, AppLovin), so what HYROS
-  credits to them is in no row and no total; the coverage line, the note on
+  credits to them is in no row and no total; the info bubble on the range line, the note on
   those ad accounts and the empty states say so. The HYROS Performance Report
   screen does list such sources (automatic, general, reddit and pinterest rows
   seen on a QA account).

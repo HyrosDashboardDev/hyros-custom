@@ -15,6 +15,7 @@ import { createData } from './data/data.js';
 import { $, esc, card, kpis } from './ui/dom.js';
 import { fmt } from './ui/fmt.js';
 import { watchRails } from './ui/rail.js';
+import { watchInfo } from './ui/info.js';
 import { VIEWS } from './views/registry.js';
 
 const COPY = {
@@ -342,6 +343,7 @@ function boot() {
 
   wireSidebar();
   watchRails($('#view'));
+  watchInfo();
   $('#gateRetry').addEventListener('click', () => connect('retry'));
   $('#gateSignIn').addEventListener('click', signIn);
   $('#refreshBtn').addEventListener('click', refresh);

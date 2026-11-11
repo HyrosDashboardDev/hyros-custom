@@ -253,6 +253,21 @@ test('a zero on the totals bar dims its text, never the cell: the ink bar stays 
   assert.match(css, /tfoot td\.zero, tfoot td\.hy\.zero \{[^}]*color: var\(--term-quiet\)[^}]*opacity: 1/);
 });
 
+test('an explainer lives in the info bubble: the shell owns the one bubble, a view only writes the button', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const app = readFileSync(join(SRC, 'app.js'), 'utf8');
+  assert.match(app, /import \{ watchInfo \} from '\.\/ui\/info\.js';/);
+  assert.match(app, /watchInfo\(\);/, 'one bubble for every info button');
+  assert.match(css, /\.info-pop\[hidden\] \{ display: none; \}/, 'a closed bubble takes no place');
+  assert.match(css, /\.info-pop \{[^}]*position: fixed/, 'the bubble is laid over the page, so no box can clip it');
+  for (const dir of readdirSync(join(SRC, 'views'), { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const file of readdirSync(join(SRC, 'views', dir.name)).filter((name) => name.endsWith('.css'))) {
+      const own = readFileSync(join(SRC, 'views', dir.name, file), 'utf8');
+      assert.equal(/\.info-(btn|pop)/.test(own), false, `${dir.name}/${file}: a view never restyles the info bubble`);
+    }
+  }
+});
+
 test('a table scrolls sideways on the rail: the shell mounts it, the browser bar is off, the old proxy is gone', () => {
   const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   const app = readFileSync(join(SRC, 'app.js'), 'utf8');

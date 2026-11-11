@@ -10,6 +10,7 @@ import { aggregate } from '../../data/metrics.js';
 import { buildLevels } from '../../data/report-levels.js';
 import { sortRows, nextSort, sortHeader } from '../../ui/table.js';
 import { openCohortDrill } from '../../ui/drill.js';
+import { infoButton } from '../../ui/info.js';
 import {
   LEVELS, LEVEL_LABEL, CHILD_LEVEL, HY, KPIS, DRILL_METRIC, SELECTABLE, loadKindOf,
   readCols, writeCols, activeCols, colPanelHtml, formatCell, toneClass, rowDrillTags, drillTags,
@@ -365,7 +366,7 @@ export function chartHtml(ctx, rows) {
     </div>`;
 }
 
-/** Printed under the KPI range line: what the totals cover and what HYROS credits elsewhere. */
+/** In the info bubble on the KPI range line: what the totals cover and what HYROS credits elsewhere. */
 const COVERAGE_NOTE = 'Ad accounts with a report level only. What HYROS credits to sources without an ad account, such as organic, general or automatic, or to an ad platform without a report level, is not in these numbers.';
 
 export function kpiHtml(ctx, rows, m) {
@@ -379,9 +380,11 @@ export function kpiHtml(ctx, rows, m) {
     return { label: k.label, value, sub: tileSub(fmt, k.key, totals), meter: k.hy ? reportedShare : undefined, minor: k.minor, cls: k.hy ? 'hy' : tone };
   }));
   const model = MODELS.find((x) => x.key === m.model)?.label || m.model;
-  const range = `<div class="kpi-range">${esc(rangeLabel(m.range))} · ${esc(model)}${m.window ? ` · ${esc(fmt.int(m.window))}-day window` : ''}</div>`;
-  const coverage = `<div class="report-coverage">${COVERAGE_NOTE}</div>`;
-  return `<div class="kpi-stage report-top"><div class="report-ctx">${range}${coverage}</div><div class="report-kcol">${tiles}</div>${chartHtml(ctx, rows)}</div>`;
+  // the range, the model and its window on one line; the info button stays with the last of them
+  const parts = [rangeLabel(m.range), model, ...(m.window ? [`${fmt.int(m.window)}-day window`] : [])].map(esc);
+  const last = parts.pop();
+  const range = `<div class="kpi-range"><span>${parts.join(' · ')} · <span class="info-hold">${last}${infoButton(COVERAGE_NOTE, 'What these numbers cover')}</span></span></div>`;
+  return `<div class="kpi-stage report-top"><div class="report-ctx">${range}</div><div class="report-kcol">${tiles}</div>${chartHtml(ctx, rows)}</div>`;
 }
 
 /** Paint the body from `current` (no calls). `fresh` marks the first paint of a load, the only one that plays the entrance. */

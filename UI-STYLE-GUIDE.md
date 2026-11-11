@@ -282,6 +282,21 @@ colourways (lavender here).
   the figure (`cls: 'good'` or `'bad'` puts them on `.kpi-value`).
   The date range prints ONCE above the tiles as `.kpi-range`, behind a 6px
   purple dot.
+- **Info bubble** `.info-btn` / `.info-pop` (`src/ui/info.js`): where an
+  explainer goes. A sentence the reader needs once is not printed on the
+  screen; it sits behind a small round "i" (14px drawn, 22px to press,
+  `--ink-2`, `--brand` under the pointer and while open) right after the
+  label it explains, kept on that label's line with `.info-hold`. The
+  bubble is a white hairline card (`--surface`, `--border`, `--r-tile`,
+  `--shadow-pop`, 12.5px text in `--ink-2`, 330px at most) with a pointer
+  on the button. It opens under the button on hover and on keyboard focus;
+  a click or a tap keeps it open; Escape, a press anywhere else or a
+  second click closes it. It never leaves the window: it slides in at an
+  edge and goes above the button when there is no room under it. A view
+  writes `infoButton(text, label)` and nothing else; the shell owns the
+  one bubble (`watchInfo`). Never style it from a view, and never use it
+  for a warning or for something the reader must see to read the figures
+  right: that is a `.note`.
 - **Stats strip** `.stats` / `.stat`: the counts that support the headline
   figures (sales, leads, calls, clicks) in ONE hairline strip under the
   tiles: mono label, 17px serif figure, the sub line at the right end of

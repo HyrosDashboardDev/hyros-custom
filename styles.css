@@ -620,6 +620,39 @@ tfoot td { box-shadow: 1px 0 0 var(--term); }
 
 .rowcount { font-family: var(--mono); color: var(--ink-3); font-size: 11px; letter-spacing: .04em; text-transform: none; }
 
+/* ---------- info bubble ---------- */
+/* a small round "i" beside a label; its sentence opens in ONE bubble the shell owns (src/ui/info.js).
+   The button is 22px to press and 14px to look at, and takes no height from its line. */
+button.info-btn {
+  flex: none; display: inline-grid; place-items: center; vertical-align: middle;
+  width: 22px; height: 22px; margin: -6px -4px -6px 3px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--ink-2);
+  cursor: help; transition: color .13s;
+}
+button.info-btn:hover:not(:disabled), button.info-btn[aria-expanded="true"] { background: none; color: var(--brand); }
+button.info-btn:active:not(:disabled) { transform: none; }
+.info-btn svg { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; }
+.info-btn .info-dot { fill: currentColor; stroke-width: .9; }
+/* keeps the button on the line of the word it explains */
+.info-hold { white-space: nowrap; }
+.info-pop {
+  position: fixed; left: 0; top: 0; z-index: 70;
+  width: max-content; max-width: min(330px, calc(100vw - 20px));
+  padding: 10px 13px 11px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-tile); box-shadow: var(--shadow-pop);
+  font-size: 12.5px; line-height: 1.5; color: var(--ink-2);
+  transition: opacity .14s ease, transform .14s ease;
+}
+.info-pop[hidden] { display: none; }
+@starting-style { .info-pop:not([hidden]) { opacity: 0; transform: translateY(-4px); } }
+/* the pointer, kept on the button wherever the bubble had to slide */
+.info-pop::before {
+  content: ""; position: absolute; left: var(--caret, 50%); top: -5px;
+  width: 9px; height: 9px; margin-left: -5px; transform: rotate(45deg);
+  background: var(--surface); border: solid var(--border); border-width: 1px 0 0 1px;
+}
+.info-pop.is-up::before { top: auto; bottom: -5px; border-width: 0 1px 1px 0; }
+
 /* ---------- column selector ---------- */
 .col-wrap { position: relative; }
 .col-panel {
@@ -680,7 +713,7 @@ td:not(.txt):not(.hy) button.drill:hover { color: var(--brand); text-decoration-
   .drawer-scrim:not([hidden]) { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .drawer, .drawer-scrim, .col-panel, .chip, .tabs .tab, .side, .side .side-item, .hrail-thumb, button, .btn { transition: none; }
+  .drawer, .drawer-scrim, .col-panel, .info-pop, .chip, .tabs .tab, .side, .side .side-item, .hrail-thumb, button, .btn { transition: none; }
 }
 .drawer-head {
   display: flex; align-items: center; gap: 10px;

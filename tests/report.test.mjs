@@ -448,11 +448,15 @@ test('HYROS strings are escaped in the table and the notes', () => {
   assert.match(notes, /Showing newest 2,000 ad sets of/);
 });
 
-test('the report says what its totals leave out: under the KPI range and on the ad accounts without a level', () => {
+test('the report says what its totals leave out: in the info bubble on the KPI range and on the ad accounts without a level', () => {
   const html = kpiHtml({ ...ctx, kpis }, [], { model: 'LAST_CLICK', range: RANGE, window: 7 });
-  assert.match(html, /class="kpi-range">Sep 15, 2026 to Oct 14, 2026 · Last click · 7-day window<\/div>/);
-  assert.match(html, /class="report-coverage">Ad accounts with a report level only\. What HYROS credits to sources without an ad account, such as organic, general or automatic, or to an ad platform without a report level, is not in these numbers\.<\/div>/);
-  assert.ok(html.indexOf('report-coverage') < html.indexOf('class="kpi"'), 'the coverage line sits above the tiles');
+  const note = 'Ad accounts with a report level only\\. What HYROS credits to sources without an ad account, such as organic, general or automatic, or to an ad platform without a report level, is not in these numbers\\.';
+  assert.match(html, new RegExp(`class="kpi-range"><span>Sep 15, 2026 to Oct 14, 2026 · Last click · <span class="info-hold">7-day window<button type="button" class="info-btn" data-info="${note}" aria-label="What these numbers cover" aria-expanded="false">`));
+  assert.equal(html.includes('report-coverage'), false, 'the sentence is not printed on the stage any more');
+  assert.equal(html.split('Ad accounts with a report level only').length, 2, 'it lives in the bubble, once');
+  assert.ok(html.indexOf('info-btn') < html.indexOf('class="kpi"'), 'the info button sits on the range line, above the tiles');
+  const plain = kpiHtml({ ...ctx, kpis }, [], { model: 'LAST_CLICK', range: RANGE, window: 0 });
+  assert.match(plain, /class="kpi-range"><span>Sep 15, 2026 to Oct 14, 2026 · <span class="info-hold">Last click<button type="button" class="info-btn"/, 'with no window the button stays with the model');
 
   const notes = notesHtml(ctx, {
     kind: 'adset', unsupported: [RD, { id: '707', name: 'TestWads', type: 'WHOP_ADS' }], noAdLevel: [],

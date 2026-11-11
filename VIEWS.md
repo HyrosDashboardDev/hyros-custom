@@ -139,11 +139,16 @@ dashboard's own in a lane under the table, with the count of the columns on
 screen. A view does nothing for it: put the table in a `.table-wrap` and never
 style a scrollbar.
 
-Two shared modules build on the kit; import them from `view.js`:
+Three shared modules build on the kit; import them from `view.js`:
 
 - `src/ui/table.js`: `sortRows(rows, { col, dir })` (a sorted copy, missing
   values last), `nextSort(sort, col, firstDir)` for a header click, and
   `sortHeader({ col, label, cls }, sort)` for the `<th>`.
+- `src/ui/info.js`: `infoButton(text, label)` returns the small round "i"
+  that opens `text` in a bubble; `label` is what a screen reader calls the
+  button. Put it right after the word it explains, inside a
+  `<span class="info-hold">` with that word so the two stay on one line.
+  The shell opens and closes the bubble; a view writes the button only.
 - `src/ui/drill.js`: the drawer and the drill behind a number.
   `openCohortDrill(ctx, { title, tags, metric, label, note })` opens the
   leads that touched the row's source tags (`metric: 'leads'`) or their
