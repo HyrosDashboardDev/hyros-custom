@@ -86,6 +86,7 @@
   --term:      #1F1E1D;
   --term-text: rgba(245,244,239,.86);
   --term-bad:  #EE786C;  /* a loss printed on the ink bar */
+  --term-quiet: rgba(245,244,239,.43);  /* a zero printed on the ink bar */
 
   --r-btn:   7px;   /* buttons, inputs, selects */
   --r-tile:  10px;  /* KPI tiles, notes */
@@ -154,6 +155,7 @@
   --term:      #101010;
   --term-text: rgba(237,239,248,.86);
   --term-bad:  #EE786C;
+  --term-quiet: rgba(237,239,248,.43);
 
   /* on dark a shadow barely shows: the borders carry the edges */
   --shadow-card: none;
@@ -244,19 +246,86 @@ button.drill:active, button.name-drill:active, .cohort-row:active { transform: n
 .gate-card p { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.55; }
 
 /* ---------- chrome ---------- */
-/* one bar: the logo, the tabs, then the account and the action */
+/* the menu on the left, then one bar over the view: the tabs, the account and the action */
+#app:not([hidden]) { display: flex; align-items: flex-start; }
+.app-main { flex: 1 1 0; min-width: 0; }
+
+/* ---------- the menu: the logo, the sections, and at the very bottom Return, a rule, Add Feature ---------- */
+/* White and flush: one hairline marks the column. The head row is as tall as
+   the top bar, so the two hairlines meet in one corner and the handle sits on
+   it. `data-side="min"` on the root minimizes it to the icons. */
+.side {
+  --side-w: 228px; --side-pad: 14px;
+  position: sticky; top: 0; z-index: 25; flex: none;
+  width: var(--side-w); height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  background: var(--surface); border-right: 1px solid var(--border);
+  transition: width .18s ease;
+}
+:root[data-side="min"] .side { --side-w: 64px; --side-pad: 12px; }
+.side-head {
+  flex: none; height: 52px; display: flex; align-items: center;
+  padding: 0 18px; border-bottom: 1px solid var(--border);
+}
+/* the logo and the mark are masks over the brand color, so they follow the theme */
+.side-logo, .side-mark { flex: none; height: 22px; background: var(--brand); }
+.side-logo {
+  display: block; width: 78px;
+  -webkit-mask: url("assets/brand/hyros-logo-blue.svg") left center / contain no-repeat;
+  mask: url("assets/brand/hyros-logo-blue.svg") left center / contain no-repeat;
+}
+.side-mark {
+  display: none; width: 19px;
+  -webkit-mask: url("assets/brand/hyros-mark-blue.svg") center / contain no-repeat;
+  mask: url("assets/brand/hyros-mark-blue.svg") center / contain no-repeat;
+}
+.side-nav { display: grid; gap: 2px; padding: 12px var(--side-pad) 0; }
+/* NOTE: selectors carry `.side .side-item` specificity so the generic button
+   and link rules can never repaint a row of the menu. */
+.side .side-item {
+  display: flex; align-items: center; gap: 11px; width: 100%; height: 38px; padding: 0 11px;
+  border: 0; border-radius: 8px; background: none;
+  font-size: 13.5px; font-weight: 500; line-height: 1; color: var(--ink-2);
+  text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background .13s, color .13s;
+}
+.side .side-item:hover:not(:disabled) { background: var(--surface-3); border: 0; color: var(--ink); }
+.side .side-item.active, .side .side-item.active:hover:not(:disabled) { color: var(--brand); background: var(--lavbg); }
+.side-item svg { flex: none; width: 18px; height: 18px; display: block; }
+.side-item svg.i-back { width: 23px; }
+.side-foot { margin-top: auto; padding: 0 var(--side-pad) 14px; }
+.side-rule { height: 1px; margin: 10px 0; border: 0; background: var(--border); }
+.side .side-add { justify-content: space-between; padding-right: 7px; color: var(--ink); }
+.side-plus {
+  flex: none; width: 24px; height: 24px; display: grid; place-items: center;
+  border: 1px solid var(--border-2); border-radius: 7px;
+}
+.side-plus svg { width: 14px; height: 14px; }
+/* inside HYROS the frame cannot navigate the tab, and the user is already in HYROS */
+:root[data-embedded] .side-return { display: none; }
+/* the handle: on the corner where the menu's hairline meets the top bar's */
+.side .side-handle {
+  position: absolute; right: -11px; top: 41px; z-index: 1;
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--border-2); color: var(--ink-3);
+}
+.side .side-handle:hover:not(:disabled) { background: var(--surface); border-color: var(--border-2); color: var(--ink); }
+.side-handle svg { width: 12px; height: 12px; display: block; transform: rotate(180deg); }
+/* minimized: every row is its icon alone, the logo is the mark alone */
+:root[data-side="min"] .side-head { justify-content: center; padding: 0; }
+:root[data-side="min"] .side-logo { display: none; }
+:root[data-side="min"] .side-mark { display: block; }
+:root[data-side="min"] .side .side-item { justify-content: center; padding: 0; gap: 0; }
+:root[data-side="min"] .side-item > span { display: none; }
+:root[data-side="min"] .side-handle svg { transform: none; }
+
 .topbar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   min-height: 52px; padding: 8px var(--gut); background: var(--surface);
   border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
 }
-.brand { display: flex; align-items: center; }
-.brand-logo { height: 20px; width: auto; display: block; }
-.brand-mark { height: 26px; width: auto; display: block; }
-/* the product word next to the logo, behind a hairline */
-.brand-sub { font-weight: 400; color: var(--ink-2); font-size: 13px; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border); }
 .updated { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); white-space: nowrap; margin-right: 4px; }
-.brand-dot { display: none; }
 .meta { color: var(--ink-2); font-size: 12.5px; display: flex; align-items: center; flex-wrap: wrap; }
 .meta b { color: var(--ink); font-weight: 500; }
 .meta .warn { color: var(--warn); }
@@ -321,11 +390,11 @@ button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color
 .theme-toggle .i-sun, :root[data-theme="dark"] .theme-toggle .i-moon { display: none; }
 :root[data-theme="dark"] .theme-toggle .i-sun { display: block; }
 
-/* ---------- tabs: the app nav (the site's .mcp-dnav), inside the topbar ---------- */
+/* ---------- tabs: the views of the dashboard (the site's .mcp-dnav), first in the topbar ---------- */
 /* NOTE: selectors carry `.tabs button` specificity so the generic
    `button:hover:not(:disabled)` fill can never repaint a tab. */
 .tabs {
-  display: flex; align-items: center; gap: 4px; min-width: 0; margin-left: 8px; overflow-x: auto;
+  display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto;
 }
 .tabs .tab {
   border: 0; background: none; color: var(--ink-2); padding: 5px 10px;
@@ -523,9 +592,12 @@ tfoot td, tfoot td.good {
   font-weight: 500; border-bottom: 0; z-index: 3;
 }
 tfoot td:first-child { z-index: 4; background: var(--term); }
-tfoot td.hy, tfoot td.hy.zero { background: var(--term); color: var(--lav); }
+tfoot td.hy { background: var(--term); color: var(--lav); }
 tfoot td.bad { color: var(--term-bad); }
-tfoot td.zero { color: var(--term-text); opacity: .5; }
+/* a zero on the ink bar is quieter by its text color only: fading the cell would fade the bar under it to grey */
+tfoot td.zero, tfoot td.hy.zero { background: var(--term); color: var(--term-quiet); opacity: 1; }
+/* two sticky cells with fractional widths can leave a hairline seam between them: one ink pixel closes it */
+tfoot td { box-shadow: 1px 0 0 var(--term); }
 
 .name-cell { display: flex; align-items: center; gap: 8px; }
 .sub { color: var(--ink-3); font-size: 11.5px; }
@@ -610,7 +682,7 @@ td:not(.txt):not(.hy) button.drill:hover { color: var(--brand); text-decoration-
   .drawer-scrim:not([hidden]) { opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .drawer, .drawer-scrim, .col-panel, .chip, .tabs .tab, button, .btn { transition: none; }
+  .drawer, .drawer-scrim, .col-panel, .chip, .tabs .tab, .side, .side .side-item, button, .btn { transition: none; }
 }
 .drawer-head {
   display: flex; align-items: center; gap: 10px;
@@ -792,6 +864,21 @@ table.dense .pill { font-size: 9.5px; padding: 2px 5px; }
 @media (max-width: 640px) {
   body { --gut: 14px; }
   .panel { padding-bottom: 40px; }
-  /* the tabs take a row of their own under the logo */
-  .tabs { order: 9; flex-basis: 100%; margin-left: 0; }
+  /* the tabs take a row of their own under the account and Refresh */
+  .tabs { order: 9; flex-basis: 100%; }
+  /* the menu lies down: one row of icons above the top bar, whatever its state, and no handle */
+  #app:not([hidden]) { display: block; }
+  .side, :root[data-side="min"] .side {
+    position: static; width: auto; height: auto; flex-direction: row; align-items: center; gap: 4px;
+    padding: 6px var(--gut); border-right: 0; border-bottom: 1px solid var(--border);
+  }
+  .side-head, :root[data-side="min"] .side-head { height: auto; padding: 0 8px 0 0; border-bottom: 0; }
+  .side-logo { display: none; }
+  .side-mark { display: block; }
+  .side-nav { padding: 0; }
+  .side-foot { display: flex; align-items: center; gap: 4px; margin: 0 0 0 auto; padding: 0; }
+  .side-rule { width: 1px; height: 20px; margin: 0 6px; }
+  .side .side-item { width: 38px; justify-content: center; padding: 0; gap: 0; }
+  .side-item > span { display: none; }
+  .side .side-handle { display: none; }
 }

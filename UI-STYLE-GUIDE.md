@@ -93,6 +93,7 @@ radii and fonts are the same.
 | `--bar-rest` | `rgba(165,164,250,.5)` | `rgba(165,164,250,.3)` | the pale part of a tile's meter |
 | `--term` / `--term-text` | `#1F1E1D` / `rgba(245,244,239,.86)` | `#101010` / `rgba(237,239,248,.86)` | the console, and the totals bar that closes a table |
 | `--term-bad` | `#EE786C` | `#EE786C` | a loss printed on the ink bar |
+| `--term-quiet` | `rgba(245,244,239,.43)` | `rgba(237,239,248,.43)` | a zero printed on the ink bar |
 | `--border` | `rgba(31,30,29,.11)` | `rgba(255,255,255,.10)` | every hairline |
 | `--border-2` | `rgba(31,30,29,.18)` | `rgba(255,255,255,.17)` | input/select borders |
 | `--rule` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.06)` | row dividers: table rows, the cells of the stats strip |
@@ -176,8 +177,8 @@ Fonts are **self-hosted in this repo** under `assets/fonts/`:
 
 | File | What | Usage rules |
 |---|---|---|
-| `hyros-logo-blue.svg` | The full Hyros logo (pixel mark + serif wordmark, brand blue) | Topbar (`.brand-logo`, 20px tall, the hyros.com nav size). Never retype "Hyros" in a live font. |
-| `hyros-mark-blue.svg` | The pixel mark alone | Favicon. |
+| `hyros-logo-blue.svg` | The full Hyros logo (pixel mark + serif wordmark, brand blue) | The top of the menu (`.side-logo`, 22px tall), drawn as a mask over `--brand` so it follows the theme. Never retype "Hyros" in a live font. |
+| `hyros-mark-blue.svg` | The pixel mark alone | Favicon, and the logo of the minimized menu (`.side-mark`, the same mask). |
 | `sven-lavender.svg` | Sven, the 13x15 pixel grid in lavender, `shape-rendering: crispEdges` | Gate (`.gate-sven`, 78px) and loading states (`.sven-load`, 52px, gentle 1.8s bob, off under reduced motion). Nowhere else. |
 | `sven-blue.png` | Legacy 28x32 blue Sven | Not referenced; kept only so the brand set is complete. |
 | `zebra-print.svg` | The brand zebra print: the 17 stripes, opaque, on no ground | The stage only (`.kpi-stage::before`), as a CSS mask over `--brand`. Its own fill is never shown, so it follows the theme. |
@@ -210,16 +211,36 @@ colourways (lavender here).
   cream2 dots left, the address centered in mono 11px (`app.hyros.com ·
   custom dashboard`). Never put a window or the dots bar on a view: inside
   the real app it is a frame in a frame.
-- **Topbar** `.topbar`: ONE 52px white bar, hairline bottom: the logo
-  (`.brand-logo`, 20px), the `.brand-sub` word "Custom Dashboard" (Inter
-  400, `--ink-2`, 13px, behind a hairline), the tabs (`.tabs`), a
-  `.spacer`, the account email (`.acct`, `--ink-2`,
-  12.5px) and the INK Refresh. The stylesheet also carries the topbar meta
+- **Menu** `.side`: the column on the left. White and flush, ONE hairline
+  on its right: no fill, no shadow, no print, so the stage stays the only
+  panel on the page. 228px wide, 64px minimized (`data-side="min"` on the
+  root, remembered in `localStorage`, read in `index.html` before the first
+  paint). From the top: the logo in a 52px row (`.side-head`) whose hairline
+  meets the top bar's in one corner; the sections (`.side-nav`), one today:
+  Dashboard with the home icon, which opens the first tab; and at the very
+  bottom (`.side-foot`) Return with the long arrow (a link back to
+  `https://app.hyros.com/custom`), a hairline (`.side-rule`), then Add
+  Feature with its plus in a hairline square on the right (`.side-plus`).
+  A row is a `.side-item`: 38px, radius 8, Inter 500 13.5px in `--ink-2`,
+  an 18px line icon; the current one wears the lavender pill of the active
+  tab. Minimized, the logo is the pixel mark alone and every row is its
+  icon alone with its name as the tooltip. The round handle on the edge
+  (`.side-handle`, 22px, on the corner where the two hairlines meet)
+  toggles it. Under 640px the menu lies down as one row of icons above the
+  top bar and has no handle. Inside HYROS the Return row is hidden
+  (`data-embedded` on the root): the frame's sandbox cannot navigate the
+  tab and the user is already in HYROS. Add Feature has no action yet.
+  Selectors keep `.side .side-item` specificity so the generic button and
+  link rules can never repaint a row; keep it if you touch them.
+- **Topbar** `.topbar`: ONE 52px white bar over the view, hairline bottom:
+  the tabs (`.tabs`), a `.spacer`, the account email (`.acct`, `--ink-2`,
+  12.5px) and the INK Refresh. The logo lives in the menu, not here. The
+  stylesheet also carries the topbar meta
   line for a shell that shows more context: account meta in 12.5px with
   quiet dot separators (`.meta`) and the attribution model as a purple mono
   label with a 6px purple dot (`.meta-pill`, "Model · ..."); the topbar does
   not render them today.
-- **Tabs (views)** `.tabs .tab`: the app nav, inside the topbar (a row of
+- **Tabs (views)** `.tabs .tab`: the views of the dashboard, first in the topbar (a row of
   its own under 640px): 12.5px items, radius 6; the
   active one is a lavender pill in purple 500. Selectors keep
   `.tabs button.tab` specificity so the generic button hover can never

@@ -215,3 +215,40 @@ test('every color token of the white theme has a value in the dark theme too', (
   }
   for (const name of dark.keys()) assert.ok(white.has(name), `${name} is only in the dark theme`);
 });
+
+test('the menu: the logo, Dashboard, and at the very bottom Return, a rule, then Add Feature', () => {
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const side = html.slice(html.indexOf('<aside class="side"'), html.indexOf('</aside>'));
+  assert.ok(side.length > 0, 'index.html has the menu');
+  const order = ['class="side-head"', 'id="sideHome"', 'class="side-foot"', 'side-return', 'class="side-rule"', 'id="sideAdd"'].map((part) => side.indexOf(part));
+  assert.ok(order.every((at) => at >= 0), 'every part of the menu is there');
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'the parts come in the designed order');
+  assert.match(side, /<a class="side-item side-return" href="https:\/\/app\.hyros\.com\/custom"/, 'Return goes back to the HYROS app');
+  assert.match(side, />Dashboard<\/span>/);
+  assert.match(side, /<span>Add Feature<\/span><i class="side-plus">/, 'the plus sits right of the words');
+  assert.ok(html.indexOf('<aside class="side"') < html.indexOf('<header class="topbar">'), 'the menu comes before the top bar: it is on the left');
+  const topbar = html.slice(html.indexOf('<header class="topbar">'), html.indexOf('</header>'));
+  assert.equal(/logo/.test(topbar), false, 'the logo lives in the menu, not in the top bar');
+});
+
+test('a minimized menu is remembered under one key, read before the first paint', () => {
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const app = readFileSync(join(SRC, 'app.js'), 'utf8');
+  const key = app.match(/const SIDE_STORAGE_KEY = '([^']+)';/)?.[1];
+  assert.ok(key, 'src/app.js names the key');
+  assert.ok(html.includes(`localStorage.getItem('${key}') === 'min'`), 'index.html reads the same key');
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /:root\[data-side="min"\] \.side \{/);
+  assert.match(css, /:root\[data-embedded\] \.side-return \{ display: none; \}/, 'inside HYROS the Return row is off');
+});
+
+test('a zero on the totals bar dims its text, never the cell: the ink bar stays solid', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...css.matchAll(/([^{}]*tfoot[^{}]*)\{([^{}]*)\}/g)];
+  assert.ok(rules.length > 0);
+  for (const [, selector, body] of rules) {
+    const opacity = body.match(/opacity:\s*([\d.]+)/);
+    if (opacity) assert.equal(Number(opacity[1]), 1, `${selector.trim()} fades a cell of the totals bar`);
+  }
+  assert.match(css, /tfoot td\.zero, tfoot td\.hy\.zero \{[^}]*color: var\(--term-quiet\)[^}]*opacity: 1/);
+});

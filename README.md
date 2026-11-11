@@ -45,7 +45,7 @@ dashboard at its own url
 - `src/views/`: one folder per tab. `src/views/registry.js` lists the
   template's tabs and `src/views/custom.js` the account's own.
   `src/views/_template/` is the skeleton of a new one.
-- `src/app.js`: boot, the connection gate, header, tabs, Refresh.
+- `src/app.js`: boot, the connection gate, the menu on the left, header, tabs, Refresh.
 - `styles.css` and `assets/`: the design system, the self-hosted fonts and
   the brand assets.
 
