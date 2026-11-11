@@ -70,9 +70,10 @@ the rules for adding views are in `AGENTS.md` and `VIEWS.md`.
 
 ## Design system
 
-The HYROS CL1 look: a cream ground, white windows with a hairline and a
-mono address bar, mono labels, serif figures, Inter for the rest, and one
-purple accent that marks what HYROS attributed or selected. Every color is
+The HYROS CL1 look: a white page with no outer box, the headline numbers
+on one lavender stage with the brand print, tables from edge to edge, mono
+labels, serif figures, Inter for the rest, and one purple accent that marks
+what HYROS attributed or selected. Every color is
 a token in `styles.css`; fonts and brand assets are self-hosted under
 `assets/`. Read `UI-STYLE-GUIDE.md` before any visual change.
 

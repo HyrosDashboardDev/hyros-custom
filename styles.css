@@ -39,7 +39,7 @@
   color-scheme: light;
 
   /* grounds (hyros.com CL1 tokens) */
-  --bg:        #FAF9F5;  /* cream page ground */
+  --bg:        #FAF9F5;  /* warm cream: the ground of the sign-in screen only. The dashboard itself is white (--surface) */
   --surface:   #FFFFFF;  /* windows, cards, the chrome */
   --surface-2: #FCFBF8;  /* tiles, header rows, quiet cards */
   --surface-3: #F6F5F0;  /* panel ground, hovers */
@@ -62,6 +62,7 @@
   --ink-3:     #8B8984;  /* mono labels, quiet text */
   --ink-hover: #000000;  /* the primary button under the pointer */
   --on-ink:    #FFFFFF;  /* text on an ink fill (the primary button) */
+  --on-brand:  #FFFFFF;  /* text on a brand fill (the highlight tile on a stage) */
 
   /* THE accent */
   --brand:     #5150F6;  /* what HYROS attributed / changed / selected */
@@ -89,6 +90,8 @@
   --r-btn:   7px;   /* buttons, inputs, selects */
   --r-tile:  10px;  /* KPI tiles, notes */
   --r-win:   12px;  /* windows, cards, panels */
+  --r-stage: 14px;  /* the stage */
+  --gut:     20px;  /* the page gutter: the top bar and every view start and end on it */
   --radius:  var(--r-win);
   --shadow-card: 0 12px 34px -26px rgba(31,30,29,.35);
   --shadow-win:  0 2px 4px -2px rgba(31,30,29,.06), 0 34px 64px -38px rgba(31,30,29,.42);
@@ -130,6 +133,7 @@
   --ink-3:     #8D8D8D;
   --ink-hover: #FFFFFF;
   --on-ink:    #181818;
+  --on-brand:  #181818;
 
   --brand:     #9796FB;
   --brand-2:   #B4B3FD;
@@ -176,7 +180,7 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -220,15 +224,12 @@ button.drill:active, button.name-drill:active, .cohort-row:active { transform: n
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%;
 }
 
-/* a band of a window: a padded strip. A view stacks bands (controls, tiles, a
-   chart) and ends on its table; a rule separates each from the next. */
-.win > .band { padding: 14px 16px 16px; }
-.win > .band + .band, .win > .band + .table-wrap { border-top: 1px solid var(--rule); }
-.win > .band > :last-child { margin-bottom: 0; }
 
 /* ---------- gate ---------- */
+/* the sign-in screen keeps the cream ground, so its one window reads as an object */
 .gate {
   min-height: 100vh; display: grid; place-items: center; padding: 24px; position: relative;
+  background: var(--bg);
 }
 .gate-theme { position: absolute; top: 16px; right: 16px; }
 .gate-card { width: min(420px, 100%); padding: 0; text-align: center; }
@@ -246,7 +247,7 @@ button.drill:active, button.name-drill:active, .cohort-row:active { transform: n
 /* one bar: the logo, the tabs, then the account and the action */
 .topbar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  min-height: 52px; padding: 8px 20px; background: var(--surface);
+  min-height: 52px; padding: 8px var(--gut); background: var(--surface);
   border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
 }
 .brand { display: flex; align-items: center; }
@@ -334,10 +335,11 @@ button.primary:hover:not(:disabled) { background: var(--ink-hover); border-color
 .tabs button.tab:hover:not(:disabled) { background: var(--surface-3); border-color: transparent; color: var(--ink); }
 .tabs button.tab.active, .tabs button.tab.active:hover:not(:disabled) { color: var(--brand); background: var(--lavbg); font-weight: 500; }
 
-.panel { padding: 20px 20px 56px; }
+/* the page: white from edge to edge. A view has no outer box; it starts on the gutter. */
+.panel { padding: 12px var(--gut) 56px; }
 .panel[hidden] { display: none; }
 /* a section heading inside a view: a mono label with room for a count beside it */
-.section { margin: 22px 2px 10px; display: flex; gap: 10px; align-items: baseline; }
+.section { margin: 22px 0 10px; display: flex; gap: 10px; align-items: baseline; }
 
 /* ---------- controls ---------- */
 .controls {
@@ -382,8 +384,6 @@ input::placeholder { color: var(--ink-3); }
   border-radius: var(--r-tile); padding: 10px 14px 9px; position: relative;
   box-shadow: var(--shadow-tile);
 }
-/* inside a window the tile is the quiet cream card: the window is the lit surface */
-.win .kpi, .win .stats { background: var(--surface-2); box-shadow: none; }
 .kpi-label { margin-bottom: 5px; }
 .kpi-value {
   font-family: var(--serif); font-weight: 400; font-size: 23px; line-height: 1.05; white-space: nowrap;
@@ -400,7 +400,7 @@ input::placeholder { color: var(--ink-3); }
 .kpi-meter { flex: 1 1 24px; min-width: 24px; max-width: 54px; height: 5px; border-radius: 3px; background: var(--brand); overflow: hidden; }
 .kpi-meter i { display: block; height: 100%; background: var(--bar-rest); box-shadow: 2px 0 0 var(--lavbg); }
 /* the HYROS-attributed figure: the highlight tile (the site's .eo-kpi.is-ltv) */
-.kpi.hy, .win .kpi.hy { background: var(--lavbg); border-color: var(--brand-line); }
+.kpi.hy { background: var(--lavbg); border-color: var(--brand-line); }
 .kpi.hy .kpi-value, .kpi.hy .kpi-sub { color: var(--brand); }
 /* the strip under the tiles: the counts that support the headline figures, one line each */
 .stats {
@@ -421,6 +421,37 @@ input::placeholder { color: var(--ink-3); }
   .stat:nth-child(odd) { border-left: 0; }
   .stat:nth-child(n+3) { border-top: 1px solid var(--rule); }
 }
+/* ---------- the stage (the site's lavender zebra panel) ---------- */
+/* A view's headline numbers sit on ONE stage: a lavender panel with the brand
+   print, the tiles white and lifted on it. A picture that belongs with them (a
+   chart) rides the stage in a .stage-card. Everything else in the view sits
+   straight on the white page. */
+.kpi-stage {
+  position: relative; isolation: isolate; overflow: hidden;
+  margin: 0 0 16px; padding: 16px 18px 18px;
+  border-radius: var(--r-stage); background: var(--lavbg);
+}
+/* the print: the brand zebra, cut out of the brand color by a mask, so it follows the theme */
+.kpi-stage::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--brand); opacity: .07;
+  -webkit-mask: url("assets/brand/zebra-print.svg") center / cover no-repeat;
+  mask: url("assets/brand/zebra-print.svg") center / cover no-repeat;
+}
+.kpi-stage > :last-child, .kpi-stage > .kpis:last-child { margin-bottom: 0; }
+.kpi-stage .kpi-range { color: var(--ink-2); }
+.kpi-stage .kpi, .kpi-stage .stats, .stage-card {
+  background: var(--surface); border-color: transparent; box-shadow: var(--shadow-tile);
+}
+.stage-card { min-width: 0; padding: 12px 14px 14px; border: 1px solid transparent; border-radius: var(--r-tile); }
+/* on a stage the HYROS-attributed figure is the solid brand block (the site's highlight) */
+.kpi-stage .kpi.hy { background: var(--brand); }
+.kpi-stage .kpi.hy .kpi-label, .kpi-stage .kpi.hy .kpi-value, .kpi-stage .kpi.hy .kpi-sub { color: var(--on-brand); }
+.kpi-stage .kpi.hy .kpi-label { opacity: .78; }
+.kpi-stage .kpi.hy .kpi-meter { background: var(--on-brand); }
+.kpi-stage .kpi.hy .kpi-meter i { background: var(--lav); box-shadow: 2px 0 0 var(--brand); }
+@media (max-width: 640px) { .kpi-stage { padding: 14px 14px 16px; } }
+
 /* the entrance: one soft beat when a view paints fresh data. A view opts in by
    putting .is-fresh on the painted container for that paint only, so a re-sort
    or a filter never replays it. */
@@ -441,6 +472,13 @@ input::placeholder { color: var(--ink-3); }
   overflow: auto; background: var(--surface); max-height: 68vh;
   box-shadow: var(--shadow-card);
 }
+/* the table a view ends on runs from edge to edge: it steps out of the page gutter,
+   and its first and last cells keep the gutter so the text still lines up with the page */
+.table-wrap.bleed {
+  margin-inline: calc(-1 * var(--gut)); border-left: 0; border-right: 0; border-radius: 0; box-shadow: none;
+}
+.bleed th:first-child, .bleed td:first-child { padding-left: var(--gut); }
+.bleed th:last-child, .bleed td:last-child { padding-right: var(--gut); }
 table { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { padding: 10px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); font-size: 13px; }
 th:first-child, td:first-child { text-align: left; }
@@ -752,8 +790,8 @@ table.dense .pill { font-size: 9.5px; padding: 2px 5px; }
 .set-stages .empty { padding: 0; font-size: 12px; text-align: left; }
 
 @media (max-width: 640px) {
-  .panel { padding: 14px 14px 40px; }
-  .topbar { padding: 8px 14px; }
+  body { --gut: 14px; }
+  .panel { padding-bottom: 40px; }
   /* the tabs take a row of their own under the logo */
   .tabs { order: 9; flex-basis: 100%; margin-left: 0; }
 }

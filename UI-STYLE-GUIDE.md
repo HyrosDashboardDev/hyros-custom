@@ -20,18 +20,23 @@ any `src/**/*.js` or `src/views/**/style.css`. Keep it that way.
 
 ## 1. Principles
 
-1. **A ground, and windows on it.** In the white theme the page is warm cream
-   (`--bg`) and product lives in white windows; in the dark theme the ground
-   is the HYROS dark grey and the windows a step lighter. Either way a window
-   has a hairline, radius 12 and a cast shadow (`.win`). **A view's main
-   surface is ONE window** that holds its controls, tiles, chart and table
-   (the Performance Report is the reference): the report is the object on
-   the page, never loose pieces on the ground. The three-dot bar with a
-   centered mono address (`.winbar`) is for the gate only, where the window
-   is the whole screen. The theme is HYROS's choice, never the
-   dashboard's: a view never forces one or paints a surface outside the
-   tokens. INK is reserved for the console, the primary button and the
-   totals bar that closes a table.
+1. **A white page, and one stage on it.** The dashboard runs inside HYROS,
+   which already frames it in a card, so it draws no ground and no outer box
+   of its own: the page is the surface (`--surface`, white in the white
+   theme, the HYROS dark grey in the dark one) from edge to edge, and the
+   top bar and every view start on the page gutter (`--gut`, 20px). **A
+   view's headline numbers sit on ONE stage** (`.kpi-stage`): a lavender panel
+   with the brand zebra print, the tiles white and lifted on it (the
+   Performance Report is the reference). Everything else sits straight on
+   the page, and the table a view ends on runs from edge to edge
+   (`.table-wrap.bleed`). Never wrap a view in a box and never paint a
+   ground behind it: a box inside the HYROS card reads as a frame in a
+   frame, and a tinted ground as a dirty margin. The window (`.win`) with
+   its three-dot bar and centered mono address (`.winbar`) is for the gate
+   only, where it is the whole screen and sits on the cream `--bg`. The
+   theme is HYROS's choice, never the dashboard's: a view never forces one
+   or paints a surface outside the tokens. INK is reserved for the console,
+   the primary button and the totals bar that closes a table.
 2. **Purple marks what HYROS did.** Brand purple paints what HYROS attributed,
    changed or selected: the attributed Revenue/ROAS columns (the lavender
    band), the highlight KPI tile, the active tab, sorted headers, the link
@@ -77,12 +82,12 @@ radii and fonts are the same.
 
 | Token | White | Dark | Use |
 |---|---|---|---|
-| `--bg` | `#FAF9F5` | `#181818` | the page ground |
-| `--surface` | `#FFFFFF` | `#1E1E1E` | windows, cards, the chrome |
-| `--surface-2` | `#FCFBF8` | `#222222` | KPI tiles, table header rows, quiet cards, drawer head |
+| `--bg` | `#FAF9F5` | `#181818` | the ground of the gate (the sign-in screen) only; the dashboard itself is `--surface` |
+| `--surface` | `#FFFFFF` | `#1E1E1E` | the page, the chrome, cards, the tiles on a stage |
+| `--surface-2` | `#FCFBF8` | `#222222` | table header rows, notes, quiet cards, drawer head |
 | `--surface-3` | `#F6F5F0` | `#262626` | panel ground, hovers, bar tracks |
 | `--surface-4` | `#EDEBE3` | `#2E2E2E` | segmented-control tracks, window-bar dots |
-| `--lavbg` | `#EEEEFB` | `#24233F` | the HYROS band: active tab, highlight tile, purple pills, attributed cells under the pointer |
+| `--lavbg` | `#EEEEFB` | `#24233F` | the stage, and the HYROS band: active tab, purple pills, attributed cells under the pointer |
 | `--lavbg-2` | `#F4F4FD` | `#1F1E33` | the HYROS band at rest: attributed table cells |
 | `--lav` | `#A5A4FA` | `#A5A4FA` | lavender data: share bars, chart bars, Sven; HYROS figures on the ink totals bar |
 | `--bar-rest` | `rgba(165,164,250,.5)` | `rgba(165,164,250,.3)` | the pale part of a tile's meter |
@@ -90,7 +95,7 @@ radii and fonts are the same.
 | `--term-bad` | `#EE786C` | `#EE786C` | a loss printed on the ink bar |
 | `--border` | `rgba(31,30,29,.11)` | `rgba(255,255,255,.10)` | every hairline |
 | `--border-2` | `rgba(31,30,29,.18)` | `rgba(255,255,255,.17)` | input/select borders |
-| `--rule` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.06)` | row dividers inside a window |
+| `--rule` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.06)` | row dividers: table rows, the cells of the stats strip |
 | `--chip-hover` | `rgba(255,255,255,.55)` | `rgba(255,255,255,.06)` | a segmented-control chip under the pointer |
 | `--count-fill` | `rgba(31,30,29,.06)` | `rgba(255,255,255,.08)` | the count inside a chip |
 | `--glass` | `rgba(255,255,255,.88)` | `rgba(24,24,24,.88)` | the sticky horizontal scrollbar |
@@ -100,6 +105,7 @@ radii and fonts are the same.
 | `--ink-3` | `#8B8984` | `#8D8D8D` | mono labels, quiet text |
 | `--ink-hover` | `#000000` | `#FFFFFF` | the primary button under the pointer |
 | `--on-ink` | `#FFFFFF` | `#181818` | text on an INK fill (the primary button) |
+| `--on-brand` | `#FFFFFF` | `#181818` | text on a brand fill (the highlight tile on a stage) |
 | `--brand` | `#5150F6` | `#9796FB` | THE accent: what HYROS attributed, changed or selected |
 | `--brand-2` | `#403FD4` | `#B4B3FD` | purple hover |
 | `--brand-line` | `rgba(81,80,246,.3)` | `rgba(151,150,251,.35)` | the border of a lavender pill, badge or tile |
@@ -120,20 +126,23 @@ hairlines are not part of this system.
 ## 3. Shape and elevation
 
 - `--r-btn: 7px` buttons, inputs, selects. `--r-tile: 10px` KPI tiles and
-  notes. `--r-win: 12px` windows, cards, panels. `6px` for tabs, chips,
-  badges and pills; `999px` only for journey-step and multiplier pills.
+  notes. `--r-win: 12px` windows, cards, panels. `--r-stage: 14px` the
+  stage. `6px` for tabs, chips, badges and pills; `999px` only for
+  journey-step and multiplier pills.
+- `--gut: 20px` (14px under 640px) is the page gutter: the top bar, every
+  view and the first and last cell of an edge to edge table line up on it.
 - `--shadow-win: 0 2px 4px -2px rgba(31,30,29,.06), 0 34px 64px -38px
-  rgba(31,30,29,.42)` for windows (`.win`): the deep cast that makes a view
-  the object on the page. `--shadow-tile: 0 1px 2px rgba(31,30,29,.05),
-  0 10px 22px -16px rgba(31,30,29,.28)` for a KPI tile that sits on the
-  page ground (inside a window a tile has none).
+  rgba(31,30,29,.42)` for the window (`.win`): the deep cast under the gate
+  card. `--shadow-tile: 0 1px 2px rgba(31,30,29,.05),
+  0 10px 22px -16px rgba(31,30,29,.28)` for what sits on a stage: a KPI
+  tile, the stats strip, a `.stage-card`.
   `--shadow-card: 0 12px 34px -26px rgba(31,30,29,.35)` for cards and bare
   table wraps. `--shadow-pop: 0 24px 50px -30px rgba(31,30,29,.4)` for
   floating panels; the drawer carries its own left-cast shadow
   (`--shadow-drawer`). In the dark theme a shadow barely shows, so cards and
   chips have none and the hairline carries the edge.
 - Borders are always 1px hairlines (`--border`; `--border-2` on inputs);
-  row dividers inside a window use `--rule`.
+  row dividers use `--rule`.
 
 ## 4. Typography
 
@@ -171,6 +180,7 @@ Fonts are **self-hosted in this repo** under `assets/fonts/`:
 | `hyros-mark-blue.svg` | The pixel mark alone | Favicon. |
 | `sven-lavender.svg` | Sven, the 13x15 pixel grid in lavender, `shape-rendering: crispEdges` | Gate (`.gate-sven`, 78px) and loading states (`.sven-load`, 52px, gentle 1.8s bob, off under reduced motion). Nowhere else. |
 | `sven-blue.png` | Legacy 28x32 blue Sven | Not referenced; kept only so the brand set is complete. |
+| `zebra-print.svg` | The brand zebra print: the 17 stripes, opaque, on no ground | The stage only (`.kpi-stage::before`), as a CSS mask over `--brand`. Its own fill is never shown, so it follows the theme. |
 
 Pixel art rule: Sven is a fixed grid. Render the SVG, never smooth-scale a
 raster, never add badges, shadows or recolouring outside the brand
@@ -178,20 +188,28 @@ colourways (lavender here).
 
 ## 6. Component patterns (the dashboard kit, applied)
 
-- **Window** `.win`: white, hairline, radius 12, `--shadow-win`. A view
-  puts its whole surface in one: a controls strip with a `--rule` line
-  under it, the tiles band, then the table flush to the edges (a
-  `.table-wrap` inside a window drops its own border, radius and shadow).
-  Controls inside a window run one step smaller than on the page (12 to
-  12.5px). The simple recipe is bands: `<div class="win">` holding
-  `<div class="band">` strips (16px padding, a `--rule` line between
-  them) and ending on a `.table-wrap`; `src/views/_template/` shows it.
-  The Performance Report is the full reference
-  (`src/views/report/style.css`, `.report-app`). The gate card is a window
-  too, and the only one with the bar (`.winbar`): three 9px cream2 dots
-  left, the address centered in mono 11px (`app.hyros.com · custom
-  dashboard`). Never put the dots bar on a view: inside the real app it is
-  costume, not chrome.
+- **The layout of a view**: no outer box. From the top: its controls
+  (`.controls`), its notes, ONE stage with the headline numbers, then the
+  content straight on the page under an `h2.section` label, ending on its
+  table from edge to edge. `src/views/_template/` shows the simple recipe;
+  the Performance Report is the full reference
+  (`src/views/report/style.css`, `.report-app`).
+- **Stage** `.kpi-stage` (not `.stage`, which is the lead-stage pill): the
+  lavender panel (`--lavbg`, radius 14, no border, no shadow) with the
+  brand zebra print over it. The print is
+  `assets/brand/zebra-print.svg` used as a mask over `--brand` at 7%, so it
+  follows the theme; never paint it as an image with its own colors. On a
+  stage the tiles and the stats strip are white (`--surface`) with
+  `--shadow-tile` and no border, the date range line reads `--ink-2`, and a
+  picture that belongs with the numbers (the report's bars) rides in a
+  `.stage-card` (the same white card, radius 10). **One stage per view**,
+  for the numbers only: no controls, no tables and no long text on it, and
+  a view without headline numbers has none.
+- **Window** `.win`: white, hairline, radius 12, `--shadow-win`. For the
+  gate card only, and the only place with the bar (`.winbar`): three 9px
+  cream2 dots left, the address centered in mono 11px (`app.hyros.com ·
+  custom dashboard`). Never put a window or the dots bar on a view: inside
+  the real app it is a frame in a frame.
 - **Topbar** `.topbar`: ONE 52px white bar, hairline bottom: the logo
   (`.brand-logo`, 20px), the `.brand-sub` word "Custom Dashboard" (Inter
   400, `--ink-2`, 13px, behind a hairline), the tabs (`.tabs`), a
@@ -226,18 +244,20 @@ colourways (lavender here).
   `1 1 150px` between 130 and 250px so the row never wraps at desktop
   width.
 - **KPI tiles** `.kpi`: hairline, radius 10, mono label (`.kpi-label`),
-  23px serif figure (`.kpi-value`), mono context line (`.kpi-sub`). On the
-  page ground a tile is white with `--shadow-tile`; inside a window it is
-  the quiet `--surface-2` card with no shadow. Tiles share their row evenly
-  up to 300px each, so three tiles and eight both look placed.
+  23px serif figure (`.kpi-value`), mono context line (`.kpi-sub`). Tiles
+  belong on the stage, where they are white with `--shadow-tile` and no
+  border. Tiles share their row evenly up to 300px each, so three tiles
+  and eight both look placed.
   **A figure never stands alone**: give every tile a `sub`, context the
   view already holds (a share, a rate, a unit cost: "21% of revenue",
   "ROI 367%"), never a second call. `meter` (0 to 1) draws a 5px bar beside
   the sub line: the whole bar is the figure, the pale part (`--bar-rest`)
   the share the line names; the report uses it for what the platforms
   reported inside what HYROS attributed.
-  `.kpi.hy` is the highlight tile (lavender, purple figure and sub): the
-  HYROS-attributed Revenue KPI, **one per screen**; a view asks for it with
+  `.kpi.hy` is the highlight tile: on the stage the solid brand block
+  (`--brand`, text and meter in `--on-brand`, the pale part of the meter
+  `--lav`); off a stage it falls back to lavender with a purple figure. It
+  is the HYROS-attributed Revenue KPI, **one per screen**; a view asks for it with
   `cls: 'hy'` on that item of `ctx.kpis`. Money tones wear `.good`/`.bad` on
   the figure (`cls: 'good'` or `'bad'` puts them on `.kpi-value`).
   The date range prints ONCE above the tiles as `.kpi-range`, behind a 6px
@@ -248,7 +268,12 @@ colourways (lavender here).
   its cell. Four cells in a row, two under 1180px. A view asks for it with
   `minor: true` on those items of `ctx.kpis`. At most four headline tiles
   per view; the rest are minor.
-- **Tables**: white; sticky header row on `--surface-2` in mono uppercase;
+- **Tables**: the table a view ends on is `.table-wrap.bleed`: it steps
+  out of the page gutter and runs from edge to edge with a hairline above
+  and below, no side borders, no radius and no shadow, and its first and
+  last cells keep the gutter so the text lines up with the page. A small
+  table in the middle of a view stays a plain `.table-wrap` card. White;
+  sticky header row on `--surface-2` in mono uppercase;
   `--rule` dividers; 13px cells, `10px 14px` padding; sticky first column.
   Text columns are `th.txt`/`td.txt`
   (left aligned; numbers stay right aligned). Sorted headers wear `.sorted`
@@ -307,7 +332,7 @@ colourways (lavender here).
   (`.drawer-head button`), scrim `rgba(31,30,29,.32)`; timeline icons
   (`.tl-icon`) in `--surface-2` circles (sales, `.tl-sale`: lavender/purple);
   click paths (`.click-page`) in mono.
-- **Gate** `.gate` / `.gate-card`: a centered 420px window
+- **Gate** `.gate` / `.gate-card`: the one screen on the cream `--bg`, a centered 420px window
   (`app.hyros.com · custom dashboard`): Sven (`.gate-sven`), a purple mono
   kicker (`.gate-kick`), a 30px serif headline (a `<b>` inside it turns
   purple), the explanation text, and the INK "Try again" when the

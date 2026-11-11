@@ -504,6 +504,7 @@ test('the report tiles: four headline figures with context from the same totals,
   const html = kpiHtml({ ...ctx, kpis }, rows, { model: 'LAST_CLICK', range: RANGE, window: 0 });
   assert.equal((html.match(/class="kpi( hy)?"/g) || []).length, 4);
   assert.equal((html.match(/class="stat"/g) || []).length, 4);
+  assert.match(html, /^<div class="kpi-stage report-top">/, 'the numbers sit on the stage');
   assert.match(html, /class="kpi-value">\$1,850<\/div>/, 'whole units from 1,000 up');
   assert.match(html, /class="kpi-value">3\.62×<\/div>/);
   assert.match(html, /<span>28% of revenue<\/span>/);
@@ -516,6 +517,7 @@ test('the report tiles: four headline figures with context from the same totals,
   assert.match(html, /<span>2\.76% CTR<\/span>/);
 
   const chart = chartHtml(ctx, rows);
+  assert.match(chart, /^<div class="report-chart stage-card">/, 'the bars ride the stage in a card');
   assert.equal((chart.match(/class="report-barcol"/g) || []).length, 2);
   assert.ok(chart.indexOf('Retarget') < chart.indexOf('Prospecting'), 'bars keep the order of the rows');
   assert.equal(chart.includes('<b>'), false, 'row names are escaped');
@@ -545,5 +547,5 @@ test('a table cell steps back when it has nothing to say, and so do the cents th
   assert.match(html, /<td class="bad">-\$1,140<span class="cents">\.00<\/span><\/td>/);
   assert.match(html, /<td class="hy zero">-<\/td>/);
   assert.equal(html.includes('winbar'), false, 'the table carries no window bar of its own');
-  assert.match(html, /^<div class="table-wrap">/);
+  assert.match(html, /^<div class="table-wrap bleed">/, 'the table runs from edge to edge, in no box of its own');
 });

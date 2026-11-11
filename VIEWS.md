@@ -102,12 +102,15 @@ Use these before writing any CSS. `UI-STYLE-GUIDE.md` explains each one.
   `.is-fresh` on the container a view paints after a load plays their
   entrance once (leave it off a repaint that only re-sorts or filters).
 - Section titles: `h2.section`, with `.rowcount` beside the title.
-- Windows: `.win`. A view puts its whole surface in one window, made of
-  `.band` strips (controls, tiles, a chart) and ending on its
-  `.table-wrap` (`src/views/_template/` is the recipe, the Performance
-  Report's `.report-app` the full reference). `.winbar` (three `<i></i>` dots and a `<span>` address) is
-  for the gate only.
-- Tables: `.table-wrap` around a `<table>`; `th.txt`/`td.txt` for text
+- The stage: `.kpi-stage` around the tiles (`<div class="kpi-stage">${tiles}</div>`),
+  one per view. The page is white and a view has no outer box: controls
+  and notes first, the stage, then the content straight on the page.
+  `.stage-card` is a white card on the stage for a picture that belongs
+  with the numbers (`src/views/_template/` is the recipe, the Performance
+  Report's `.report-app` the full reference). `.win` and `.winbar` (three
+  `<i></i>` dots and a `<span>` address) are for the gate only.
+- Tables: `.table-wrap` around a `<table>`, with `.bleed` on the table a
+  view ends on so it runs from edge to edge; `th.txt`/`td.txt` for text
   columns; `th.hy`/`td.hy` for the HYROS-attributed columns; `tfoot` for the
   totals row (the ink bar); `td.zero` on a zero or missing value and
   `<span class="cents">` around the cents of a money value, so both print

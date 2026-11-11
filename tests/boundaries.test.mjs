@@ -187,6 +187,24 @@ function tokensOf(css, selector) {
   return new Map([...block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 }
 
+test('every file styles.css loads exists: the fonts and the stage print', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const urls = [...new Set([...css.matchAll(/url\("([^"]+)"\)/g)].map((m) => m[1]))];
+  assert.ok(urls.includes('assets/brand/zebra-print.svg'), 'the stage print');
+  for (const url of urls) assert.ok(existsSync(join(ROOT, url)), `${url} is missing`);
+});
+
+test('the page draws no ground and no outer box: body is the surface, the cream is the gate\'s only', () => {
+  const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const uses = [...css.matchAll(/([^{}]+)\{[^{}]*var\(--bg\)[^{}]*\}/g)].map((m) => m[1].trim());
+  assert.deepEqual(uses, ['.gate']);
+  assert.match(css, /body \{[^}]*background: var\(--surface\)/);
+  for (const dir of readdirSync(join(SRC, 'views'), { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    const js = readFileSync(join(SRC, 'views', dir.name, 'view.js'), 'utf8');
+    assert.equal(/class="win[ "]/.test(js), false, `${dir.name}: a view is never wrapped in a window`);
+  }
+});
+
 test('every color token of the white theme has a value in the dark theme too', () => {
   const css = readFileSync(join(ROOT, 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   const white = tokensOf(css, ':root');

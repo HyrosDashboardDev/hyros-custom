@@ -124,17 +124,17 @@ Money as plain numbers in the account currency; derived metrics re-derived by
 `derive` after every sum (`aggregate`, `rollup`); nothing pre-formatted.
 
 ## View states
-- Data: the whole view is one window (`.win.report-app`). From the top: the
-  scope bar (level, range, model, window); the top band (`.report-top`) with
-  the range printed once (`.kpi-range`) and, under it, the coverage line
+- Data: the view has no outer box (`.report-app`, straight on the white
+  page). From the top: the scope bar (level, range, model, window); the
+  stage (`.kpi-stage.report-top`) with the range printed once (`.kpi-range`) and, under it, the coverage line
   (`.report-coverage`, `COVERAGE_NOTE`: ad accounts with a report level only;
   what HYROS credits to sources without an ad account or to an ad platform
   without a report level is not in the numbers), then four tiles over the
   visible rows (Cost, Total Revenue as the `hy` tile, Profit toned, ROAS) with
   a strip of four minor counts under them (Sales, Leads, Calls, Clicks) and,
-  beside them, the rows as bars (`chartHtml`); crumbs when the hierarchy is
+  beside them, the rows as bars in a `.stage-card` (`chartHtml`); crumbs when the hierarchy is
   drilled; the row with the level title and the table tools (search, hide zero
-  spend, ad accounts, columns); the table flush to the window with a `tfoot`
+  spend, ad accounts, columns); the table from edge to edge (`.table-wrap.bleed`) with a `tfoot`
   of totals (`aggregate` over the visible rows). The HYROS band (`th.hy`,
   `td.hy`) on Total Revenue, Revenue and ROAS.
 - Tiles: a money figure prints in whole units from 1,000 up, ROAS with `×`.

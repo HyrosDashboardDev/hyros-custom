@@ -1,7 +1,6 @@
 /* View-scoped styles only, linked by the shell when the view sets `style: true`.
    Prefix every class with the view id so two views never collide. The shared
-   kit (.win .band .note .kpis .stats .fpanel .fhint .fcols .fshare .pill .table-wrap .empty) is
+   kit (.kpi-stage .stage-card .note .kpis .stats .fpanel .fhint .fcols .fshare .pill .table-wrap .bleed .empty) is
    already styled in styles.css. Colors, fonts, radii and shadows come from the
    tokens in styles.css :root, never literals (UI-STYLE-GUIDE.md). */
-.my-view-panel .section { margin-top: 0; }
 .my-view-panel .empty { padding: 24px; color: var(--ink-3); }

@@ -15,8 +15,9 @@
  *          meter a 0..1 share drawn beside it, minor moves a count into the strip under
  *          the tiles; cls 'hy' marks the one highlight tile, 'good' or 'bad' tones the figure
  *
- * Layout (UI-STYLE-GUIDE.md): the view is ONE window (.win) made of bands (.band):
- * notes and tiles, then the content. A table goes last, flush, in a .table-wrap.
+ * Layout (UI-STYLE-GUIDE.md): the page is white and the view has no outer box.
+ * Notes first, then ONE stage (.kpi-stage) holding the tiles, then the content
+ * straight on the page. A table goes last, edge to edge, in a .table-wrap.bleed.
  *
  * Rules: no fetch and no imports from src/core/api.js, auth.js or config.js;
  * render is idempotent and builds everything into ctx.root.innerHTML; one
@@ -88,15 +89,9 @@ export const view = {
       : `<div class="empty">${result.error ? 'Nothing to show until sources load.' : 'No sources on this account.'}</div>`;
 
     root.innerHTML = `
-      <div class="win">
-        <div class="band">
-          ${statusLine(result, fmt, esc)}
-          ${tiles}
-        </div>
-        <div class="band my-view-panel">
-          <h2 class="section">Sources by traffic source <span class="rowcount">top ${TOP}, counted from GET /sources</span></h2>
-          ${body}
-        </div>
-      </div>`;
+      ${statusLine(result, fmt, esc)}
+      <div class="kpi-stage">${tiles}</div>
+      <h2 class="section">Sources by traffic source <span class="rowcount">top ${TOP}, counted from GET /sources</span></h2>
+      <div class="fpanel my-view-panel">${body}</div>`;
   },
 };

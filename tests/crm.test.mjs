@@ -285,6 +285,7 @@ test('a failed aggregation does not take the table down, and is tried again next
   assert.deepEqual(model.aggErrors, [{ name: 'firstSource', message: 'boom' }]);
   assert.equal(model.aggs.stage.total, 40);
   const html = tilesHtml(ctx, 'leads', model, { range: RANGE });
+  assert.match(html, /^<div class="kpi-stage"><div class="kpis"><div class="kpi-range">/, 'the tiles sit on the stage, under the range line');
   assert.match(html, /With a first source<\/div>\s*<div class="kpi-value">-</);
   fail = false;
   const n = api.calls.length;

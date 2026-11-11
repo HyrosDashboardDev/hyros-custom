@@ -54,9 +54,9 @@ and `attributionWindowDefault` from `trueTrackingData.LEAD_ATTRIBUTION_TIMEFRAME
 The view uses `email`, `timezone`, `currency` and `attributionWindowDefault`.
 
 ## View states
-- Data: five KPI tiles (Email, Timezone, Currency, Attribution timeframe,
-  Sources), a "Connection" line and the "Ad accounts" table (ID, Name, Type
-  as a pill).
+- Data: five KPI tiles on the stage (Email, Timezone, Currency, Attribution
+  timeframe, Sources), a "Connection" line and the "Ad accounts" table from
+  edge to edge (ID, Name, Type as a pill).
 - Connection: the API host the dashboard is using now, the one the next
   call goes to, which is not necessarily the host that served the numbers
   on screen. "Connection: direct" on the direct HYROS API host (or when the

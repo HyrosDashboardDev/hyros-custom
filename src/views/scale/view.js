@@ -260,7 +260,7 @@ function html(ctx, { accounts, end, today, curves, report }) {
       last-click credit: the cost of closing a customer). The saturation point is where the next unit of
       spend costs more than the CAC ceiling. Window ${esc(addDays(end, -89))} to ${esc(end)}.</div>
     ${controls}
-    ${tiles}
+    ${tiles ? `<div class="kpi-stage">${tiles}</div>` : ''}
     <h2 class="section">Ad accounts <span class="rowcount">${fmt.int(accountCurves.length)} of ${fmt.int(accounts.length)}</span></h2>
     ${accountBlock}
     ${allFailed ? '' : `<h2 class="section">Ad sets <span class="rowcount">top ${fmt.int(TOP_ADSETS)} by 30-day cost</span></h2>${adsetBlock}`}`;
@@ -293,7 +293,7 @@ function wire(ctx) {
 export const view = {
   id: 'scale',
   title: 'Scale',
-  version: '0.1.1',
+  version: '0.2.0',
   description: 'How far each ad account (and the top ad sets) can scale daily spend before the next customer costs more than the CAC ceiling.',
   style: true,
   tools: ['/user-info', '/leads', '/ad-accounts', '/attribution/marginal-cac-curve'],

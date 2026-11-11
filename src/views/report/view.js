@@ -67,7 +67,7 @@ function controlsHtml(ctx, { supported }) {
     </label>`).join('');
 
   return `
-    <div class="win report-app">
+    <div class="report-app">
     <div class="controls report-bar">
       <div class="chipset" role="tablist" aria-label="Level">${chips(LEVELS, state.level, 'level')}</div>
       <div class="chipset" aria-label="Range">${chips(RANGE_CHIPS, state.rangeKey, 'range')}</div>
@@ -298,7 +298,7 @@ export function tableHtml(ctx, rows, cols) {
     return `<td${cls ? ` class="${cls}"` : ''}>${cellText(esc, fmt, v, c.t)}</td>`;
   }).join('')}</tr>`;
 
-  return `<div class="table-wrap"><table>
+  return `<div class="table-wrap bleed"><table>
         <thead><tr>${head}</tr></thead><tbody>${body}</tbody><tfoot>${foot}</tfoot>
       </table></div>`;
 }
@@ -356,7 +356,7 @@ export function chartHtml(ctx, rows) {
         <div class="report-barv" style="height:${pct(r.totalRevenue)}"></div>
         ${r.reported > 0 ? `<div class="report-barm" style="bottom:${pct(r.reported)}"></div>` : ''}
       </div>`).join('');
-  return `<div class="report-chart">
+  return `<div class="report-chart stage-card">
       <div class="report-chart-head">
         <span class="k">Revenue by ${esc(LEVEL_LABEL[state.level].toLowerCase())}${rows.length > shown.length ? ` · first ${shown.length}` : ''}</span>
         <span class="report-leg"><i></i>HYROS<i class="is-mark"></i>Platform reported</span>
@@ -381,7 +381,7 @@ export function kpiHtml(ctx, rows, m) {
   const model = MODELS.find((x) => x.key === m.model)?.label || m.model;
   const range = `<div class="kpi-range">${esc(rangeLabel(m.range))} · ${esc(model)}${m.window ? ` · ${esc(fmt.int(m.window))}-day window` : ''}</div>`;
   const coverage = `<div class="report-coverage">${COVERAGE_NOTE}</div>`;
-  return `<div class="report-top"><div class="report-ctx">${range}${coverage}</div><div class="report-kcol">${tiles}</div>${chartHtml(ctx, rows)}</div>`;
+  return `<div class="kpi-stage report-top"><div class="report-ctx">${range}${coverage}</div><div class="report-kcol">${tiles}</div>${chartHtml(ctx, rows)}</div>`;
 }
 
 /** Paint the body from `current` (no calls). `fresh` marks the first paint of a load, the only one that plays the entrance. */
@@ -578,7 +578,7 @@ function emptyModel() {
 export const view = {
   id: 'report',
   title: 'Performance Report',
-  version: '0.2.0',
+  version: '0.3.0',
   description: 'What each traffic source, ad account, campaign, ad set and ad cost and earned, under the attribution model you pick.',
   style: true,
   tools: ['/user-info', '/leads', '/ad-accounts', '/attribution', '/sources'],
