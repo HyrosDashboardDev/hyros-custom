@@ -1,6 +1,6 @@
 ---
 name: update-from-template
-description: Bring the HYROS dashboard template's latest changes (fixes, new tabs, core updates) into this dashboard with a git merge that goes to production once the user confirms. Use when the user asks to update the dashboard, to get the template's latest version, fixes or tabs, or asks whether an update is available.
+description: Bring the HYROS dashboard template's latest changes (fixes, new tabs, core updates) into this dashboard, asking the user how each change that meets their customizations should apply, with a git merge that goes to production once the user confirms. Use when the user asks to update the dashboard, to get the template's latest version, fixes or tabs, or asks whether an update is available.
 ---
 
 # Update from the template
@@ -11,6 +11,11 @@ template's files into one new commit with no shared git history, so the
 first update anchors the history once; after that every update is a plain
 `git merge`. Run it only when the user asks. Nothing here changes `main`
 without the user's confirmation.
+
+The dashboard may have its own changes: its own tabs, template tabs it
+edited or copied, its own styles. Before merging, map what the template
+brings against those changes and ask the user how to apply each one that
+meets them, so they end with the template's fixes and their own work intact.
 
 GitHub access for `origin` (fetch, pull, push) depends on where you run,
 as "GitHub access and deploys" in `AGENTS.md` says: on the user's
@@ -39,7 +44,8 @@ git merge-base HEAD template/main || echo not-anchored
 ```
 
 **Anchored** (a commit is printed): the history already shares an ancestor
-with the template.
+with the template. That commit is `BASE`, the template commit the dashboard
+last took.
 
 ```bash
 git merge-base --is-ancestor template/main HEAD && echo up-to-date
@@ -59,8 +65,8 @@ elif [ "$BASE" = "$(git rev-parse template/main)" ]; then echo up-to-date
 else echo "BASE=$BASE"; git log --oneline --no-merges "$BASE..template/main"; fi
 ```
 
-Note the `BASE=` hash it prints: step 3 needs it, and a shell variable
-does not survive into the next command.
+Note the `BASE` hash: steps 3 to 5 need it, and a shell variable does not
+survive into the next command.
 
 Do not use `HEAD..template/main` here: before the anchor, git sees no
 shared history and lists every template commit ever made.
@@ -71,10 +77,99 @@ shared history and lists every template commit ever made.
   alone: without a base, every file the dashboard changed conflicts.
 - `up-to-date`: tell the user the dashboard already has the latest template
   and stop. Do not anchor: there is nothing to merge.
-- Otherwise: summarize what the commits listed bring and ask the user
-  whether to go on.
+- Otherwise: go on to step 3.
 
-## 3. Anchor the history (first update only)
+## 3. Map the update
+
+Read only: nothing changes until the user agrees to the plan at the end of
+this step.
+
+### 3a. What the dashboard changed
+
+```bash
+git diff --name-status <BASE> HEAD
+```
+
+lists every file the dashboard changed since the template commit it last
+took. Sort them:
+
+- **Own tabs:** `src/views/custom.js` and the `src/views/custom-*/`
+  folders. For each own tab, note the template files it imports (the
+  `import ... from` lines of its files: `src/core/`, `src/data/`,
+  `src/ui/`, or another tab's files such as `../report/columns.js`).
+- **Copied template tabs:** an own tab made from a template tab, usually
+  `custom-<id>` with `<id>` in `HIDDEN_VIEWS`. When it is not clear which
+  template tab a copy came from, ask.
+- **Edited template files:** everything else, such as a template tab
+  changed in place, `styles.css`, `index.html` or `AGENTS.md`.
+
+### 3b. What the template brings
+
+```bash
+git log --first-parent --reverse --format='%h %s' <BASE>..template/main
+```
+
+Each line is one change: a merged pull request (`Merge pull request #...`,
+whose commits `git log --oneline <hash>^1..<hash>^2` lists) or a commit made
+straight on the template's `main`. For each change, read what it does and
+the files it touches:
+
+```bash
+git diff --name-status <hash>^1 <hash>
+git diff <hash>^1 <hash> -- <file>
+```
+
+Also compare `TEMPLATE_VIEWS` in `git show <BASE>:src/views/registry.js`
+with the one in `git show template/main:src/views/registry.js`: the
+template may add or remove tabs.
+
+### 3c. Sort each change
+
+| The change | What happens |
+|---|---|
+| touches only files the dashboard did not change and its own tabs do not import | it applies. List it in the summary, with no question |
+| touches `src/core/` or `src/views/registry.js` | it applies: the rules say these are not edited. When the dashboard changed the same lines, tell the user what is replaced |
+| touches an edited template file | ask: keep the dashboard's version of those lines, take the template's, or combine both |
+| touches a template file an own tab imports | it applies. Note the own tab: step 5d checks it still works and asks before changing it |
+| touches a template tab the dashboard copied | it applies to the original, which stays hidden. Ask whether to bring the same change into the copy |
+| adds a template tab | ask whether to show it or hide it with `HIDDEN_VIEWS` |
+| removes a template tab listed in `HIDDEN_VIEWS` | tell the user; its id leaves `HIDDEN_VIEWS`, or `npm run check` fails |
+| touches `src/views/custom.js` or a `custom-*` folder | the template never does this. Never apply it without asking |
+
+"Take the template's" brings the template's change into the file; the
+dashboard's own changes to other lines of that file stay. "Keep the
+dashboard's" leaves the lines the template changed as the dashboard has
+them: tell the user git counts that change as taken, so later updates never
+bring it back, and the template's fixes to those lines will not reach the
+dashboard.
+
+### 3d. Dependencies between changes
+
+A change depends on an earlier one when it changes lines that one added, or
+uses something that one added or renamed: a function, an export, a class, a
+token, a file. Before asking, check each change the table says to ask about
+against the later changes in the list: search their diffs for the lines and
+names it adds (`git diff <later>^1 <later>`).
+
+When a change the user may keep out has later changes that depend on it,
+say so in the same question: keeping it out breaks those, so the choice is
+both in, both out, or a combination that keeps the dashboard's lines and
+adds what the later change needs. The same goes for an own tab that uses
+something a change removes or renames: say which tab and what it uses.
+
+### 3e. Ask and agree on the plan
+
+Ask about each change the table marks, in plain words: what it does in the
+dashboard, what the dashboard has there now, and the choices. One question
+per change, not per file; changes that depend on each other share one
+question. When the user wants a combination, such as moving the template's
+new feature into one of their own tabs, write how it will look and show it
+before going on.
+
+Then show the plan: the changes that apply with no question, each decision,
+and the own tabs step 5d will check. Go on only when the user agrees.
+
+## 4. Anchor the history (first update only)
 
 Only when step 2 printed `not-anchored`. Anchor on a local branch for the
 update, with the hash step 2 printed as `BASE=`:
@@ -88,19 +183,20 @@ git merge -s ours --allow-unrelated-histories --no-edit -m "Anchor to template c
 `-s ours` records `BASE` as a parent and keeps every file as it is: the
 merge changes no file, it only tells git where the dashboard came from.
 
-## 4. Merge
+## 5. Merge
 
 ```bash
 git switch template-update 2>/dev/null || git switch -c template-update
-git merge --no-edit template/main
+git merge --no-commit --no-ff template/main
 ```
 
 Git merges on its own every change that touches different lines on each
 side, including both sides' changes to the same file. What it cannot merge
 it leaves as conflict blocks (`<<<<<<<` dashboard, `=======`, template
-`>>>>>>>`), listed by `git status`. Work through them in this order.
+`>>>>>>>`), listed by `git status`. `--no-commit` stops before the merge
+commit, so the decisions of step 3 apply to both. Work in this order.
 
-### 4a. Tabs listed in `registry.js` (dashboards created before `custom.js`)
+### 5a. Tabs listed in `registry.js` (dashboards created before `custom.js`)
 
 When `src/views/custom.js` did not exist in the dashboard before this merge,
 its own tabs were listed in `VIEWS` in `src/views/registry.js`, and the
@@ -132,7 +228,7 @@ showing:
 
 Tell the user which tabs were renamed and which were hidden.
 
-### 4b. Own instructions in `CLAUDE.md` (dashboards created before `AGENTS.md`)
+### 5b. Own instructions in `CLAUDE.md` (dashboards created before `AGENTS.md`)
 
 The instructions moved from `CLAUDE.md` to `AGENTS.md`, which Claude Code
 and Cursor both read; `CLAUDE.md` is now only `@AGENTS.md`. When the
@@ -145,23 +241,25 @@ changes must move or they stop applying:
    show the user the result.
 3. Take the template's `CLAUDE.md` (`git checkout --theirs CLAUDE.md`).
 
-### 4c. Resolve each conflict
+### 5c. Apply the decisions to edited files
+
+For each edited template file a change touched, `git diff HEAD -- <file>`
+shows what the merge brings into the dashboard's version, conflict blocks
+included. Make it match the decisions of step 3:
+
+- **Take the template's:** keep what git merged; in a conflict block keep
+  the template's side, and the dashboard's lines outside it.
+- **Keep the dashboard's:** put back the dashboard's lines for that change
+  (`git show HEAD:<file>` has them) and leave the rest of the merge.
+- **Combine:** write what you showed the user.
 
 Resolve block by block, never a whole file at once: `git checkout --theirs`
 or `--ours` on a file also throws away the other side's changes that git
-had already merged in it.
-
-| Path | Conflict blocks |
-|---|---|
-| `src/core/`, `src/views/registry.js` | keep the template's side of each block. The rules say these are not edited, and a dashboard that keeps its own version stops receiving the template's fixes there. Tell the user what was replaced. |
-| everything else | the user decides, block by block |
-
-For a block the user decides, show both sides in plain words: what the
-dashboard has, what the template brings, and what each one does in the
-dashboard. The user keeps the dashboard's, the template's, or a combination
-you write and show them first. Group the small blocks of one file into one
-question. When a file was deleted on one side and changed on the other, ask
-whether to keep it.
+had already merged in it. Conflict blocks in `src/core/` and
+`src/views/registry.js` keep the template's side. A block step 3 did not
+foresee is asked the same way, showing both sides in plain words; when a
+file was deleted on one side and changed on the other, ask whether to keep
+it.
 
 When the user keeps their own version of a block in a template tab, tell
 them that tab will conflict again whenever the template changes the same
@@ -169,22 +267,70 @@ lines, and that the template's fixes there will not reach it. The way out,
 if they want it later: copy the tab to `custom-<id>`, keep their changes in
 the copy and hide the original with `HIDDEN_VIEWS` (the `add-view` skill).
 
-When the merge stopped on conflicts, `git add` the resolved paths and
-`git commit --no-edit`. A merge without conflicts already made its commit.
+`git add` each path once it is resolved.
+
+### 5d. Own tabs
+
+These are the user's files: change them only as agreed in step 3, or after
+asking.
+
+- **Changes brought into a copied tab:** apply the template's change to the
+  original onto the copy, then resolve what does not fit with the user
+  (the copy's id and class prefix differ, and the user changed it):
+
+  ```bash
+  git diff <BASE> template/main -- src/views/<id>/ \
+    | sed 's#src/views/<id>/#src/views/custom-<id>/#g' \
+    | git apply --3way
+  ```
+
+  Narrow the diff to the agreed change with `<hash>^1 <hash>` in place of
+  `<BASE> template/main` when the user wants only some of the changes to
+  that tab.
+
+  Every line the patch brings, applied cleanly or not, carries the
+  original's class prefix: rename it to the copy's (`<id>-` to
+  `custom-<id>-` in `view.js`, its sibling files and `style.css`), leaving
+  import paths alone. In conflict blocks, keep the copy's `id` and `title`
+  and the user's own changes; the rest is usually only the prefix, so take
+  the template's side with the copy's prefix.
+- **New and removed template tabs:** add to or take from `HIDDEN_VIEWS` in
+  `src/views/custom.js` as agreed.
+- **Own tabs that import a changed file:** check each import still exists
+  and still works the way the tab uses it. When it does not, tell the user
+  what changed and how you would fix the tab, and fix it only when they
+  agree. Fix the tab, never the template's file.
+
+Then check nothing else of the user's changed:
+
+```bash
+git diff HEAD --stat -- src/views/custom.js 'src/views/custom-*'
+```
+
+must list only what the user agreed to.
+
+### 5e. Commit the merge
+
+```bash
+git add <the resolved paths>
+git commit --no-edit
+```
 
 `template-update` is a local branch only: it keeps `main` untouched until
 the user confirms. Never push it.
 
-## 5. Check and confirm
+## 6. Check and confirm
 
-1. `npm run check` must pass. A failure in an own view usually means the
-   template changed something the view used: fix the view, not the
-   template's files.
-2. Give the user a summary: the template commits brought in, the tabs moved
-   to `custom.js`, and every conflict with the side kept.
+1. `npm run check` must pass. A failure in an own tab usually means the
+   template changed something the tab used: fix the tab (with the user's
+   agreement, as in 5d), not the template's files.
+2. Give the user a summary: the changes applied with no question, each
+   decision and the side kept, the changes brought into copied tabs, the
+   own tabs fixed, the tabs moved to `custom.js` or hidden, and the
+   template changes kept out, which later updates will not bring back.
 3. Ask the user to confirm the update goes to production.
 
-## 6. Production
+## 7. Production
 
 Only when the user confirms:
 
@@ -200,5 +346,4 @@ leave `main` as it is: `git switch main` and ask before deleting the
 `template-update` branch. It is not merged into `main`, so deleting it takes
 `git branch -D template-update`.
 
-The next update repeats steps 1, 2, 4, 5 and 6; step 3 is never needed
-again.
+The next update repeats every step but 4, which is never needed again.

@@ -127,7 +127,8 @@ This dashboard was generated from the public template
 `https://github.com/HyrosEngineeringAI/hyros-custom` (branch `main`). When
 the user asks to update the dashboard, or to bring in the template's latest
 fixes or tabs, follow the `update-from-template` skill. Never update
-without the user asking.
+without the user asking. Before merging, the skill asks the user how each
+template change that meets their own changes should apply.
 
 ## Where things are
 
