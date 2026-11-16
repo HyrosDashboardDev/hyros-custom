@@ -226,6 +226,7 @@ test('the menu: the logo, Dashboard, and at the very bottom Return, a rule, then
   assert.match(side, /<a class="side-item side-return" href="https:\/\/app\.hyros\.com\/custom"/, 'Return goes back to the HYROS app');
   assert.match(side, />Dashboard<\/span>/);
   assert.match(side, /<span>Add Feature<\/span><i class="side-plus">/, 'the plus sits right of the words');
+  assert.match(side, /<a class="side-item side-add" id="sideAdd" href="https:\/\/store\.hyros\.com\/plugins" target="_blank" rel="noopener"/, 'Add Feature opens the HYROS store in a new tab');
   assert.ok(html.indexOf('<aside class="side"') < html.indexOf('<header class="topbar">'), 'the menu comes before the top bar: it is on the left');
   const topbar = html.slice(html.indexOf('<header class="topbar">'), html.indexOf('</header>'));
   assert.equal(/logo/.test(topbar), false, 'the logo lives in the menu, not in the top bar');

@@ -270,8 +270,8 @@ const SIDE_STORAGE_KEY = 'hyros-dashboard-side';
 
 /**
  * The menu on the left. The handle minimizes it to the icons and the choice is
- * remembered; Dashboard opens the first view. Return is a plain link, and Add
- * Feature has no action yet.
+ * remembered; Dashboard opens the first view. Return and Add Feature (the HYROS
+ * store, in a new tab) are plain links.
  */
 function wireSidebar() {
   const root = document.documentElement;

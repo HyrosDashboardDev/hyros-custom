@@ -228,7 +228,8 @@ colourways (lavender here).
   toggles it. Under 640px the menu lies down as one row of icons above the
   top bar and has no handle. Inside HYROS the Return row is hidden
   (`data-embedded` on the root): the frame's sandbox cannot navigate the
-  tab and the user is already in HYROS. Add Feature has no action yet.
+  tab and the user is already in HYROS. Add Feature opens the HYROS store
+  (`https://store.hyros.com/plugins`) in a new tab, inside HYROS too.
   Selectors keep `.side .side-item` specificity so the generic button and
   link rules can never repaint a row; keep it if you touch them.
 - **Topbar** `.topbar`: ONE 52px white bar over the view, hairline bottom:
