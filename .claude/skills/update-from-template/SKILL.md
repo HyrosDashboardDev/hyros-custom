@@ -347,3 +347,12 @@ leave `main` as it is: `git switch main` and ask before deleting the
 `git branch -D template-update`.
 
 The next update repeats every step but 4, which is never needed again.
+
+## 8. The database files
+
+When the dashboard has a database (`api/_lib/` exists), its fixed files do
+not change with the merge: the update only brings the new `add-database`
+skill. Compare the `add-database v<N>` line of `api/_lib/auth.js` with the
+one of `.claude/skills/add-database/files/api/_lib/auth.js`. When the skill's
+is newer, tell the user the database functions have an update and offer to
+run the `add-database` skill, which replaces only the fixed files.

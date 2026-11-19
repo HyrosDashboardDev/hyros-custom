@@ -18,12 +18,17 @@
  * fallback of its channel; without it the page has no fallback for that
  * channel.
  *
+ * A dashboard with its own database (the add-database skill) has supabase/migrate.mjs: the build runs it
+ * first, so its schema changes deploy with the code that needs them, and a failing migration fails the
+ * build. Without that file this step does nothing.
+ *
  * Usage: HYROS_MCP_URL=<url> [HYROS_API_URL=<url>] [HYROS_FALLBACK_API_URL=<url>]
  *        [HYROS_FALLBACK_AUTH_URL=<url>] node build.mjs   (OUT_DIR defaults to public/)
  */
+import { existsSync } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveApiUrl } from './src/core/config.js';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -70,6 +75,17 @@ const fallbackAuthUrl = readUrl('HYROS_FALLBACK_AUTH_URL', 'fallback OAuth serve
 if (!resolveApiUrl(mcpUrl, { metaUrl: apiUrl })) {
   console.error(`HYROS_API_URL must be set: ${mcpUrl} is not the MCP of a known HYROS environment`);
   process.exit(1);
+}
+
+const migrations = join(ROOT, 'supabase', 'migrate.mjs');
+if (existsSync(migrations)) {
+  const { migrate } = await import(pathToFileURL(migrations).href);
+  try {
+    await migrate();
+  } catch (err) {
+    console.error(`Database migrations failed: ${err.code ? `${err.code} ` : ''}${err.message}`);
+    process.exit(1);
+  }
 }
 
 await rm(OUT, { recursive: true, force: true });
