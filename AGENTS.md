@@ -43,6 +43,10 @@ worked on by HYROS developers. Then:
   still authored as the repository owner, `HyrosEngineeringAI`: the session
   hooks set it here too.
 
+**A dashboard with its own database** has an `api/` folder: read `api/AGENTS.md`
+before changing anything there or in a view that saves data. To give a
+dashboard a database, follow the `add-database` skill.
+
 ## Read order
 
 1. `VIEWS.md`: the view contract (folder layout, the `view` object, `ctx`,

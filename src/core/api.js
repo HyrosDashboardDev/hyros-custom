@@ -109,6 +109,16 @@ export function configure({ url, routes = null, getToken, markInvalid, rateLimit
   inFlight.clear();
 }
 
+/**
+ * The token this client sends to HYROS, for the dashboard's own server functions under `/api` (`src/core/db.js`, which the
+ * `add-database` skill adds once the dashboard has a database). `markInvalid` reports a token those functions refused, so the next
+ * `getToken` brings a new one. Null before configure.
+ */
+export function credential() {
+  if (!cfg) return null;
+  return { getToken: (reason) => tokenFor(reason), markInvalid: (token) => cfg.markInvalid(token) };
+}
+
 /** The base the next call goes to and whether it is a fallback host; null before configure. */
 export function connection() {
   if (!cfg) return null;
