@@ -80,6 +80,11 @@ Then add the database client to `package.json`, keeping everything else:
 `"dependencies": { "postgres": "3.4.5" }`. Vercel installs it for the build
 and the functions; the page itself does not load it.
 
+Last, in `tests/add-database.test.mjs`, delete the test
+`'the template carries no database file outside the skill'` if it is still
+there. It holds only for the template, and fails once the files above are
+copied. Keep every other test in that file.
+
 ## 4. What the user needs
 
 Read `api/AGENTS.md` (just copied) and follow it:
