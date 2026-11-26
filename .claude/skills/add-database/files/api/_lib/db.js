@@ -1,4 +1,4 @@
-// add-database v1. Copied by the add-database skill: do not edit, run the skill again to update it.
+// add-database v2. Copied by the add-database skill: do not edit, run the skill again to update it.
 /**
  * The dashboard's own Postgres database, for the functions under `api/` only. The browser never sees
  * SUPABASE_DB_URL: HYROS sets it on the Vercel project as a sensitive variable when it creates the database.

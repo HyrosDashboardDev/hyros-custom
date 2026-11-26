@@ -1,15 +1,20 @@
-// add-database v1. Copied by the add-database skill: do not edit, run the skill again to update it.
+// add-database v2. Copied by the add-database skill: do not edit, run the skill again to update it.
 /**
- * Who is calling a route under `api/`. Those routes are public urls, so every request must carry the
- * dashboard's HYROS token (`Authorization: Bearer`), the same one the page sends to HYROS. The token is
- * checked with HYROS itself (`GET /user-info`), never locally: HYROS also refuses a token whose session was
- * killed or whose account was blocked. It must belong to the account that owns this dashboard, which HYROS
- * names in DASHBOARD_ACCOUNT_ID; a token of any other account is refused.
+ * Who is calling a route under `api/`. Those routes are public urls, so every request must carry a bearer
+ * token (`Authorization: Bearer`), and a route names who may call it (`route(..., { callers })`):
+ *
+ *   user   the page, with the dashboard's HYROS token. The token is checked with HYROS itself
+ *          (`GET /user-info`), never locally: HYROS also refuses a token whose session was killed or whose
+ *          account was blocked. It must belong to the account that owns this dashboard, which HYROS names in
+ *          DASHBOARD_ACCOUNT_ID; a token of any other account is refused.
+ *   cron   a Vercel cron job (`crons` in vercel.json), which sends CRON_SECRET, set by HYROS on the project
+ *          with the database. Compared here in constant time, before HYROS is ever asked, so the secret never
+ *          leaves the server.
  *
  * An accepted token is remembered for CACHE_MS by its hash, so most requests skip the round trip. The token
  * itself is never stored, logged or put in an error.
  */
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { HttpError } from './errors.js';
 
 export const CACHE_MS = 60000;
@@ -17,6 +22,9 @@ const MAX_CACHED = 500;
 const TIMEOUT_MS = 8000;
 
 const accepted = new Map();
+
+/** Who may call a route. */
+export const CALLERS = Object.freeze(['user', 'cron']);
 
 /** The bearer token of the request, or null. */
 export function bearer(req) {
@@ -72,6 +80,31 @@ export async function requireDashboardUser(req, options) {
   const token = bearer(req);
   if (!token) throw new HttpError(401, 'auth', 'Missing dashboard credential');
   return verifyWithHyros(token, options);
+}
+
+/** Whether `token` is CRON_SECRET, compared in constant time. False when the project has none. */
+export function isCronSecret(token, env = process.env) {
+  const secret = env.CRON_SECRET;
+  if (!secret || !token) return false;
+  const given = Buffer.from(String(token));
+  const expected = Buffer.from(String(secret));
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+/**
+ * Who is calling `req`, among the `callers` a route takes: `{ caller: 'user', user: { accountId, email } }`
+ * or `{ caller: 'cron', user: null }`, or an HttpError. The cron secret is recognized before anything else,
+ * so it is never sent to HYROS, and it opens only a route that takes the cron.
+ */
+export async function identifyCaller(req, callers = ['user'], options = {}) {
+  const token = bearer(req);
+  if (!token) throw new HttpError(401, 'auth', 'Missing dashboard credential');
+  if (isCronSecret(token, options.env)) {
+    if (callers.includes('cron')) return { caller: 'cron', user: null };
+    throw new HttpError(403, 'forbidden', 'This route does not take scheduled jobs');
+  }
+  if (!callers.includes('user')) throw new HttpError(401, 'auth', 'This route takes scheduled jobs only');
+  return { caller: 'user', user: await verifyWithHyros(token, options) };
 }
 
 /** Forgets every accepted token. For tests. */
