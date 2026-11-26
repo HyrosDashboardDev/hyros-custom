@@ -13,7 +13,8 @@ environment, never in the page.
 - **Every route checks the caller.** The routes are public urls. `route(...)` in `api/_lib/respond.js` sends
   the page's HYROS token to HYROS (`GET /user-info`) and accepts only the account that owns this dashboard
   (`DASHBOARD_ACCOUNT_ID`). A route a Vercel cron calls says so (`callers: ['cron']`, below) and is checked
-  against `CRON_SECRET` instead. Never write a handler without `route(...)`.
+  against `CRON_SECRET` instead. Never write a handler without `route(...)`. Only a webhook signed by its
+  provider lives outside `route()`, and it must verify that signature on the raw body before doing anything.
 - **The connection string never leaves the server.** `SUPABASE_DB_URL` is a sensitive Vercel variable,
   read only by `api/_lib/db.js` and `supabase/migrate.mjs`. Never print it, return it, bake it into the page
   or ask the user for it. Nobody can read it back, not even from Vercel.
