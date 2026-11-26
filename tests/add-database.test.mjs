@@ -16,7 +16,7 @@ const FILES = join(ROOT, '.claude', 'skills', 'add-database', 'files');
 const at = (path) => new URL(`../.claude/skills/add-database/files/${path}`, import.meta.url).href;
 
 const { HttpError, toResponse, badRequest, notFound } = await import(at('api/_lib/errors.js'));
-const { bearer, verifyWithHyros, requireDashboardUser, clearCache, CACHE_MS } = await import(at('api/_lib/auth.js'));
+const { bearer, verifyWithHyros, requireDashboardUser, identifyCaller, isCronSecret, clearCache, CACHE_MS } = await import(at('api/_lib/auth.js'));
 const { migrate, migrationFiles } = await import(at('supabase/migrate.mjs'));
 // src/core/db.js imports ./api.js: install it next to the template's core, as the skill does in a dashboard.
 const core = join(await mkdtemp(join(tmpdir(), 'core-')), 'src', 'core');
@@ -115,6 +115,33 @@ test('without the variables or HYROS the route is unavailable, never open', asyn
   await assert.rejects(verifyWithHyros('tok-1', { env: ENV, fetchFn: async () => { throw new Error('down'); } }), { status: 503, code: 'unavailable' });
   const noId = hyros(200, { email: 'owner@example.com' });
   await assert.rejects(verifyWithHyros('tok-1', { env: ENV, fetchFn: noId.fetchFn }), { status: 503 }, 'a profile without accountId is never accepted');
+});
+
+test('the cron secret is recognized in constant time, and never without one set', () => {
+  assert.equal(isCronSecret('cron-s3cret', { CRON_SECRET: 'cron-s3cret' }), true);
+  assert.equal(isCronSecret('cron-s3cre', { CRON_SECRET: 'cron-s3cret' }), false, 'a different length is refused');
+  assert.equal(isCronSecret('cron-s3creT', { CRON_SECRET: 'cron-s3cret' }), false);
+  assert.equal(isCronSecret('', { CRON_SECRET: '' }), false, 'an unset secret matches nothing');
+  assert.equal(isCronSecret('anything', {}), false);
+});
+
+test('a route takes the page by default; the cron secret opens only a route that takes the cron', async () => {
+  const env = { ...ENV, CRON_SECRET: 'cron-s3cret' };
+  const cronReq = { headers: { authorization: 'Bearer cron-s3cret' } };
+  const userReq = { headers: { authorization: 'Bearer tok-1' } };
+  const never = { env, fetchFn: () => assert.fail('the cron secret is never sent to HYROS') };
+
+  assert.deepEqual(await identifyCaller(cronReq, ['cron'], never), { caller: 'cron', user: null });
+  assert.deepEqual(await identifyCaller(cronReq, ['user', 'cron'], never), { caller: 'cron', user: null });
+  await assert.rejects(identifyCaller(cronReq, ['user'], never), { status: 403, code: 'forbidden' });
+  await assert.rejects(identifyCaller(cronReq, undefined, never), { status: 403 }, 'user only is the default');
+
+  const owner = hyros(200, { accountId: ACCOUNT, email: 'owner@example.com' });
+  assert.deepEqual(await identifyCaller(userReq, ['user', 'cron'], { env, fetchFn: owner.fetchFn }),
+    { caller: 'user', user: { accountId: ACCOUNT, email: 'owner@example.com' } });
+  await assert.rejects(identifyCaller(userReq, ['cron'], { env, fetchFn: () => assert.fail('a cron-only route asks HYROS nothing') }),
+    { status: 401, code: 'auth' });
+  await assert.rejects(identifyCaller({ headers: {} }, ['cron'], never), { status: 401 });
 });
 
 test('migrations run in name order and a badly named file fails the build', async () => {

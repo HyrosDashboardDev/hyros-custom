@@ -1,4 +1,4 @@
-// add-database v1. Copied by the add-database skill: do not edit, run the skill again to update it.
+// add-database v2. Copied by the add-database skill: do not edit, run the skill again to update it.
 /** The errors a route answers with, and how a thrown error maps to one. No dependency, so it is tested without a database. */
 
 /** An error with the HTTP status and the code the page reads (`src/core/db.js`). */

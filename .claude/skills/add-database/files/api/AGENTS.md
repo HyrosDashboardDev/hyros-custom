@@ -1,4 +1,4 @@
-<!-- add-database v1. Copied by the add-database skill: do not edit, run the skill again to update it. -->
+<!-- add-database v2. Copied by the add-database skill: do not edit, run the skill again to update it. -->
 # The dashboard's database
 
 This dashboard has its own Postgres database (Supabase), created by HYROS when the owner asked for it, and
@@ -12,7 +12,8 @@ environment, never in the page.
   under `/api/db/` on the dashboard's own origin. A view never calls `fetch`, the same rule as `ctx.data`.
 - **Every route checks the caller.** The routes are public urls. `route(...)` in `api/_lib/respond.js` sends
   the page's HYROS token to HYROS (`GET /user-info`) and accepts only the account that owns this dashboard
-  (`DASHBOARD_ACCOUNT_ID`). Never write a handler without `route(...)`.
+  (`DASHBOARD_ACCOUNT_ID`). A route a Vercel cron calls says so (`callers: ['cron']`, below) and is checked
+  against `CRON_SECRET` instead. Never write a handler without `route(...)`.
 - **The connection string never leaves the server.** `SUPABASE_DB_URL` is a sensitive Vercel variable,
   read only by `api/_lib/db.js` and `supabase/migrate.mjs`. Never print it, return it, bake it into the page
   or ask the user for it. Nobody can read it back, not even from Vercel.
@@ -56,6 +57,32 @@ export default route(['GET', 'POST', 'DELETE'], async ({ req, sql }) => {
   anything else answers 500 and stays in the function log.
 - Files under `api/_lib/` are not routes (the underscore). Shared helpers of your own go in
   `api/_lib/own/`, never in the fixed files.
+
+## Scheduled jobs (cron)
+
+Work that runs with nobody on the dashboard (syncing another tool, processing what a route saved) is a
+route that only a Vercel cron job may call:
+
+```js
+// api/cron/sync-notes.js
+import { route } from '../_lib/respond.js';
+
+export default route(['GET'], async ({ sql }) => {
+  const stale = await sql`select id from notes where synced_at is null order by created_at limit 20`;
+  // ...do the work for each row, within the function's time limit...
+  return { synced: stale.length };
+}, { callers: ['cron'] });
+```
+
+- Declare it in `vercel.json`, `crons`: `{ "path": "/api/cron/sync-notes", "schedule": "0 * * * *" }`. Vercel calls
+  it with GET and `Authorization: Bearer <CRON_SECRET>`, which HYROS sets on the project with the database.
+  The page cannot call it, and the cron secret opens no other route.
+- `callers` is `['user']` unless said otherwise. Give a route both (`['user', 'cron']`) only when the page and
+  the job really run the same thing; the handler then reads `caller`, and `user` is null for the cron.
+- Each run does a bounded batch (`limit`) and leaves the rest for the next one. A job that can overlap the
+  previous run marks the rows it takes before working on them.
+- Schedule within what the Vercel plan allows; a schedule the plan refuses fails the deploy, and the previous
+  deployment stays live.
 
 ## Limits to know
 

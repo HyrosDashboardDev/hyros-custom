@@ -1,4 +1,4 @@
-// add-database v1. Copied by the add-database skill: do not edit, run the skill again to update it.
+// add-database v2. Copied by the add-database skill: do not edit, run the skill again to update it.
 /**
  * The page's way to its own database: the routes the dashboard defines under `api/db/`, on the same origin as
  * the page. Views import it (`import { db } from '../../core/db.js'`) and never call `fetch`, the same rule as
